@@ -102,9 +102,7 @@ for i in range(len(states)):
         
     transitions[i] = available_states
     transition_rewards[i] = available_rewards
-    
-print(transitions)
-    
+        
 #%%
 
 Qtable = np.random.rand(*np.shape(transitions))
@@ -145,7 +143,7 @@ import Qlearning as ql
 agent = Qtable
 
 ev = ql.EvaluateGrid(qtable = agent,
-                     system = ql.GridSystem(states, goal_position[0], states, states_dict, transitions, transition_rewards, DistReward),
+                     system = ql.GridSystem(states, [3,3], states, states_dict, transitions, transition_rewards, DistReward),
                      n_eval_episodes=10000,
                      max_steps=40,
                      gamma=0.7)
