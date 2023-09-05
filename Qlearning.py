@@ -216,6 +216,117 @@ def TrainGrid(qtable,
     print("\nTraining finished.")
     return qtable
 
+def TrainGeneral(qtable,
+                  system,
+                  n_training_episodes,
+                  max_steps,
+                  min_epsilon,
+                  max_epsilon,
+                  decay_rate,
+                  gamma,
+                  learning_rate,
+                  verbosity=1000):
+
+    print("Training commensing...")
+    neg_one_counter = 0
+    done_counter_period = 0
+    episode_times = []
+    period_rewards = []
+
+
+    for episode in range(n_training_episodes):
+
+        epsilon = min_epsilon + (max_epsilon - min_epsilon) * np.exp(-decay_rate*episode)
+        # print("-----------------------new ep------------------------------------")
+        episode_reward = 0
+
+        # Reset the environment
+        state_index = system.reset()        
+
+        # repeat
+        for step in range(0, max_steps):
+            
+            # If done, finish the episode
+            if system.check_done():
+                done_counter_period += 1
+                break
+
+            # select the new state_index
+            action_utilities = qtable[state_index]
+            action = EpsilonGreedyPolicy(action_utilities, epsilon, system.transitions[state_index] < 0)
+            
+            new_state_index = int(system.transitions[state_index, action])
+
+            #reward = (system.transition_rewards[state_index, action])*10 - 0.5
+            reward = (system.transition_rewards[state_index, action])*10 + \
+                    gamma * system.calculate_psuedorewards(new_state_index, action) - \
+                    system.calculate_psuedorewards(state_index, action)
+                    
+            episode_reward += reward
+     
+            qtable[state_index, action] = qtable[state_index, action] + \
+                learning_rate * (reward + gamma * np.max(qtable[new_state_index]) - qtable[state_index, action])
+            
+            # move the system on to the new state index
+            state_index = new_state_index
+            system.assume_state(state_index)   
+        
+
+            if(state_index < 0 or state_index >= len(system.transitions)):
+                neg_one_counter += 1
+                print(f"Warning: at state {state_index}")
+                print(action, system.system_transitions[state_index] < 0)
+                print((system.system_transitions[state_index] < 0), [action])
+
+        episode_times.append(step)
+        period_rewards.append(episode_reward)
+
+        if (episode % verbosity == 0 and episode > 0):
+            period_done_percent = (done_counter_period*100/verbosity)
+            print("\nEpisode {: >5d}/{:>5d} | epsilon: {:0<7.5f} | Av. steps: {: >4.2f} | Min steps: {: >4d} | Av. reward: {: >4.2f} | Completed: {: >4.2f}%".format(episode,
+                                                                                                                                        n_training_episodes,
+                                                                                                                                        epsilon,
+                                                                                                                                        np.mean(episode_times),
+                                                                                                                                        np.min(episode_times),
+                                                                                                                                        np.mean(period_rewards),
+                                                                                                                                        period_done_percent), end="")
+            period_rewards = []
+            episode_reward = 0                                                                                                          
+            neg_one_counter = 0
+            done_counter_period = 0
+            episode_times = []
+
+    print("\nTraining finished.")
+    return qtable
+
+
+class GeneralisedSystem():
+    
+    def __init__(self, system_states, initial_indices, absorbing_indices, transitions, transition_rewards, pseudorewards_function):
+        self.system_states = system_states
+        self.transitions = transitions
+        self.transition_rewards = transition_rewards
+        self.initial_indices = initial_indices
+        self.absorbing_indices = absorbing_indices
+        self.pseudorewards_function = pseudorewards_function
+        self.reset()
+        
+    def reset(self):
+        choice = random.choice(self.initial_indices)
+        self.assume_state(choice)
+        return self.current_state_index
+    
+    def calculate_psuedorewards(self, state_index, action):
+        return self.pseudorewards_function(self, self.system_states[state_index], action)
+    
+    def assume_state(self, state_index):
+        self.current_state_index = state_index
+        
+    def check_done(self):
+        if (np.any(self.absorbing_indices == self.current_state_index)):
+                return True
+        return False
+
 
 class GridSystem():
     
