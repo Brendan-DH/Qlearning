@@ -12,8 +12,7 @@ import pandas as pd
 import numpy as np
 import os
 import random
-import Qlearning as ql
-
+import GridLearning as gl
 
 
 # data directory
@@ -34,7 +33,7 @@ print("Generating states...")
 
 # generate a 2d grid
 grid_size = 4
-goal_position = np.array([[3,3]])
+goal_position = np.array([[1,1]])
 
 states = []
 states_dict = {}
@@ -108,42 +107,34 @@ for i in range(len(states)):
 Qtable = np.random.rand(*np.shape(transitions))
 Qtable = Qtable + (transitions < 0) * -1e9
 
-def AverageDistancePseudReward(system, state, action):
-    r_pos, _, d_seg = system.interpret_state(state)
-    tot_av = 0
-    for i in range(len(r_pos)):
-        rob_av = 0
-        for j in range(len(d_seg)):
-            rob_av += abs(r_pos[i] - d_seg[j])/len(d_seg)
-        tot_av += rob_av/len(r_pos)
-    return 10/tot_av
 
 def DistReward(system, state, action):
     
     goal_position = system.goal_position
     diff = goal_position - state
+    diff = [abs(e) for e in diff]
+
     
     return 5/(np.sum(diff)+1)
 
-agent = ql.TrainGrid(qtable = Qtable, 
-                    system = ql.GridSystem(states, goal_position[0], states, states_dict, transitions, transition_rewards, DistReward),
+agent = gl.TrainGrid(qtable = Qtable, 
+                    system = gl.GridSystem(states, goal_position[0], states, states_dict, transitions, transition_rewards, DistReward),
                     max_steps = 50,
-                    n_training_episodes = 1000000, #1E+7 and 3E-7 decay rate work together nicely
+                    n_training_episodes = 200000, #1E+7 and 3E-7 decay rate work together nicely
                     min_epsilon = 0.05,
                     max_epsilon = 0.5,
                     decay_rate = 0.000001, #3E-6,
                     gamma = 0.7,
-                    learning_rate = 0.1)
+                    learning_rate = 0.2)
 
 
 #%%
 
-import Qlearning as ql
 
 agent = Qtable
 
-ev = ql.EvaluateGrid(qtable = agent,
-                     system = ql.GridSystem(states, [3,3], states, states_dict, transitions, transition_rewards, DistReward),
+ev = gl.EvaluateGrid(qtable = agent,
+                     system = gl.GridSystem(states, goal_position[0], states, states_dict, transitions, transition_rewards, DistReward),
                      n_eval_episodes=10000,
                      max_steps=40,
                      gamma=0.7)
