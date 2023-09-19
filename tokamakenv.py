@@ -86,10 +86,16 @@ class TokamakEnv(gym.Env):
         # which action is being taken:
         rel_action = action % 3 # 0=counter, 1=clockwise, 2=engage
         
+        observation = self._get_obs()
+        
         # by which robot:
         robot_no = int(np.floor(action/self.num_robots) * self.num_robots)
         
         current_location = self._robot_locations[robot_no]
+        
+        # simple cyclical motion; robots can move in either direction
+        # and loop around the tokamak. They don't exclude or interfere with
+        # each other (yet)
         
         if(rel_action == 0): # counter-clockwise movement
             if (current_location>0):
@@ -109,6 +115,18 @@ class TokamakEnv(gym.Env):
             if(current_location in self._goal_locations):
                 self._goal_status[np.argwhere(current_location)==self._goal_locations] = True
         
+        terminated = all(self._goal_status) # terminate if all goals are gone
+        
+        # sparse binary reward. May have to upgrade this with a
+        # pseudoreward function
+        if(terminated):
+            reward = 1
+        else:
+            reward = 0
+        
+        info = None # can't think of what to include here.
+        
+        return observation, reward, terminated, False, info
         
     def render(self):
         if self.render_mode == "rgb_array":
