@@ -35,12 +35,12 @@ class TokamakEnv(gym.Env):
         
         # positions of the robots
         for i in range(0,num_robots):
-            obDict[f"robot{i} location"] = spaces.Discrete(size-1)
+            obDict[f"robot{i} location"] = spaces.Discrete(size)
             
         # positions of the goals and whether they are complete
         for i in range(0,num_goals):
-            obDict[f"goal{i}pos"] = spaces.Discrete(size-1)
-            obDict[f"goal{i}done"] = spaces.Discrete(2)
+            obDict[f"goal{i} location"] = spaces.Discrete(size)
+            obDict[f"goal{i} done"] = spaces.Discrete(2)
             
         self.observation_space = spaces.Dict(obDict)
         
@@ -55,6 +55,7 @@ class TokamakEnv(gym.Env):
         self.render_mode = render_mode
         self.window = None
         self.clock = None
+        self.elapsed = 0
         self.reset()
         
     
@@ -67,6 +68,9 @@ class TokamakEnv(gym.Env):
             obs[f"goal{i} done"] = self._goal_status[i]
             
         return obs
+    
+    def _get_info(self):
+        return {"elapsed" : self.elapsed}
             
         
     def reset(self, seed=None, options=None):
@@ -80,16 +84,45 @@ class TokamakEnv(gym.Env):
         # reset goals
         self._goal_status = [False for i in range(self.num_goals)]
         
+        self.elapsed = 0
         
+        return self._get_obs(), self._get_info()
+        
+    def av_dist(self):
+        tot_av = 0
+        # goal positions
+        for i in range(len(self._robot_locations)):
+            rob_pos = self._robot_locations[i]
+            rob_av = 0
+            for j in range(len(self._goal_locations)):
+                goal_pos = self._goal_locations[j]
+                #calculate average distance of robot from each goal:
+                dist = abs(rob_pos - goal_pos)
+                mod_dist = min((dist, self.size - dist)) # to account for cyclical space
+                rob_av += mod_dist/len(self._goal_locations)
+            # average of average distances
+            tot_av += rob_av/len(self._robot_locations)
+        return tot_av
+                    
+    def AverageDistance(system, state, action):
+        r_pos, d_seg = system.interpret_state(state)
+        tot_av = 0
+        for i in range(len(r_pos)):
+            rob_av = 0
+            for j in range(len(d_seg)):
+                rob_av += abs(r_pos[i] - d_seg[j])/len(d_seg)
+            tot_av += rob_av/len(r_pos)
+        return (10/tot_av)
+                
     def step(self, action):
         
         # which action is being taken:
-        rel_action = action % 3 # 0=counter, 1=clockwise, 2=engage
-        
-        observation = self._get_obs()
-        
+        rel_action = action % 3 # 0=counter-clockwise, 1=clockwise, 2=engage
         # by which robot:
-        robot_no = int(np.floor(action/self.num_robots) * self.num_robots)
+        robot_no = int(np.floor(action/self.num_robots))
+        old_av_dist = self.av_dist()
+        
+        reward = 0
         
         current_location = self._robot_locations[robot_no]
         
@@ -99,7 +132,7 @@ class TokamakEnv(gym.Env):
         
         if(rel_action == 0): # counter-clockwise movement
             if (current_location>0):
-                self._robot_locations[robot_no] = current_location - 1
+                self._robot_locations[robot_no] = current_location - 1 % 23
             
             if (current_location==0): # cycle round
                 self._robot_locations[robot_no] = self.size-1
@@ -108,23 +141,40 @@ class TokamakEnv(gym.Env):
             if (current_location<self.size-1):
                 self._robot_locations[robot_no]  = current_location + 1
             
-            if (current_location==self.size): # cycle round
+            if (current_location==self.size-1): # cycle round
                 self._robot_locations[robot_no] = 0
                 
-        if (rel_action == 2): # engage robot, complete task
-            if(current_location in self._goal_locations):
-                self._goal_status[np.argwhere(current_location)==self._goal_locations] = True
-        
+        if (rel_action == 2): # engage robot (i.e. complete task if one at location)
+            # if(current_location in self._goal_locations):
+            #     print(current_location, self._goal_locations)
+            #     print("BEFORE", self._goal_status)
+            #     self._goal_status[np.argwhere(current_location)==self._goal_locations] = True
+            #     print("BEFORE", self._goal_status)
+            for i in range(len(self._goal_locations)):
+                if (self._goal_locations[i]==current_location):
+                    # if(self._goal_status[i]==True):
+                    #     reward -= 0.1 # penalty for wasting time on already-completed tasks
+                    self._goal_status[i] = True
+
+        # new_av_dist = self.av_dist()
+        pseudoreward_term = 0 #0.5 * 1/new_av_dist - 1/old_av_dist 
+
         terminated = all(self._goal_status) # terminate if all goals are gone
+        
+        info = self._get_info()
+
         
         # sparse binary reward. May have to upgrade this with a
         # pseudoreward function
         if(terminated):
-            reward = 1
-        else:
-            reward = 0
+            reward += 10
+            
+        reward += pseudoreward_term
         
-        info = None # can't think of what to include here.
+        self.elapsed += 1
+        
+        observation = self._get_obs()
+        info = self._get_info()
         
         return observation, reward, terminated, False, info
         

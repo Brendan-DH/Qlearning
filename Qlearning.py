@@ -8,6 +8,7 @@ Created on Wed Aug 23 14:17:41 2023
 
 import numpy as np
 import random
+import torch
 
 
 def EpsilonGreedyPolicy(action_utilities, epsilon, forbidden):
@@ -25,6 +26,15 @@ def EpsilonGreedyPolicy(action_utilities, epsilon, forbidden):
         while(forbidden[action]):  # check if forbidden
             action = random.randint(0, len(action_utilities)-1)
         return action
+
+def TensorEpsilonPolicy(state, DQN, env, epsilon, forbidden, device = "cpu"):
+    if random.random() > epsilon:
+        with torch.no_grad():
+            # equivalent to argmax on the qtable; returns index of highest q
+            return DQN(state).max(1)[1].view(1, 1)
+    else:
+        return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
+
 
 def GreedyPolicy(action_utilities):
     action = np.argmax(action_utilities)
