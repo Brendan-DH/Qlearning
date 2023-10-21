@@ -28,7 +28,7 @@ def EpsilonGreedyPolicy(action_utilities, epsilon, forbidden):
         return action
 
 
-def TensorEpsilonPolicy(state, DQN, env, epsilon, forbidden, device = "cpu"):
+def TensorEpsilonPolicyGreedy(state, DQN, env, epsilon, device = "cpu"):
     
     """
     
@@ -42,7 +42,7 @@ def TensorEpsilonPolicy(state, DQN, env, epsilon, forbidden, device = "cpu"):
         with torch.no_grad():
             # equivalent to argmax on the qtable; returns index of highest q
             # print(DQN(state), DQN(state).max(0)[1])
-            action = DQN(state).max(0)[1] # max(0)[1] gives argmax
+            action = DQN(state).max(0)[1].view(1,1) # gives argmax
             return action
     else:
         return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
