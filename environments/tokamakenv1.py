@@ -12,7 +12,7 @@ from gymnasium import spaces
 import pygame
 
 
-class TokamakEnv(gym.Env):
+class TokamakEnv1(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
     
     def set_parameters(size, num_robots, num_goals, goal_locations):
@@ -71,8 +71,10 @@ class TokamakEnv(gym.Env):
         return obs
     
     def _get_info(self):
-        return {"elapsed" : self.elapsed}
-            
+        info = {}
+        info["elapsed"] = self.elapsed
+        info["av_dist"] = self.av_dist()
+        return info
         
     def reset(self, seed=None, options=None):
         
@@ -127,8 +129,6 @@ class TokamakEnv(gym.Env):
         # by which robot:
         robot_no = int(np.floor(action/self.num_robots))
         
-        old_av_dist = self.av_dist()
-        
         reward = 0.0
         
         current_location = self._robot_locations[robot_no]
@@ -155,21 +155,15 @@ class TokamakEnv(gym.Env):
             for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
                 if(self._goal_locations[i] == current_location and self._goal_status[i]==False):
                     self._goal_status[i] = True
-                    reward += 1.0
+                    reward += 1.0 # reward if robots manage to complete a task
 
         terminated = True
         for status in self._goal_status:
             if status == False:        
                 terminated = False # not terminated if any goals are left
-                
-        # new_av_dist = self.av_dist()
-        pseudoreward_term = 0 #0.5 * 1/new_av_dist - 1/old_av_dist 
+                        
         
         info = self._get_info()
-
-        
-        # sparse binary reward. May have to upgrade this with a
-        # pseudoreward function
             
         self.elapsed+=1
         

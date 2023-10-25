@@ -20,16 +20,14 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-env = gym.make("Tokamak-v1", num_robots=3, size=12, num_goals=3, goal_locations=[1,5,9])  
+env = gym.make("Tokamak-v1", num_robots=3, size=24, num_goals=3, goal_locations=[1,5,9])  
 # env = gym.make("CartPole-v1")
 env.reset(options={"robot_locations" : [1,2,3]})
+torch.set_grad_enabled(True)
 
 
 # set up matplotlib
 is_ipython = 'inline' in matplotlib.get_backend()
-if is_ipython:
-    from IPython import display
-
 plt.ion()
 
 # if GPU is to be used
@@ -71,14 +69,14 @@ class DQN(nn.Module):
         return self.layer3(x)
 
 # BATCH_SIZE is the number of transitions sampled from the replay buffer
-# GAMMA is the discount factor as mentioned in the previous section
+# gamma is the discount factor as mentioned in the previous section
 # epsilon_max is the starting value of epsilon
 # epsilon_min is the final value of epsilon
 # EPS_DECAY controls the rate of exponential decay of epsilon, higher means a slower decay
 # TAU is the update rate of the target network
 # LR is the learning rate of the ``AdamW`` optimizer
 BATCH_SIZE = 128
-GAMMA = 0.6 # a lower gamma will prioritise immediate rewards, naturally favouring shorter paths
+gamma = 0.6 # a lower gamma will prioritise immediate rewards, naturally favouring shorter paths
 epsilon_max = 0.9
 epsilon_min = 0.05
 explore_time = 0 # number of steps for which epsilon is held constant before starting to decay
@@ -127,11 +125,13 @@ def plot_durations(show_result=False):
     plt.close(fig)
     
     fig, host = plt.subplots(figsize=(10,10), layout="constrained")
+    host.grid(False)
     
     epsilon_ax = host.twinx()
     reward_ax = host.twinx()
     
     host.set_ylabel('Duration')
+    host.set_yticks(np.linspace(0, int(max(episode_durations)), int(max(episode_durations)/20)+1))
     epsilon_ax.set_ylabel("Epsilon")
     epsilon_ax.set_ylim(0,1)
     epsilon_ax.set_yticks(np.linspace(0,1,21))
@@ -142,23 +142,28 @@ def plot_durations(show_result=False):
     epsilon_ax.spines['right'].set_position(('outward', 60))
 
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
-    
-    # host.yticks(np.linspace(0,1,11), [int(t *500) for t in np.linspace(0,1,11)])
-    
+        
     color1, color2, color3 = plt.cm.viridis([0, .5, .9])
     
+    reward_plot = reward_ax.plot(np.array(rewards), color = "mediumseagreen", alpha=0.5, label = "rewards");
     duration_plot = host.plot(np.array(episode_durations), color = "royalblue", label = "durations");
     epsilon_plot = epsilon_ax.plot(np.array(epsilons), color = "orange", label = "epsilon");
-    reward_plot = reward_ax.plot(np.array(rewards), color = "grey", label = "rewards");
+
+
+    
 
     # Take 100 episode averages and plot them too
     if len(durations_t) >= 100:
         means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
         means = torch.cat((torch.zeros(99), means))
         av_plot = host.plot(means.numpy(), color="indianred", label="average");
+        host.axhline(means.numpy()[-1], color = "indianred", alpha = 0.5, ls = "--")
+        host.text(0, means.numpy()[-1], "avg: "+ str(means.numpy()[-1]))
         handles=duration_plot+epsilon_plot+reward_plot+av_plot
     else:
         handles=duration_plot+epsilon_plot+reward_plot
+        host.axhline(episode_durations[-1], color = "grey", ls = "--")
+        host.text(0, episode_durations[-1], episode_durations[-1])
 
 
     host.legend(handles=handles, loc='best')
@@ -169,41 +174,30 @@ def optimize_model():
     if len(memory) < BATCH_SIZE:
         return
     transitions = memory.sample(128)
-    # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
-    # detailed explanation). This converts batch-array of Transitions
-    # to Transition of batch-arrays.
-    # print("################# Transitions")
-    # print(transitions)
-    # print(*zip(transitions))
+
+    # conglomerate the transitions into one object wherein each entry state, action,
+    # etc is a tensor containing all of the corresponding entries of the original transitions array
     batch = Transition(*zip(*transitions))
-    # print(batch)
     
-    # Compute a mask of non-final states and concatenate the batch elements
-    # (a final state would've been the one after which simulation ended)
+    # boolean mask of which states are final
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                           batch.next_state)), device=device, dtype=torch.bool)
     non_final_next_states = torch.cat([s for s in batch.next_state
                                                 if s is not None])
     state_batch = torch.cat(batch.state)
-    # print("state batch shape:", state_batch.shape)
     action_batch = torch.cat(batch.action)
     reward_batch = torch.cat(batch.reward)
 
-    # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
-    # columns of actions taken. These are the actions which would've been taken
-    # for each batch state according to policy_net
+    # the qvalues of actions in this state. the .gather gets the qvalue corresponding to the
+    # indices in 'action_batch'
     state_action_values = policy_net(state_batch).gather(1, action_batch)
 
-    # Compute V(s_{t+1}) for all next states.
-    # Expected values of actions for non_final_next_states are computed based
-    # on the "older" target_net; selecting their best reward with max(1)[0].
-    # This is merged based on the mask, such that we'll have either the expected
-    # state value or 0 in case the state was final.
+    # q values of action in the next state
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
     with torch.no_grad():
         next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0]
     # Compute the expected Q values
-    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+    expected_state_action_values = (next_state_values * gamma) + reward_batch
 
     # Compute Huber loss
     criterion = nn.SmoothL1Loss()
@@ -212,33 +206,67 @@ def optimize_model():
     # Optimize the model
     optimizer.zero_grad()
     loss.backward()
-    # In-place gradient clipping
-    torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
+    torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100) # stops the gradients from becoming too large
     optimizer.step()
     
+    
+def evaluate_model():
+        
+    state, info = env.reset(options={"robot_locations" : [1,2,3]})
+    state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
+    
+    states = [state]
+    actions = []
+    
+    for t in count():
+        
+        action = select_action(state, 0)
+        observation, reward, terminated, truncated, info = env.step(action.item())
+        state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
+        
+        print(observation, action)
+        states.append(observation)
+        actions.append(action)
+        
+        done = terminated or truncated
+        
+        if(done):
+            print("Completed in: " +  str(t+1))
+            break
+    
+    return states, actions
+        
+
 if torch.cuda.is_available():
     num_episodes = 600
 else:
     num_episodes = 1000
 
-epsilon_decay_rate =  np.log(1000 * (epsilon_max-epsilon_min)) / (num_episodes-explore_time) # ensures epsilon ~= epsilon_min at end
+epsilon_decay_rate =  np.log(100 * (epsilon_max-epsilon_min)) / (num_episodes-explore_time) # ensures epsilon ~= epsilon_min at end
 
 
 for i_episode in range(num_episodes):
     # Initialize the environment and get it's state
     state, info = env.reset(options={"robot_locations" : [1,2,3]})
+    av_dist = info["av_dist"] # average distance of robots from tasks, used for pseudorewards
     state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
     
     epsilon = epsilon_max if i_episode < explore_time else epsilon_min + (epsilon_max - epsilon_min) * \
-        math.exp(-1. * (i_episode-explore_time) * epsilon_decay_rate) # why was this calculated with steps done rather than i_epsiode?
+        math.exp(-1. * (i_episode-explore_time) * epsilon_decay_rate)
     epsilons.append(epsilon)
     
     ep_reward = 0
     
     for t in count():
         action = select_action(state, epsilon)
-        observation, reward, terminated, truncated, _ = env.step(action.item())
-        reward = torch.tensor([reward], device=device)
+        observation, reward, terminated, truncated, info = env.step(action.item())
+        
+        # calculate pseudoreward
+        old_av_dist = av_dist
+        av_dist = info["av_dist"]
+        pseudoreward = gamma * 1/av_dist - 1/old_av_dist  
+        
+        reward = torch.tensor([reward+pseudoreward], device=device)
         ep_reward += reward.item()
         done = terminated or truncated
 
@@ -246,18 +274,12 @@ for i_episode in range(num_episodes):
             next_state = None
         else:
             next_state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
-
-        # Store the transition in memory
-        memory.push(state, action, next_state, reward)
-
-        # Move to the next state
+        
+        memory.push(state, action, next_state, reward) # Store the transition in memory
         state = next_state
-
-        # Perform one step of the optimization (on the policy network)
         optimize_model()
 
-        # Soft update of the target network's weights
-        # θ′ ← τ θ + (1 −τ )θ′
+        # Soft update of the target DQN
         target_net_state_dict = target_net.state_dict()
         policy_net_state_dict = policy_net.state_dict()
         for key in policy_net_state_dict:
@@ -275,3 +297,11 @@ print('Complete')
 plot_durations(show_result=True);
 plt.ioff()
 plt.show()
+
+#%%
+
+states, actions = evaluate_model()
+
+
+
+
