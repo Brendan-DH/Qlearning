@@ -220,6 +220,7 @@ for episode in range(n_training_episodes):
         # qvalues = policy_DQN.forward(x = state) # get the qvalues based on the the current state
         action = ql.TensorEpsilonPolicyGreedy(state, policy_DQN, env, epsilon) # find what action to take
         observation, reward, terminated, _, info = env.step(action.item()) # move the system and collect information (.item() extracts entry from single-item tensors)
+        print("reward", reward)
         reward = torch.tensor([reward], device = "cpu")
         done = terminated or t > max_steps
         episode_reward += reward # for diagnostics

@@ -30,6 +30,7 @@ class TokamakEnv(gym.Env):
         self.num_goals = num_goals
         self._goal_locations = goal_locations
         self.window_size = 512  # The size of the PyGame window
+        self.elapsed = 0
 
         obDict = {}
         
@@ -39,9 +40,10 @@ class TokamakEnv(gym.Env):
             
         # positions of the goals and whether they are complete
         for i in range(0,num_goals):
-            obDict[f"goal{i}pos"] = spaces.Discrete(size-1)
-            obDict[f"goal{i}done"] = spaces.Discrete(2)
-            
+            obDict[f"goal{i} location"] = spaces.Discrete(size)
+            obDict[f"goal{i} done"] = spaces.Discrete(2)
+        
+        
         self.observation_space = spaces.Dict(obDict)
         
         # actions that the robots can carry out
@@ -67,18 +69,26 @@ class TokamakEnv(gym.Env):
             obs[f"goal{i} done"] = self._goal_status[i]
             
         return obs
+    
+    def _get_info(self):
+        return {"elapsed" : self.elapsed}
             
         
     def reset(self, seed=None, options=None):
         
         super().reset(seed=seed)
-        
-        # reset robot locations to random:
-        self._robot_locations = [self.np_random.integers(0,self.size) 
-                                 for i in range(self.num_robots)]
+        if(options):
+            self._robot_locations = options["robot_locations"]
+        else:
+            # reset robot locations to random:
+            self._robot_locations = [self.np_random.integers(0,self.size) 
+                                     for i in range(self.num_robots)] 
         
         # reset goals
         self._goal_status = [False for i in range(self.num_goals)]
+        self.elapsed = 0
+        
+        return self._get_obs(), self._get_info()
         
         
     def step(self, action):
@@ -86,11 +96,12 @@ class TokamakEnv(gym.Env):
         # which action is being taken:
         rel_action = action % 3 # 0=counter, 1=clockwise, 2=engage
         
-        observation = self._get_obs()
-        
         # by which robot:
-        robot_no = int(np.floor(action/self.num_robots) * self.num_robots)
+        # print(action)
+        robot_no = int(np.floor(action/self.num_robots))
+        # print(robot_no)
         
+        reward = 0.0
         current_location = self._robot_locations[robot_no]
         
         # simple cyclical motion; robots can move in either direction
@@ -112,19 +123,24 @@ class TokamakEnv(gym.Env):
                 self._robot_locations[robot_no] = 0
                 
         if (rel_action == 2): # engage robot, complete task
-            if(current_location in self._goal_locations):
-                self._goal_status[np.argwhere(current_location)==self._goal_locations] = True
-        
-        terminated = all(self._goal_status) # terminate if all goals are gone
+            for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
+                if(self._goal_locations[i] == current_location and self._goal_status[i]==False):
+                    self._goal_status[i] = True
+                    reward += 1.0
+
+        terminated = True
+        for status in self._goal_status:
+            if status == False:        
+                terminated = False # not terminated if any goals are left
         
         # sparse binary reward. May have to upgrade this with a
         # pseudoreward function
-        if(terminated):
-            reward = 1
-        else:
-            reward = 0
+            
+        self.elapsed+=1
         
-        info = None # can't think of what to include here.
+        
+        observation = self._get_obs()
+        info = self._get_info() # can't think of what to include here.
         
         return observation, reward, terminated, False, info
         

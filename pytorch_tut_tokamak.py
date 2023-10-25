@@ -13,15 +13,16 @@ import matplotlib
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
+import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-# env = gym.make("Tokamak-v1", num_robots=3, size=24, num_goals=3, goal_locations=[1,5,9])  
-env = gym.make("CartPole-v1")
-env.reset()
+env = gym.make("Tokamak-v1", num_robots=3, size=12, num_goals=3, goal_locations=[1,5,9])  
+# env = gym.make("CartPole-v1")
+env.reset(options={"robot_locations" : [1,2,3]})
 
 
 # set up matplotlib
@@ -71,16 +72,16 @@ class DQN(nn.Module):
 
 # BATCH_SIZE is the number of transitions sampled from the replay buffer
 # GAMMA is the discount factor as mentioned in the previous section
-# EPS_START is the starting value of epsilon
-# EPS_END is the final value of epsilon
+# epsilon_max is the starting value of epsilon
+# epsilon_min is the final value of epsilon
 # EPS_DECAY controls the rate of exponential decay of epsilon, higher means a slower decay
 # TAU is the update rate of the target network
 # LR is the learning rate of the ``AdamW`` optimizer
 BATCH_SIZE = 128
-GAMMA = 0.99
-EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 1000
+GAMMA = 0.6 # a lower gamma will prioritise immediate rewards, naturally favouring shorter paths
+epsilon_max = 0.9
+epsilon_min = 0.05
+explore_time = 0 # number of steps for which epsilon is held constant before starting to decay
 TAU = 0.005
 LR = 1e-4
 
@@ -101,13 +102,11 @@ memory = ReplayMemory(10000)
 steps_done = 0
 
 
-def select_action(state):
+def select_action(state, epsilon):
     global steps_done
     sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-        math.exp(-1. * steps_done / EPS_DECAY)
     steps_done += 1
-    if sample > eps_threshold:
+    if sample > epsilon:
         with torch.no_grad():
             # t.max(1) will return the largest column value of each row.
             # second column on max result is index of where max element was
@@ -118,33 +117,54 @@ def select_action(state):
 
 
 episode_durations = []
+epsilons = []
+rewards = []
 
+fig = plt.figure()
 
 def plot_durations(show_result=False):
-    plt.figure(1)
+    global fig
+    plt.close(fig)
+    
+    fig, host = plt.subplots(figsize=(10,10), layout="constrained")
+    
+    epsilon_ax = host.twinx()
+    reward_ax = host.twinx()
+    
+    host.set_ylabel('Duration')
+    epsilon_ax.set_ylabel("Epsilon")
+    epsilon_ax.set_ylim(0,1)
+    epsilon_ax.set_yticks(np.linspace(0,1,21))
+    
+    reward_ax.set_ylabel("Reward")
+    host.set_xlabel('Episode')
+    
+    epsilon_ax.spines['right'].set_position(('outward', 60))
+
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
-    if show_result:
-        plt.title('Result')
-    else:
-        plt.clf()
-        plt.title('Training...')
-    plt.xlabel('Episode')
-    plt.ylabel('Duration')
-    plt.plot(durations_t.numpy())
+    
+    # host.yticks(np.linspace(0,1,11), [int(t *500) for t in np.linspace(0,1,11)])
+    
+    color1, color2, color3 = plt.cm.viridis([0, .5, .9])
+    
+    duration_plot = host.plot(np.array(episode_durations), color = "royalblue", label = "durations");
+    epsilon_plot = epsilon_ax.plot(np.array(epsilons), color = "orange", label = "epsilon");
+    reward_plot = reward_ax.plot(np.array(rewards), color = "grey", label = "rewards");
+
     # Take 100 episode averages and plot them too
     if len(durations_t) >= 100:
         means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
         means = torch.cat((torch.zeros(99), means))
-        plt.plot(means.numpy())
+        av_plot = host.plot(means.numpy(), color="indianred", label="average");
+        handles=duration_plot+epsilon_plot+reward_plot+av_plot
+    else:
+        handles=duration_plot+epsilon_plot+reward_plot
 
+
+    host.legend(handles=handles, loc='best')
     plt.pause(0.001)  # pause a bit so that plots are updated
-    if is_ipython:
-        if not show_result:
-            display.display(plt.gcf())
-            display.clear_output(wait=True)
-        else:
-            display.display(plt.gcf())
-            
+    
+    
 def optimize_model():
     if len(memory) < BATCH_SIZE:
         return
@@ -201,20 +221,31 @@ if torch.cuda.is_available():
 else:
     num_episodes = 1000
 
+epsilon_decay_rate =  np.log(1000 * (epsilon_max-epsilon_min)) / (num_episodes-explore_time) # ensures epsilon ~= epsilon_min at end
+
+
 for i_episode in range(num_episodes):
     # Initialize the environment and get it's state
-    state, info = env.reset()
-    state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+    state, info = env.reset(options={"robot_locations" : [1,2,3]})
+    state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
+    
+    epsilon = epsilon_max if i_episode < explore_time else epsilon_min + (epsilon_max - epsilon_min) * \
+        math.exp(-1. * (i_episode-explore_time) * epsilon_decay_rate) # why was this calculated with steps done rather than i_epsiode?
+    epsilons.append(epsilon)
+    
+    ep_reward = 0
+    
     for t in count():
-        action = select_action(state)
+        action = select_action(state, epsilon)
         observation, reward, terminated, truncated, _ = env.step(action.item())
         reward = torch.tensor([reward], device=device)
+        ep_reward += reward.item()
         done = terminated or truncated
 
         if terminated:
             next_state = None
         else:
-            next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
+            next_state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
         # Store the transition in memory
         memory.push(state, action, next_state, reward)
@@ -235,10 +266,12 @@ for i_episode in range(num_episodes):
 
         if done:
             episode_durations.append(t + 1)
-            plot_durations()
+            rewards.append(ep_reward)
+            if(t%10==0):
+                plot_durations();
             break
 
 print('Complete')
-plot_durations(show_result=True)
+plot_durations(show_result=True);
 plt.ioff()
 plt.show()
