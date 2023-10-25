@@ -27,11 +27,23 @@ def EpsilonGreedyPolicy(action_utilities, epsilon, forbidden):
             action = random.randint(0, len(action_utilities)-1)
         return action
 
-def TensorEpsilonPolicy(state, DQN, env, epsilon, forbidden, device = "cpu"):
+
+def TensorEpsilonPolicyGreedy(state, DQN, env, epsilon, device = "cpu"):
+    
+    """
+    
+    Greedy epilson policy but for tensors. Either returns the index of highest
+    q or a random action from the action space. The return type is a tensor containing
+    the index.
+
+    """
+
     if random.random() > epsilon:
         with torch.no_grad():
             # equivalent to argmax on the qtable; returns index of highest q
-            return DQN(state).max(1)[1].view(1, 1)
+            # print(DQN(state), DQN(state).max(0)[1])
+            action = DQN(state).max(0)[1].view(1,1) # gives argmax
+            return action
     else:
         return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
 

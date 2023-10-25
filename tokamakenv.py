@@ -30,6 +30,7 @@ class TokamakEnv(gym.Env):
         self.num_goals = num_goals
         self._goal_locations = goal_locations
         self.window_size = 512  # The size of the PyGame window
+        self.elapsed = 0
 
         obDict = {}
         
@@ -41,7 +42,7 @@ class TokamakEnv(gym.Env):
         for i in range(0,num_goals):
             obDict[f"goal{i} location"] = spaces.Discrete(size)
             obDict[f"goal{i} done"] = spaces.Discrete(2)
-            
+
         self.observation_space = spaces.Dict(obDict)
         
         # actions that the robots can carry out
@@ -76,13 +77,18 @@ class TokamakEnv(gym.Env):
     def reset(self, seed=None, options=None):
         
         super().reset(seed=seed)
-        
-        # reset robot locations to random:
-        self._robot_locations = [self.np_random.integers(0,self.size) 
-                                 for i in range(self.num_robots)]
+        if(options):
+            self._robot_locations = options["robot_locations"]
+        else:
+            # reset robot locations to random:
+            self._robot_locations = [self.np_random.integers(0,self.size) 
+                                     for i in range(self.num_robots)] 
         
         # reset goals
         self._goal_status = [False for i in range(self.num_goals)]
+        self.elapsed = 0
+        
+        return self._get_obs(), self._get_info()
         
         self.elapsed = 0
         
@@ -120,9 +126,10 @@ class TokamakEnv(gym.Env):
         rel_action = action % 3 # 0=counter-clockwise, 1=clockwise, 2=engage
         # by which robot:
         robot_no = int(np.floor(action/self.num_robots))
+        
         old_av_dist = self.av_dist()
         
-        reward = 0
+        reward = 0.0
         
         current_location = self._robot_locations[robot_no]
         
@@ -144,37 +151,31 @@ class TokamakEnv(gym.Env):
             if (current_location==self.size-1): # cycle round
                 self._robot_locations[robot_no] = 0
                 
-        if (rel_action == 2): # engage robot (i.e. complete task if one at location)
-            # if(current_location in self._goal_locations):
-            #     print(current_location, self._goal_locations)
-            #     print("BEFORE", self._goal_status)
-            #     self._goal_status[np.argwhere(current_location)==self._goal_locations] = True
-            #     print("BEFORE", self._goal_status)
-            for i in range(len(self._goal_locations)):
-                if (self._goal_locations[i]==current_location):
-                    # if(self._goal_status[i]==True):
-                    #     reward -= 0.1 # penalty for wasting time on already-completed tasks
+        if (rel_action == 2): # engage robot, complete task
+            for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
+                if(self._goal_locations[i] == current_location and self._goal_status[i]==False):
                     self._goal_status[i] = True
+                    reward += 1.0
 
+        terminated = True
+        for status in self._goal_status:
+            if status == False:        
+                terminated = False # not terminated if any goals are left
+                
         # new_av_dist = self.av_dist()
         pseudoreward_term = 0 #0.5 * 1/new_av_dist - 1/old_av_dist 
-
-        terminated = all(self._goal_status) # terminate if all goals are gone
         
         info = self._get_info()
 
         
         # sparse binary reward. May have to upgrade this with a
         # pseudoreward function
-        if(terminated):
-            reward += 10
             
-        reward += pseudoreward_term
+        self.elapsed+=1
         
-        self.elapsed += 1
         
         observation = self._get_obs()
-        info = self._get_info()
+        info = self._get_info() # can't think of what to include here.
         
         return observation, reward, terminated, False, info
         
