@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+    #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Sat Oct 21 15:12:23 2023
@@ -20,7 +20,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-env = gym.make("Tokamak-v1", num_robots=3, size=24, num_goals=3, goal_locations=[1,5,9])  
+env = gym.make("Tokamak-v2", num_robots=3, size=24, num_goals=3, goal_locations=[1,5,9])  
 # env = gym.make("CartPole-v1")
 env.reset(options={"robot_locations" : [1,2,3]})
 torch.set_grad_enabled(True)
@@ -33,12 +33,11 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
 
 class ReplayMemory(object):
-
+    
     def __init__(self, capacity):
         self.memory = deque([], maxlen=capacity)
 
