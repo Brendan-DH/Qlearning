@@ -19,10 +19,12 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import time
 
-env = gym.make("Tokamak-v2", num_robots=3, size=24, num_goals=3, goal_locations=[1,5,9])  
+env = gym.make("Tokamak-v2", num_robots=3, size=24, num_goals=3, goal_locations=[11,5,6])  
 # env = gym.make("CartPole-v1")
-env.reset(options={"robot_locations" : [1,2,3]})
+env_options = {"robot_locations" : [0,1,7]}
+env.reset(options=env_options)
 torch.set_grad_enabled(True)
 
 
@@ -76,12 +78,12 @@ class DQN(nn.Module):
 # TAU is the update rate of the target network
 # LR is the learning rate of the ``AdamW`` optimizer
 BATCH_SIZE = 128
-gamma = 0.6 # a lower gamma will prioritise immediate rewards, naturally favouring shorter paths
+gamma = 0.5 # a lower gamma will prioritise immediate rewards, naturally favouring shorter paths
 epsilon_max = 0.9
 epsilon_min = 0.05
 explore_time = 0 # number of steps for which epsilon is held constant before starting to decay
 TAU = 0.005
-LR = 1e-4
+LR = 0.5e-4
 
 # Get number of actions from gym action space
 n_actions = env.action_space.n
@@ -155,9 +157,9 @@ def plot_durations(show_result=False):
     # Take 100 episode averages and plot them too
     if len(durations_t) >= 100:
         means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
-        means = torch.cat((torch.zeros(99), means))
-        av_plot = host.plot(means.numpy(), color="indianred", label="average");
-        host.axhline(means.numpy()[-1], color = "indianred", alpha = 0.5, ls = "--")
+        means = torch.cat((torch.ones(99) * means[0], means))
+        av_plot = host.plot(means.numpy(), color="indianred", label="average", lw = 3);
+        host.axhline(means.numpy()[-1], color = "indianred", alpha = 1, ls = "--")
         host.text(0, means.numpy()[-1], "avg: "+ str(means.numpy()[-1]))
         handles=duration_plot+epsilon_plot+reward_plot+av_plot
     else:
@@ -212,11 +214,15 @@ def optimize_model():
     
 def evaluate_model():
         
-    state, info = env.reset(options={"robot_locations" : [1,2,3]})
-    state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
-    
+    state, info = env.reset(options=env_options)
     states = [state]
     actions = []
+    print(state)
+    
+    state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
+    
+ 
+    
     
     for t in count():
         
@@ -238,16 +244,16 @@ def evaluate_model():
         
 
 if torch.cuda.is_available():
-    num_episodes = 600
+    num_episodes = 10000
 else:
     num_episodes = 1000
 
 epsilon_decay_rate =  np.log(100 * (epsilon_max-epsilon_min)) / (num_episodes-explore_time) # ensures epsilon ~= epsilon_min at end
 
-
+start_time = time.time();
 for i_episode in range(num_episodes):
     # Initialize the environment and get it's state
-    state, info = env.reset(options={"robot_locations" : [1,2,3]})
+    state, info = env.reset(options=env_options)
     av_dist = info["av_dist"] # average distance of robots from tasks, used for pseudorewards
     state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
     
@@ -261,12 +267,14 @@ for i_episode in range(num_episodes):
         action = select_action(state, epsilon)
         observation, reward, terminated, truncated, info = env.step(action.item())
         
-        # calculate pseudoreward
-        old_av_dist = av_dist
-        av_dist = info["av_dist"]
-        pseudoreward = gamma * 1/av_dist - 1/old_av_dist  
+        # calculate pseudoreward 
+        old_av_dist = av_dist # for phi(s)
+        av_dist = info["av_dist"] # for phi(s')
+        elapsed = info["elapsed"]
+        # pseudoreward = (gamma * 1/av_dist - 1/old_av_dist) 
+        # print(old_av_dist, av_dist, pseudoreward)
         
-        reward = torch.tensor([reward+pseudoreward], device=device)
+        reward = torch.tensor([reward], device=device)
         ep_reward += reward.item()
         done = terminated or truncated
 
@@ -289,7 +297,7 @@ for i_episode in range(num_episodes):
         if done:
             episode_durations.append(t + 1)
             rewards.append(ep_reward)
-            if(t%10==0):
+            if(i_episode%10==0 and i_episode > 0):
                 plot_durations();
             break
 
@@ -297,6 +305,8 @@ print('Complete')
 plot_durations(show_result=True);
 plt.ioff()
 plt.show()
+end_time = time.time()
+print("Training time:", end_time - start_time, "s")
 
 #%%
 

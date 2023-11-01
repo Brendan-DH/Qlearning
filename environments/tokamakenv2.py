@@ -80,7 +80,7 @@ class TokamakEnv2(gym.Env):
         
         super().reset(seed=seed)
         if(options):
-            self._robot_locations = options["robot_locations"]
+            self._robot_locations = options["robot_locations"].copy()
         else:
             # reset robot locations to random:
             self._robot_locations = [self.np_random.integers(0,self.size) 
@@ -112,16 +112,6 @@ class TokamakEnv2(gym.Env):
             tot_av += rob_av/len(self._robot_locations)
         return tot_av
                     
-    def AverageDistance(system, state, action):
-        r_pos, d_seg = system.interpret_state(state)
-        tot_av = 0
-        for i in range(len(r_pos)):
-            rob_av = 0
-            for j in range(len(d_seg)):
-                rob_av += abs(r_pos[i] - d_seg[j])/len(d_seg)
-            tot_av += rob_av/len(r_pos)
-        return (10/tot_av)
-    
     def _get_blocked_actions(self):
         
         # observation  = self._get_obs()
@@ -133,85 +123,84 @@ class TokamakEnv2(gym.Env):
         for i in range(self.num_robots):
             moving_robot_loc = self._robot_locations[i]
             for j in range(self.num_robots):
-                other_robot_loc = self._robot_locations[j
-                                                       ]
+                other_robot_loc = self._robot_locations[j]
+                
+                if(i==j):
+                    continue
+                
+                if (moving_robot_loc == other_robot_loc):
+                    raise ValueError(f"Two robots occupy the same location (r{i} & r{j} @ {moving_robot_loc}).")
+                
                 # block counter-clockwise movement:
                 if((other_robot_loc == moving_robot_loc - 1) or (moving_robot_loc == 0 and other_robot_loc == self.size-1)):
-                    blocked_actions[i] = 1
+                    blocked_actions[i*self.num_robots] = 1
                     
                 #block clockwise movement:
                 if((other_robot_loc == moving_robot_loc + 1) or (moving_robot_loc == self.size-1 and other_robot_loc == 0)):
-                    blocked_actions[i+1] = 1
+                    blocked_actions[(i*self.num_robots)+1] = 1
                     
+        # print(self._robot_locations, blocked_actions)
+
         return blocked_actions
             
                 
     def step(self, action):
     
-        # determine blocked actions based on get_obs
-        # blocked actions give a negative reward and doesn't update the state
+        # determine blocked actions based on the current state
+        # blocked actions give a negative reward and don't progress the system
         
         blocked_actions = self._get_blocked_actions()
         if(blocked_actions[action]):
-            
-            observation = self._get_obs()
-            info = self._get_info()
-            terminated = False
-            
-            reward = -1.0
-            
-            return observation, reward, terminated, False, info
-        
-            
-        
-        
-        # which action is being taken:
-        rel_action = action % 3 # 0=counter-clockwise, 1=clockwise, 2=engage
-        # by which robot:
-        robot_no = int(np.floor(action/self.num_robots))
-        
-        reward = 0.0
-        
-        current_location = self._robot_locations[robot_no]
-        
-        # simple cyclical motion; robots can move in either direction
-        # and loop around the tokamak. They don't exclude or interfere with
-        # each other (yet)
-        
-        if(rel_action == 0): # counter-clockwise movement
-            if (current_location>0):
-                self._robot_locations[robot_no] = current_location - 1 % 23
-            
-            if (current_location==0): # cycle round
-                self._robot_locations[robot_no] = self.size-1
-        
-        if(rel_action == 1): # clockwise movement
-            if (current_location<self.size-1):
-                self._robot_locations[robot_no]  = current_location + 1
-            
-            if (current_location==self.size-1): # cycle round
-                self._robot_locations[robot_no] = 0
-                
-        if (rel_action == 2): # engage robot, complete task
-            for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
-                if(self._goal_locations[i] == current_location and self._goal_status[i]==False):
-                    self._goal_status[i] = True
-                    reward += 1.0 # reward if robots manage to complete a task
 
-        terminated = True
-        for status in self._goal_status:
-            if status == False:        
-                terminated = False # not terminated if any goals are left
+            
+            terminated = False
+            reward = -1.0
+                    
+        else: 
+            
+            # which action is being taken:
+            rel_action = action % 3 # 0=counter-clockwise, 1=clockwise, 2=engage
+            # by which robot:
+            robot_no = int(np.floor(action/self.num_robots))
+            
+            reward = 0.0
+            
+            current_location = self._robot_locations[robot_no]
+            
+            # simple cyclical motion; robots can move in either direction
+            # and loop around the tokamak. They don't exclude or interfere with
+            # each other (yet)
+            
+            if(rel_action == 0): # counter-clockwise movement
+                if (current_location>0):
+                    self._robot_locations[robot_no] = current_location - 1
+                
+                if (current_location==0): # cycle round
+                    self._robot_locations[robot_no] = self.size-1
+            
+            if(rel_action == 1): # clockwise movement
+                if (current_location<self.size-1):
+                    self._robot_locations[robot_no]  = current_location + 1
+                
+                if (current_location==self.size-1): # cycle round
+                    self._robot_locations[robot_no] = 0
+                    
+            if (rel_action == 2): # engage robot, complete task
+                for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
+                    if(self._goal_locations[i] == current_location and self._goal_status[i]==False):
+                        self._goal_status[i] = True
+                        reward += 1.0 # reward if robots manage to complete a task
+    
+            terminated = True
+            for status in self._goal_status:
+                if status == False:        
+                    terminated = False # not terminated if any goals are left
                         
-        
+    
+        observation = self._get_obs()
+        self.elapsed+=1
         info = self._get_info()
             
-        self.elapsed+=1
-        
-        
-        observation = self._get_obs()
-        info = self._get_info()
-        
         return observation, reward, terminated, False, info
         
     def render(self):
