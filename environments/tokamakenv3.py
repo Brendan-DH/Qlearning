@@ -12,7 +12,7 @@ from gymnasium import spaces
 import pygame
 
 
-class TokamakEnv2(gym.Env):
+class TokamakEnv3(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
     
     def set_parameters(size, num_robots, num_goals, goal_locations):
@@ -37,6 +37,7 @@ class TokamakEnv2(gym.Env):
         # positions of the robots
         for i in range(0,num_robots):
             obDict[f"robot{i} location"] = spaces.Discrete(size)
+            obDict[f"robot{i} clock"] = spaces.Discrete(2) # true = cannot move
             
         # positions of the goals and whether they are complete
         for i in range(0,num_goals):
@@ -64,6 +65,7 @@ class TokamakEnv2(gym.Env):
         obs = {}
         for i in range(0,self.num_robots):
             obs[f"robot{i} location"] = self._robot_locations[i]
+            obs[f"robot{i} clock"] = self._robot_clocks[i] # true = cannot move
         for i in range(0,self.num_goals):
             obs[f"goal{i} location"] = self._goal_locations[i]
             obs[f"goal{i} done"] = self._goal_status[i]
@@ -85,14 +87,19 @@ class TokamakEnv2(gym.Env):
             # reset robot locations to random:
             self._robot_locations = [self.np_random.integers(0,self.size) 
                                      for i in range(self.num_robots)] 
+            
         
         # reset goals
         self._goal_status = [False for i in range(self.num_goals)]
         self.elapsed = 0
+        self._robot_clocks = [False for i in range(self.num_robots)] # set all clocks to false
         
         return self._get_obs(), self._get_info()
         
         self.elapsed = 0
+        
+        if self.render_mode == "human":
+            self._render_frame()    
         
         return self._get_obs(), self._get_info()
         
@@ -126,6 +133,9 @@ class TokamakEnv2(gym.Env):
         # lets say for now that robots cannot occupy the same tile
         for i in range(self.num_robots):
             moving_robot_loc = self._robot_locations[i]
+            if(self._robot_clocks[i]):
+                blocked_actions[i*self.num_robots:(i*self.num_robots)+3] = 1 #block all actions for this robot
+                
             for j in range(self.num_robots):
                 other_robot_loc = self._robot_locations[j]
                 
@@ -146,6 +156,9 @@ class TokamakEnv2(gym.Env):
         # print(self._robot_locations, blocked_actions)
 
         return blocked_actions
+    
+    def _clock_tick(self):
+        self._robot_clocks = [False for i in range(self.num_robots)] # set all clocks to false
             
                 
     def step(self, action):
@@ -155,13 +168,11 @@ class TokamakEnv2(gym.Env):
         
         blocked_actions = self._get_blocked_actions()
         if(blocked_actions[action]):
-
             
             terminated = False
             reward = -1.0
                     
         else: 
-            
             # which action is being taken:
             rel_action = action % 3 # 0=counter-clockwise, 1=clockwise, 2=engage
             # by which robot:
@@ -194,6 +205,13 @@ class TokamakEnv2(gym.Env):
                     if(self._goal_locations[i] == current_location and self._goal_status[i]==False):
                         self._goal_status[i] = True
                         reward += 1.0 # reward if robots manage to complete a task
+                    
+            self._robot_clocks[robot_no] = True # lock robot until clock ticks
+            
+            if np.sum(self._robot_clocks) == self.num_robots: # check if a tick should happen
+                self._clock_tick()
+                self.elapsed += 1
+    
     
             terminated = True
             for status in self._goal_status:
@@ -202,7 +220,6 @@ class TokamakEnv2(gym.Env):
                         
     
         observation = self._get_obs()
-        self.elapsed+=1
         info = self._get_info()
         
         if self.render_mode == "human":
@@ -215,6 +232,9 @@ class TokamakEnv2(gym.Env):
             return self._render_frame()
     
     def _render_frame(self):
+        
+        font = pygame.font.SysFont('Arial', 25)
+        
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
@@ -244,13 +264,17 @@ class TokamakEnv2(gym.Env):
                              pygame.Rect((pix_square_size * self._goal_locations[i],0),
                                          (pix_square_size, pix_square_size)))
         
+        # draw robots
         for i in range(self.num_robots):
-            pygame.draw.rect(canvas,
+            rect = pygame.draw.rect(canvas,
                              (0,0,255),
                              pygame.Rect((pix_square_size * self._robot_locations[i],pix_square_size),
                                          (pix_square_size, 2*pix_square_size)))
-            
-
+            if(self._robot_clocks[i]):
+                canvas.blit(font.render(str(i)+ "'", True, (255,255,255)), rect)
+            else:
+                canvas.blit(font.render(str(i), True, (255,255,255)), rect)
+                        
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window
             self.window.blit(canvas, canvas.get_rect())

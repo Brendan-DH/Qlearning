@@ -21,9 +21,13 @@ import torch.optim as optim
 import torch.nn.functional as F
 import time
 
-env = gym.make("Tokamak-v2", num_robots=3, size=24, num_goals=3, goal_locations=[11,5,6])  
+num_robots = 3
+size = 12
+goal_locations = [11,5,6]
+
+env = gym.make("Tokamak-v3", num_robots=num_robots, size=size, num_goals=len(goal_locations), goal_locations=goal_locations, render_mode = None )
 # env = gym.make("CartPole-v1")
-env_options = {"robot_locations" : [0,1,7]}
+env_options = {"robot_locations" : [1,3,5]}
 env.reset(options=env_options)
 torch.set_grad_enabled(True)
 
@@ -80,7 +84,7 @@ class DQN(nn.Module):
 BATCH_SIZE = 128
 gamma = 0.6 # a lower gamma will prioritise immediate rewards, naturally favouring shorter paths
 epsilon_max = 0.9
-epsilon_min = 0.05
+epsilon_min = 0#0.05
 explore_time = 0 # number of steps for which epsilon is held constant before starting to decay
 TAU = 0.005
 LR = 1e-4
@@ -212,33 +216,33 @@ def optimize_model():
     optimizer.step()
     
     
-def evaluate_model():
-        
-    state, info = env.reset(options=env_options)
-    states = [state]
-    actions = []
-    print(state)
+def evaluate_model(num_episodes=100):
     
-    state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
-    
+    env = gym.make("Tokamak-v3", num_robots=num_robots, size=size, num_goals=len(goal_locations), goal_locations=goal_locations, render_mode = "human" )
  
+    for i in range(num_episodes):
+        state, info = env.reset(options=env_options)
     
-    
-    for t in count():
+        states = [state]
+        actions = []
         
-        action = select_action(state, 0)
-        observation, reward, terminated, truncated, info = env.step(action.item())
-        state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
+        state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
         
-        print(observation, action)
-        states.append(observation)
-        actions.append(action)
-        
-        done = terminated or truncated
-        
-        if(done):
-            print("Completed in: " +  str(t+1))
-            break
+        for t in count():
+            
+            action = select_action(state, 0)
+            observation, reward, terminated, truncated, info = env.step(action.item())
+            state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
+            
+            states.append(observation)
+            actions.append(action)
+                        
+            done = terminated or truncated
+            
+            if(done):
+                print("Completed in: ", env.elapsed + 1)
+                break
+
     
     return states, actions
         
@@ -247,7 +251,7 @@ if torch.cuda.is_available():
     num_episodes = 10000
 else:
     num_episodes = 1000
-
+    
 epsilon_decay_rate =  np.log(100 * (epsilon_max-epsilon_min)) / (num_episodes-explore_time) # ensures epsilon ~= epsilon_min at end
 
 start_time = time.time();
@@ -272,7 +276,7 @@ for i_episode in range(num_episodes):
         av_dist = info["av_dist"] # for phi(s')
         elapsed = info["elapsed"]
         pseudoreward =  (gamma * 1/(av_dist+1) - 1/(old_av_dist+1))
-        print(pseudoreward)
+        # print(pseudoreward)
         # print(old_av_dist, av_dist, pseudoreward)
         
         reward = torch.tensor([reward+pseudoreward], device=device)
