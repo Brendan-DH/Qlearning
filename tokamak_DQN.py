@@ -78,12 +78,12 @@ class DQN(nn.Module):
 # TAU is the update rate of the target network
 # LR is the learning rate of the ``AdamW`` optimizer
 BATCH_SIZE = 128
-gamma = 0.5 # a lower gamma will prioritise immediate rewards, naturally favouring shorter paths
+gamma = 0.6 # a lower gamma will prioritise immediate rewards, naturally favouring shorter paths
 epsilon_max = 0.9
 epsilon_min = 0.05
 explore_time = 0 # number of steps for which epsilon is held constant before starting to decay
 TAU = 0.005
-LR = 0.5e-4
+LR = 1e-4
 
 # Get number of actions from gym action space
 n_actions = env.action_space.n
@@ -157,7 +157,7 @@ def plot_durations(show_result=False):
     # Take 100 episode averages and plot them too
     if len(durations_t) >= 100:
         means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
-        means = torch.cat((torch.ones(99) * means[0], means))
+        means = torch.cat((torch.zeros(99), means))
         av_plot = host.plot(means.numpy(), color="indianred", label="average", lw = 3);
         host.axhline(means.numpy()[-1], color = "indianred", alpha = 1, ls = "--")
         host.text(0, means.numpy()[-1], "avg: "+ str(means.numpy()[-1]))
@@ -271,10 +271,11 @@ for i_episode in range(num_episodes):
         old_av_dist = av_dist # for phi(s)
         av_dist = info["av_dist"] # for phi(s')
         elapsed = info["elapsed"]
-        # pseudoreward = (gamma * 1/av_dist - 1/old_av_dist) 
+        pseudoreward =  (gamma * 1/(av_dist+1) - 1/(old_av_dist+1))
+        print(pseudoreward)
         # print(old_av_dist, av_dist, pseudoreward)
         
-        reward = torch.tensor([reward], device=device)
+        reward = torch.tensor([reward+pseudoreward], device=device)
         ep_reward += reward.item()
         done = terminated or truncated
 

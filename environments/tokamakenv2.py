@@ -102,14 +102,19 @@ class TokamakEnv2(gym.Env):
         for i in range(len(self._robot_locations)):
             rob_pos = self._robot_locations[i]
             rob_av = 0
+            num_active_goals = self.num_goals - np.sum(self._goal_status)
             for j in range(len(self._goal_locations)):
+                if self._goal_status[j] == True: # this goal is already completed
+                    print("true true thats pretty true")
+                    continue
                 goal_pos = self._goal_locations[j]
                 #calculate average distance of robot from each goal:
                 dist = abs(rob_pos - goal_pos)
                 mod_dist = min((dist, self.size - dist)) # to account for cyclical space
-                rob_av += mod_dist/len(self._goal_locations)
+                rob_av += mod_dist/num_active_goals
             # average of average distances
             tot_av += rob_av/len(self._robot_locations)
+        print("goal status:", self._goal_status, self._goal_locations, self._robot_locations, tot_av)
         return tot_av
                     
     def _get_blocked_actions(self):
