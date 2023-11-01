@@ -232,6 +232,7 @@ class TokamakEnv3(gym.Env):
             return self._render_frame()
     
     def _render_frame(self):
+        #note for commit: this is also new for previous commit
         
         font = pygame.font.SysFont('Arial', 25)
         
