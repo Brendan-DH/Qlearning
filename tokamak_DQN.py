@@ -24,9 +24,9 @@ import time
 num_robots = 3
 size = 12
 goal_locations = [11,5,6]
+goal_probabilities = [0.1, 0.9, 0.5]
 
-env = gym.make("Tokamak-v3", num_robots=num_robots, size=size, num_goals=len(goal_locations), goal_locations=goal_locations, render_mode = None )
-# env = gym.make("CartPole-v1")
+env = gym.make("Tokamak-v4", num_robots=num_robots, size=size, num_goals=len(goal_locations), goal_locations=goal_locations, goal_probabilities = goal_probabilities, render_mode = None )
 env_options = {"robot_locations" : [1,3,5]}
 env.reset(options=env_options)
 torch.set_grad_enabled(True)
@@ -240,7 +240,7 @@ def evaluate_model(num_episodes=100):
             done = terminated or truncated
             
             if(done):
-                print("Completed in: ", env.elapsed + 1)
+                print("Completed in: ", env.elapsed + 1, "ticks")
                 break
 
     
@@ -275,7 +275,7 @@ for i_episode in range(num_episodes):
         old_av_dist = av_dist # for phi(s)
         av_dist = info["av_dist"] # for phi(s')
         elapsed = info["elapsed"]
-        pseudoreward =  (gamma * 1/(av_dist+1) - 1/(old_av_dist+1))
+        pseudoreward =  0#(gamma * 1/(av_dist+1) - 1/(old_av_dist+1))
         # print(pseudoreward)
         # print(old_av_dist, av_dist, pseudoreward)
         
