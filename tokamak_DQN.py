@@ -92,7 +92,7 @@ epsilon_max = 0.9
 epsilon_min = 0.05
 explore_time = 200 # number of steps for which epsilon is held constant before starting to decay
 TAU = 0.005
-LR = 1e-4
+LR = 1e-3
 
 # Get number of actions from gym action space
 n_actions = env.action_space.n
@@ -269,7 +269,7 @@ def evaluate_model(num_episodes=100):
 if torch.cuda.is_available():
     num_episodes = 10000
 else:
-    num_episodes = 2000
+    num_episodes = 3000
     
 epsilon_decay_rate =  np.log(100 * (epsilon_max-epsilon_min)) / (num_episodes-explore_time) # ensures epsilon ~= epsilon_min at end
 

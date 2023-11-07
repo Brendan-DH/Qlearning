@@ -142,7 +142,7 @@ class TokamakEnv4(gym.Env):
             for j in range(self.num_robots):
                 other_robot_loc = self._robot_locations[j]
                 
-                if(i==j):
+                if(i==j): # don't need to check robots against themselves
                     continue
                 
                 if (moving_robot_loc == other_robot_loc):
