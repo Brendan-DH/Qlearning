@@ -91,7 +91,6 @@ class TokamakEnv4(gym.Env):
             self._robot_locations = [self.np_random.integers(0,self.size) 
                                      for i in range(self.num_robots)] 
             
-        
         # reset goals
         self._goal_probabilities = self._original_probabilities.copy()
         self.elapsed = 0
@@ -106,13 +105,15 @@ class TokamakEnv4(gym.Env):
         
         return self._get_obs(), self._get_info()
         
+        
     def av_dist(self):
         tot_av = 0
         # goal positions
         for i in range(len(self._robot_locations)):
             rob_pos = self._robot_locations[i]
             rob_av = 0
-            num_active_goals = self.num_goals - np.sum(np.array(self._goal_probabilities) > 0) # status is True if complete; this calculates num False
+            num_active_goals = len(self._goal_locations)
+            # num_active_goals = np.sum(np.array(self._goal_probabilities) > 0) # status is True if complete; this calculates num False
             for j in range(len(self._goal_locations)):
                 if self._goal_probabilities[j] == 0: # this goal is already completed
                     continue
@@ -200,13 +201,12 @@ class TokamakEnv4(gym.Env):
                 for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
                     if(self._goal_locations[i] == current_location and self._goal_probabilities[i]==1):
                         self._goal_probabilities[i] = 0
-                        reward += 1.0 # reward if robots manage to complete a task
+                        reward += 10 # reward if robots manage to complete a task
                         
                         
             for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
                 if(self._goal_locations[i] == current_location and self._goal_probabilities[i] > 0 and self._goal_probabilities[i] < 1):
                     self._goal_probabilities[i] = 1 if np.random.rand() < self._goal_probabilities[i] else 0 # resolve the determinism
-                    reward += 1.0 # reward if robots manage to complete a task
                         
                     
             self._robot_clocks[robot_no] = True # lock robot until clock ticks
@@ -237,7 +237,7 @@ class TokamakEnv4(gym.Env):
     def _render_frame(self):
         #note for commit: this is also new for previous commit
         
-        font = pygame.font.SysFont('Arial', 25)
+        font = pygame.font.SysFont('notosans', 25)
         
         if self.window is None and self.render_mode == "human":
             pygame.init()
@@ -263,11 +263,17 @@ class TokamakEnv4(gym.Env):
         
         # draw the goals
         for i in range(self.num_goals):
-            pygame.draw.rect(canvas,
-                             ((255,0,0) if self._goal_probabilities[i] > 0 else (0,255,0)),
+            if(self._goal_probabilities[i] == 0):
+                continue
+            rect = pygame.draw.rect(canvas,
+                             ((255,0,0) if self._goal_probabilities[i] < 1 else (0,255,0)),
                              pygame.Rect((pix_square_size * self._goal_locations[i],0),
                                          (pix_square_size, pix_square_size)))
-        
+            if(self._goal_probabilities[i] < 1 and self._goal_probabilities[i] > 0):
+                canvas.blit(font.render(f"{self._goal_probabilities[i]}?", True, (255,255,255)), rect)
+            else:
+                canvas.blit(font.render(f"{self._goal_probabilities[i]}", True, (255,255,255)), rect)
+                
         # draw robots
         for i in range(self.num_robots):
             rect = pygame.draw.rect(canvas,
