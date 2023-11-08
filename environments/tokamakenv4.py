@@ -243,7 +243,7 @@ class TokamakEnv4(gym.Env):
             pygame.init()
             pygame.display.init()
             self.window = pygame.display.set_mode(
-                (self.window_size, self.window_size/4)
+                (self.window_size, self.window_size)
             )
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
@@ -254,12 +254,14 @@ class TokamakEnv4(gym.Env):
             self.window_size / self.size
         )  # The size of a single grid square in pixels
 
+        # draw tokamak rect
+        trect = pygame.draw.rect(canvas, (255,255,255),
+                                 pygame.Rect((0,0), (self.window_size, self.window_size)))
+
         # draw all positions
+        angle = 2*np.pi/self.size
         for i in range(self.size):
-            pygame.draw.rect(canvas,
-                             (144,144,144),
-                             pygame.Rect((pix_square_size*i ,0),
-                                         (pix_square_size, pix_square_size*0.5)))
+            pygame.draw.arc(canvas, (144,144,144), trect, i*angle, (i+1)*angle)
         
         # draw the goals
         for i in range(self.num_goals):
