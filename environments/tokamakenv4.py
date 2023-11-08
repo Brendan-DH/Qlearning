@@ -246,8 +246,7 @@ class TokamakEnv4(gym.Env):
             return self._render_frame()
     
     def _render_frame(self):
-        #note for commit: this is also new for previous commit
-        
+        # note: the -np.pi is to keep the segments consistent with the jorek interpreter        
         
         if self.window is None and self.render_mode == "human":
             pygame.init()
@@ -259,49 +258,65 @@ class TokamakEnv4(gym.Env):
             self.clock = pygame.time.Clock()
     
         font = pygame.font.SysFont('notosans', 25)
-        canvas = pygame.Surface((self.window_size, self.window_size/4))
+        canvas = pygame.Surface((self.window_size, self.window_size))
         canvas.fill((255, 255, 255))
-        pix_square_size = (
-            self.window_size / self.size
-        )  # The size of a single grid square in pixels
-
-        # draw tokamak rect
-        trect = pygame.draw.rect(canvas, (255,255,255),
-                                 pygame.Rect((0,0), (self.window_size, self.window_size)))
 
         # draw all positions
         angle = 2*np.pi/self.size
+        tokamak_r = self.window_size/2 - 40
         for i in range(self.size):
-            pygame.draw.arc(canvas, (144,144,144), trect, i*angle, (i+1)*angle)
+            pygame.draw.circle(canvas, (144,144,144), (self.window_size/2, self.window_size/2),tokamak_r, width=1)
+            # offset the angle so that other objects are displayed between lines rather than on top
+            xpos = self.window_size/2 + tokamak_r * np.cos((i-0.5)*angle - np.pi) 
+            ypos = self.window_size/2 + tokamak_r * np.sin((i-0.5)*angle - np.pi)
+            pygame.draw.line(canvas,
+                             (144,144,144),
+                             (self.window_size/2, self.window_size/2),
+                             (xpos, ypos))
+            
+            text = font.render(str(i), True, (0,0,0))
+            text_width = text.get_rect().width
+            text_height = text.get_rect().height
+            xpos = self.window_size/2 + (tokamak_r*1.05) * np.cos((i)*angle - np.pi) 
+            ypos = self.window_size/2 + (tokamak_r*1.05) * np.sin((i)*angle - np.pi)
+            canvas.blit(text, (xpos-text_width/2, ypos-text_height/2))
 
         
         # draw the goals
         for i in range(self.num_goals):
             if(self._goal_probabilities[i] == 0):
                 continue
-            rect = pygame.draw.rect(canvas,
-                             ((255,0,0) if self._goal_probabilities[i] < 1 else (0,200,0)),
-                             pygame.Rect((pix_square_size * self._goal_locations[i],0),
-                                         (pix_square_size, pix_square_size)))
+            pos = self._goal_locations[i]
+            xpos = self.window_size/2 + tokamak_r * 3/4 * np.cos(angle*pos - np.pi)
+            ypos = self.window_size/2 + tokamak_r * 3/4 * np.sin(angle*pos - np.pi)
+            colour = (255,0,0) if self._goal_probabilities[i] < 1 else (0,200,0)
+            circ = pygame.draw.circle(canvas, colour, (xpos, ypos), 30) #maybe make these rects again
             if(self._goal_probabilities[i] < 1 and self._goal_probabilities[i] > 0):
-                canvas.blit(font.render(f"{self._goal_probabilities[i]}?", True, (255,255,255)), rect)
+                text = font.render(f"{self._goal_probabilities[i]}?", True, (255,255,255))
             else:
-                canvas.blit(font.render(f"{self._goal_probabilities[i]}", True, (255,255,255)), rect)
+                text = font.render(f"{self._goal_probabilities[i]}", True, (255,255,255))
+            text_width = text.get_rect().width
+            text_height = text.get_rect().height
+            canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
                 
         # draw robots
         for i in range(self.num_robots):
-            rect = pygame.draw.rect(canvas,
-                             (0,0,255),
-                             pygame.Rect((pix_square_size * self._robot_locations[i], pix_square_size),
-                                         (pix_square_size, 2*pix_square_size)))
+            pos = self._robot_locations[i]
+            xpos = self.window_size/2 + tokamak_r/2 * np.cos(angle*pos - np.pi)
+            ypos = self.window_size/2 + tokamak_r/2 * np.sin(angle*pos - np.pi)
+            circ = pygame.draw.circle(canvas, (0,0,255), (xpos, ypos), 20)
             if(self._robot_clocks[i]):
-                canvas.blit(font.render(str(i)+ "'", True, (255,255,255)), rect)
+                text = font.render(str(i)+ "'", True, (255,255,255))
             else:
-                canvas.blit(font.render(str(i), True, (255,255,255)), rect)
+                text = font.render(str(i), True, (255,255,255))
+            
+            text_width = text.get_rect().width
+            text_height = text.get_rect().height
+            canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
                                 
         # draw tick number
-        rect = pygame.draw.rect(canvas,(0,0,0), pygame.Rect((0,self.window_size/4-30), (40, self.window_size/4)))
-        canvas.blit(font.render("t=" + str(self.elapsed), True, (255,255,255)), (0,(self.window_size/4)-30))
+        rect = pygame.draw.rect(canvas,(0,0,0), pygame.Rect((0,0), (40, 40)))
+        canvas.blit(font.render("t=" + str(self.elapsed), True, (255,255,255)), rect)
                         
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window
