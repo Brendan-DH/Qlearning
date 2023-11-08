@@ -110,7 +110,7 @@ memory = ReplayMemory(10000)
 
 steps_done = 0
 
-
+#%%
 def select_action(state, epsilon):
     global steps_done
     sample = random.random()
@@ -120,10 +120,10 @@ def select_action(state, epsilon):
             # t.max(1) will return the largest column value of each row.
             # second column on max result is index of where max element was
             # found, so we pick action with the larger expected reward.
-            return policy_net(state).max(1)[1].view(1, 1)
+            return test_model(state).max(1)[1].view(1, 1)
     else:
         return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
-
+#%%
 
 episode_durations = []
 epsilons = []
@@ -355,6 +355,10 @@ print("Training time:", end_time - start_time, "s")
 #%%
 
 _ = evaluate_model()
+
+torch.save(policy_net.state_dict(), f"./outputs/policy_weights_{int(np.random.rand()*1e9)}")
+
+
 
 
 

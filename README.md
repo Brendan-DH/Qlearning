@@ -9,6 +9,24 @@ b.) A DQN script which learns the ideal control policy for the scenario.
 
 Pytorch and gymnasium are required. Pygame is technically also required, but it can be deleted from the imports of the gym environment you want to use, as long as you don't plan to render the system.
 
+A set of sample_weights are provided for use with the following system parameters:
+
+```python
+num_robots = 3
+size = 12
+goal_locations = [11,5,6,0,3,2]
+goal_probabilities = [0.1, 0.9, 0.5, 0.1, 0.9, 0.5]
+
+env = gym.make("Tokamak-v4",
+               num_robots=num_robots,
+               size=size, num_goals=len(goal_locations),
+               goal_locations=goal_locations,
+               goal_probabilities = goal_probabilities,
+               render_mode = None )
+env_options = {"robot_locations" : [1,3,5]}
+env.reset(options=env_options)
+```
+
 ## Setting up the tokamak gymnasium environment
 
 The directory `/environments` contains various versions of the tokamak environment ("tokamakenv[version].py"). This environment must be registered to the local installation of gymnasium before they can be used in tokamak_DQN.py.
