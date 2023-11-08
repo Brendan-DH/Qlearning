@@ -257,35 +257,33 @@ def evaluate_model(num_episodes=1000, render=False):
                 goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 break
                 
-        times = np.array(times)
-        plt.figure(figsize = (10,10))
-        times_start = 0
-        # process 'times' into sub-arrays based on the unique entries in goal_resolutions
-        unique_res = np.unique(goal_resolutions)
-        for unique in unique_res:
-            unique_times = times[goal_resolutions==unique] # groups episodes with this unique number of tasks
-            # plot the times. assign a range on x for each group based on the size of the group and where the last group ended.
-            plt.plot(np.array(range(len(unique_times))) + times_start,
-                     unique_times,
-                     ls = "",
-                     marker = "o", 
-                     label=f"{int(unique)} goals - avg {int(np.mean(unique_times))}")
-            times_start = len(unique_times) + times_start + num_episodes/20
-    
-        plt.legend()
-        plt.hlines(np.mean(times), 0, len(times) + len(unique_res)*num_episodes/20, ls="--", color = "grey")
-        plt.text(0,np.mean(times), f"avg: {np.mean(times)}")
-        plt.xticks([])
-        plt.ylabel("Duration / ticks")
-        plt.xlabel("Episode, sorted by number goals encountered")
-        plt.title("Evaluation durations")
-        plt.show()
+    times = np.array(times)
+    plt.figure(figsize = (10,10))
+    times_start = 0
+    # process 'times' into sub-arrays based on the unique entries in goal_resolutions
+    unique_res = np.unique(goal_resolutions)
+    for unique in unique_res:
+        unique_times = times[goal_resolutions==unique] # groups episodes with this unique number of tasks
+        # plot the times. assign a range on x for each group based on the size of the group and where the last group ended.
+        plt.plot(np.array(range(len(unique_times))) + times_start,
+                 unique_times,
+                 ls = "",
+                 marker = "o", 
+                 label=f"{int(unique)} goals - avg {int(np.mean(unique_times))}")
+        times_start = len(unique_times) + times_start + num_episodes/20
+
+    plt.legend()
+    plt.hlines(np.mean(times), 0, len(times) + len(unique_res)*num_episodes/20, ls="--", color = "grey")
+    plt.text(0,np.mean(times), f"avg: {np.mean(times)}")
+    plt.xticks([])
+    plt.ylabel("Duration / ticks")
+    plt.xlabel("Episode, sorted by number goals encountered")
+    plt.title("Evaluation durations")
+    plt.show()
 
     
     return states, actions
         
-_ = evaluate_model(1000)
-
 #%%
 
 if torch.cuda.is_available():
