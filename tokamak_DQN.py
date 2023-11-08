@@ -91,7 +91,7 @@ gamma = 0.6 # a lower gamma will prioritise immediate rewards, naturally favouri
 epsilon_max = 0.9
 epsilon_min = 0.05
 explore_time = 200 # number of steps for which epsilon is held constant before starting to decay
-TAU = 0.005
+TAU = 0.01
 LR = 1e-3
 
 # Get number of actions from gym action space
@@ -222,17 +222,19 @@ def optimize_model():
     
 #%%
     
-def evaluate_model(num_episodes=100):
+def evaluate_model(num_episodes=1000, render=False):
     
     env = gym.make("Tokamak-v4",
                    num_robots=num_robots,
                    size=size, num_goals=len(goal_locations),
                    goal_locations=goal_locations,
                    goal_probabilities = goal_probabilities,
-                   render_mode = "human" )
+                   render_mode = "human" if render else None )
     
     times = []
- 
+    goal_resolutions = []
+    colours = ["blue", "red", "green", "purple", "yellow", "black"]
+    
     for i in range(num_episodes):
         state, info = env.reset(options=env_options)
     
@@ -252,18 +254,39 @@ def evaluate_model(num_episodes=100):
             done = terminated or truncated
             
             if(done):
-                times.append(env.elapsed)
+                times.append(info["elapsed"])
+                goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 break
             
-    plt.figure()
-    plt.plot(times)
-    plt.hlines(np.mean(times), 0, len(times))
+    times = np.array(times)
+    plt.figure(figsize = (10,10))
+    times_start = 0
+    # process 'times' into sub-arrays based on the unique entries in goal_resolutions
+    unique_res = np.unique(goal_resolutions)
+    for unique in unique_res:
+        unique_times = times[goal_resolutions==unique] # groups episodes with this unique number of tasks
+        # plot the times. assign a range on x for each group based on the size of the group and where the last group ended.
+        plt.plot(np.array(range(len(unique_times))) + times_start,
+                 unique_times,
+                 ls = "",
+                 marker = "o", 
+                 label=f"{int(unique)} goals - avg {int(np.mean(unique_times))}")
+        times_start = len(unique_times) + times_start + num_episodes/20
+
+    plt.legend()
+    plt.hlines(np.mean(times), 0, len(times) + len(unique_res)*num_episodes/20, ls="--", color = "grey")
+    plt.text(0,np.mean(times), f"avg: {np.mean(times)}")
+    plt.xticks([])
+    plt.ylabel("Duration / ticks")
+    plt.xlabel("Episode, sorted by number goals encountered")
     plt.title("Evaluation durations")
     plt.show()
 
     
     return states, actions
         
+_ = evaluate_model(1000)
+
 #%%
 
 if torch.cuda.is_available():
@@ -334,7 +357,7 @@ print("Training time:", end_time - start_time, "s")
 
 #%%
 
-states, actions = evaluate_model()
+_ = evaluate_model()
 
 
 

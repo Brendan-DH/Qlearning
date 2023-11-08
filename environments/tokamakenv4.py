@@ -32,7 +32,9 @@ class TokamakEnv4(gym.Env):
         self._goal_locations = goal_locations
         self._goal_probabilities = goal_probabilities
         self._original_probabilities = goal_probabilities
-        self.window_size = 512  # The size of the PyGame window
+        # 1 if goal was there. 0 if goal was not. -1 if goal hasn't been resolved yet
+        self._goal_resolutions = np.ones_like(goal_probabilities)*-1 
+        self.window_size = 700  # The size of the PyGame window
         self.elapsed = 0
 
         obDict = {}
@@ -79,10 +81,11 @@ class TokamakEnv4(gym.Env):
         info = {}
         info["elapsed"] = self.elapsed
         info["av_dist"] = self.av_dist()
+        info["goal_resolutions"] = self._goal_resolutions.copy()
         return info
         
     def reset(self, seed=None, options=None):
-        
+        # print("reset")
         super().reset(seed=seed)
         if(options):
             self._robot_locations = options["robot_locations"].copy()
@@ -99,9 +102,10 @@ class TokamakEnv4(gym.Env):
         return self._get_obs(), self._get_info()
         
         self.elapsed = 0
+        self._goal_resolutions = np.ones_like(self._goal_probabilities) * -1
         
         if self.render_mode == "human":
-            self._render_frame()    
+            self._render_frame()
         
         return self._get_obs(), self._get_info()
         
@@ -201,12 +205,19 @@ class TokamakEnv4(gym.Env):
                 for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
                     if(self._goal_locations[i] == current_location and self._goal_probabilities[i]==1):
                         self._goal_probabilities[i] = 0
-                        reward += 10 # reward if robots manage to complete a task
+                        reward += 100 # reward if robots manage to complete a task
                         
                         
             for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
-                if(self._goal_locations[i] == current_location and self._goal_probabilities[i] > 0 and self._goal_probabilities[i] < 1):
-                    self._goal_probabilities[i] = 1 if np.random.rand() < self._goal_probabilities[i] else 0 # resolve the determinism
+                if(self._goal_locations[i] == self._robot_locations[robot_no] and self._goal_probabilities[i] > 0 and self._goal_probabilities[i] < 1):
+                    
+                    # resolve the non-determinism:
+                    if np.random.rand() < self._goal_probabilities[i]:
+                        self._goal_probabilities[i] = 1
+                        self._goal_resolutions[i] = 1 # feel like there's a more concise way to do this...
+                    else:
+                        self._goal_probabilities[i] = 0
+                        self._goal_resolutions[i] = 0
                         
                     
             self._robot_clocks[robot_no] = True # lock robot until clock ticks
@@ -237,7 +248,6 @@ class TokamakEnv4(gym.Env):
     def _render_frame(self):
         #note for commit: this is also new for previous commit
         
-        font = pygame.font.SysFont('notosans', 25)
         
         if self.window is None and self.render_mode == "human":
             pygame.init()
@@ -248,6 +258,7 @@ class TokamakEnv4(gym.Env):
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
     
+        font = pygame.font.SysFont('notosans', 25)
         canvas = pygame.Surface((self.window_size, self.window_size/4))
         canvas.fill((255, 255, 255))
         pix_square_size = (
@@ -256,17 +267,18 @@ class TokamakEnv4(gym.Env):
 
         # draw all positions
         for i in range(self.size):
+            colour = (144,144,144) if i%2==0 else (124,124,124)
             pygame.draw.rect(canvas,
-                             (144,144,144),
+                             colour,
                              pygame.Rect((pix_square_size*i ,0),
-                                         (pix_square_size, pix_square_size*0.5)))
+                                         (pix_square_size+1, pix_square_size*0.5)))
         
         # draw the goals
         for i in range(self.num_goals):
             if(self._goal_probabilities[i] == 0):
                 continue
             rect = pygame.draw.rect(canvas,
-                             ((255,0,0) if self._goal_probabilities[i] < 1 else (0,255,0)),
+                             ((255,0,0) if self._goal_probabilities[i] < 1 else (0,200,0)),
                              pygame.Rect((pix_square_size * self._goal_locations[i],0),
                                          (pix_square_size, pix_square_size)))
             if(self._goal_probabilities[i] < 1 and self._goal_probabilities[i] > 0):
@@ -278,12 +290,16 @@ class TokamakEnv4(gym.Env):
         for i in range(self.num_robots):
             rect = pygame.draw.rect(canvas,
                              (0,0,255),
-                             pygame.Rect((pix_square_size * self._robot_locations[i],pix_square_size),
+                             pygame.Rect((pix_square_size * self._robot_locations[i], pix_square_size),
                                          (pix_square_size, 2*pix_square_size)))
             if(self._robot_clocks[i]):
                 canvas.blit(font.render(str(i)+ "'", True, (255,255,255)), rect)
             else:
                 canvas.blit(font.render(str(i), True, (255,255,255)), rect)
+                                
+        # draw tick number
+        rect = pygame.draw.rect(canvas,(0,0,0), pygame.Rect((0,self.window_size/4-30), (40, self.window_size/4)))
+        canvas.blit(font.render("t=" + str(self.elapsed), True, (255,255,255)), (0,(self.window_size/4)-30))
                         
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window
