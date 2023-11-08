@@ -7,7 +7,7 @@ a.) A set of gymnasium environments which describe a tokamak maintenance scenari
 
 b.) A DQN script which learns the ideal control policy for the scenario.
 
-Pytorch and gymnasium are required.
+Pytorch and gymnasium are required. Pygame is technically also required, but it can be deleted from the imports of the gym environment you want to use, as long as you don't plan to render the system.
 
 ## Setting up the tokamak gymnasium environment
 
@@ -34,7 +34,7 @@ To register the environments:
     )
     ```
 
-Gymnasium should now be able to make the "Tokamak-v4" environment from within tokamak_DQN or wherever else you need it.
+Gymnasium should now be able to make the "Tokamak-v4" environment from within tokamak_DQN.py or wherever else you need it.
 
 
 
