@@ -29,13 +29,13 @@ env.reset(options=env_options)
 
 ## Setting up the tokamak gymnasium environment
 
-The directory `/environments` contains various versions of the tokamak environment ("tokamakenv[version].py"). This environment must be registered to the local installation of gymnasium before they can be used in tokamak_DQN.py.
+The directory `/environments` contains various versions of the tokamak environment (`tokamakenv[version].py`). This environment must be registered to the local installation of gymnasium before they can be used in `tokamak_DQN.py`.
 
 To register the environments:
 
 1. Navigate to your gymnasium installation (e.g. `/home/[user]/anaconda3/lib/python3.8/site-packages/gymnasium`).
 2. In `/envs`, create a directory called `tokamak`.
-3. Inside `/envs/tokamak`, create a symlink to the tokamakenv that you want to use (e.g. tokamakenv4.py).
+3. Inside `/envs/tokamak`, create a symlink to the tokamakenv that you want to use (say, tokamakenv4.py).
 4. Also inside `/envs/tokamak`, create `__init__.py` and add the following line using the corresponding version number:
     
     ```python
@@ -52,7 +52,7 @@ To register the environments:
     )
     ```
 
-Using the above snippets, gymnasium should now be able to make the "Tokamak-v4" environment from within tokamak_DQN.py or wherever else you need it.
+Having added the above snippets, gymnasium should now be able to make the "Tokamak-v4" environment from within `tokamak_DQN.py` or wherever else you need it.
 
 
 
