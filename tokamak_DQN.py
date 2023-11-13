@@ -15,9 +15,9 @@ import torch
 import DQN
 
 num_robots = 3
-size = 12
-goal_locations = [11,5,2]
-goal_probabilities = [0.1, 0.9, 0.5]
+size = 24
+goal_locations = [11,5,2, 10,9,12]
+goal_probabilities = [0.1, 0.9, 0.7, 0.1, 0.9, 0.8]
 
 env = gym.make("Tokamak-v5",
                num_robots=num_robots,
@@ -47,7 +47,7 @@ target_net.load_state_dict(policy_net.state_dict())
 
     
 #%%
-trained_dqn, dur, re, eps = DQN.train_model(env, policy_net, target_net, reset_options, num_episodes=1000)    
+trained_dqn, dur, re, eps = DQN.train_model(env, policy_net, target_net, reset_options, num_episodes=2000)    
 filename = f"policy_weights_{int(np.random.rand()*1e9)}"
 print(f"Saving as {filename}")
 

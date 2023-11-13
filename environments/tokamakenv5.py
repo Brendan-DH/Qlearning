@@ -43,7 +43,7 @@ class TokamakEnv5(gym.Env):
             }
         self.num_actions = 4 # this can be changed for dev purposes
         self.most_recent_actions = np.empty((3), np.dtype('U100'))
-        print(np.shape(self.most_recent_actions))
+        # print(np.shape(self.most_recent_actions))
         
         
         obDict = {}
@@ -155,7 +155,6 @@ class TokamakEnv5(gym.Env):
             for j in range(self.num_robots):
                 other_robot_loc = self._robot_locations[j]
                 
-                
                 if(i==j): # don't need to check robots against themselves
                     continue
                 
@@ -172,8 +171,8 @@ class TokamakEnv5(gym.Env):
                     
             #block inspection if robot is not over known task location:
             block_inspection = 1
-            for i in range(len(self._goal_locations)): 
-                if (self._goal_locations[i] == moving_robot_loc and self._goal_probabilities[i] == 1):
+            for j in range(len(self._goal_locations)): 
+                if (self._goal_locations[j] == moving_robot_loc and self._goal_probabilities[j] == 1):
                     block_inspection = 0
             blocked_actions[(i*self.num_actions)+2] = block_inspection
                     
@@ -251,7 +250,7 @@ class TokamakEnv5(gym.Env):
                         
                     
             self.most_recent_actions[robot_no] = current_action
-            print(current_action, robot_no, self.most_recent_actions, type(self.most_recent_actions[0]))
+            # print(current_action, robot_no, self.most_recent_actions, type(self.most_recent_actions[0]))
             self._robot_clocks[robot_no] = True # lock robot until clock ticks
             
             if np.sum(self._robot_clocks) == self.num_robots: # check if a tick should happen
