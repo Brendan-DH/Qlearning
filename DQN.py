@@ -249,11 +249,11 @@ def optimize_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batc
     torch.nn.utils.clip_grad_value_(policy_dqn.parameters(), 100) # stops the gradients from becoming too large
     optimiser.step()
     
-def evaluate_model(dqn, num_episodes, template_env, reset_options, render=False):
+def evaluate_model(dqn, num_episodes, template_env, reset_options, env_name = "Tokamak-v5", render=False):
     
     print("Evaluating...")
     
-    env = gym.make("Tokamak-v4",
+    env = gym.make(env_name,
                    size = template_env.parameters["size"],
                    num_robots = template_env.parameters["num_robots"],
                    goal_locations = template_env.parameters["goal_locations"],

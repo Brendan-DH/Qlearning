@@ -15,9 +15,9 @@ import torch
 import DQN
 
 num_robots = 3
-size = 24
-goal_locations = [11,5,6,0,3,2]
-goal_probabilities = [0.1, 0.9, 0.5, 0.1, 0.9, 0.5]
+size = 12
+goal_locations = [11,5,2]
+goal_probabilities = [0.1, 0.9, 0.5]
 
 env = gym.make("Tokamak-v5",
                num_robots=num_robots,
@@ -41,27 +41,31 @@ state, info = env.reset()
 n_observations = len(state)
 
 policy_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
-# policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/policy_weights_887324751"))
+# policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/policy_weights_647487388"))
 target_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
 target_net.load_state_dict(policy_net.state_dict())
 
     
 #%%
-trained_dqn, dur, re, eps = DQN.train_model(env, policy_net, target_net, reset_options, num_episodes=3000)    
-
-#%%
-
+trained_dqn, dur, re, eps = DQN.train_model(env, policy_net, target_net, reset_options, num_episodes=1000)    
 filename = f"policy_weights_{int(np.random.rand()*1e9)}"
 print(f"Saving as {filename}")
+
+#%%
 torch.save(trained_dqn.state_dict(), f"./outputs/{filename}")
-_ = DQN.evaluate_model(policy_net, 10, env, reset_options, True)
+_ = DQN.evaluate_model(dqn = policy_net,
+                       num_episodes = 10,
+                       template_env = env,
+                       reset_options = reset_options,
+                       env_name = "Tokamak-v5",
+                       render = True)
 
 
 #%%
 
-policy_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
-policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/policy_weights_887324751"))
-_ = DQN.evaluate_model(policy_net, 10000, env, reset_options, False)
+# policy_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
+# policy_net.load_state_dict(torch.load(os.getcwd() + f"/outputs/{filename}"))
+# _ = DQN.evaluate_model(policy_net, 10000, env, reset_options, False)
 
 
 

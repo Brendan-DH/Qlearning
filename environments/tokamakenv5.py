@@ -41,6 +41,10 @@ class TokamakEnv5(gym.Env):
             "goal_locations" : goal_locations,
             "goal_probabilities" : goal_probabilities
             }
+        self.num_actions = 4 # this can be changed for dev purposes
+        self.most_recent_actions = np.empty((3), np.dtype('U100'))
+        print(np.shape(self.most_recent_actions))
+        
         
         obDict = {}
         
@@ -58,7 +62,7 @@ class TokamakEnv5(gym.Env):
         
         # actions that the robots can carry out
         # move clockwise/anticlockwise, engage
-        self.action_space = spaces.Discrete(num_robots*3)
+        self.action_space = spaces.Discrete(num_robots*self.num_actions)
         
         # may need an array here for mapping abstract action to 
         # function
@@ -146,10 +150,11 @@ class TokamakEnv5(gym.Env):
         for i in range(self.num_robots):
             moving_robot_loc = self._robot_locations[i]
             if(self._robot_clocks[i]):
-                blocked_actions[i*self.num_robots:(i*self.num_robots)+3] = 1 #block all actions for this robot
+                blocked_actions[i*self.num_actions:(i*self.num_actions)+self.num_actions] = 1 #block all actions for this robot
                 
             for j in range(self.num_robots):
                 other_robot_loc = self._robot_locations[j]
+                
                 
                 if(i==j): # don't need to check robots against themselves
                     continue
@@ -158,13 +163,21 @@ class TokamakEnv5(gym.Env):
                     raise ValueError(f"Two robots occupy the same location (r{i} & r{j} @ {moving_robot_loc}).")
                 
                 # block counter-clockwise movement:
-                if((other_robot_loc == moving_robot_loc - 1) or (moving_robot_loc == 0 and other_robot_loc == self.size-1)):
-                    blocked_actions[i*self.num_robots] = 1
-                    
-                #block clockwise movement:
                 if((other_robot_loc == moving_robot_loc + 1) or (moving_robot_loc == self.size-1 and other_robot_loc == 0)):
-                    blocked_actions[(i*self.num_robots)+1] = 1
+                    blocked_actions[(i*self.num_actions)] = 1
+
+                #block clockwise movement:
+                if((other_robot_loc == moving_robot_loc - 1) or (moving_robot_loc == 0 and other_robot_loc == self.size-1)):
+                    blocked_actions[(i*self.num_actions)+1] = 1
                     
+            #block inspection if robot is not over known task location:
+            block_inspection = 1
+            for i in range(len(self._goal_locations)): 
+                if (self._goal_locations[i] == moving_robot_loc and self._goal_probabilities[i] == 1):
+                    block_inspection = 0
+            blocked_actions[(i*self.num_actions)+2] = block_inspection
+                    
+        # print(self._robot_locations, blocked_actions)
         return blocked_actions
     
     def _clock_tick(self):
@@ -184,34 +197,43 @@ class TokamakEnv5(gym.Env):
                     
         else: 
             # which action is being taken:
-            rel_action = action % 3 # 0=counter-clockwise, 1=clockwise, 2=engage
+            rel_action = action % self.num_actions # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
             # by which robot:
-            robot_no = int(np.floor(action/self.num_robots))
-            
-            reward = 0.0
+            robot_no = int(np.floor(action/self.num_actions))
             
             current_location = self._robot_locations[robot_no]
+            current_action = ""
+            reward = 0.0
             
             if(rel_action == 0): # counter-clockwise movement
-                if (current_location>0):
-                    self._robot_locations[robot_no] = current_location - 1
-                
-                if (current_location==0): # cycle round
-                    self._robot_locations[robot_no] = self.size-1
-            
-            if(rel_action == 1): # clockwise movement
                 if (current_location<self.size-1):
                     self._robot_locations[robot_no]  = current_location + 1
-                
                 if (current_location==self.size-1): # cycle round
                     self._robot_locations[robot_no] = 0
+                reward -= 0.5
+                current_action="move ccw"
+            
+            
+            if(rel_action == 1): # clockwise movement
+                if (current_location>0):
+                    self._robot_locations[robot_no] = current_location - 1                
+                if (current_location==0): # cycle round
+                    self._robot_locations[robot_no] = self.size-1
+                reward -= 0.5
+                current_action="move cw"
+                    
+
                     
             if (rel_action == 2): # engage robot, complete task
                 for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
                     if(self._goal_locations[i] == current_location and self._goal_probabilities[i]==1):
                         self._goal_probabilities[i] = 0
                         reward += 100 # reward if robots manage to complete a task
-                        
+                reward -= 0.5
+                current_action="engage"
+                
+            if (rel_action == 3): # wait; nothing happens, no reward lost
+                current_action="wait"
                         
             for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
                 if(self._goal_locations[i] == self._robot_locations[robot_no] and self._goal_probabilities[i] > 0 and self._goal_probabilities[i] < 1):
@@ -223,8 +245,13 @@ class TokamakEnv5(gym.Env):
                     else:
                         self._goal_probabilities[i] = 0
                         self._goal_resolutions[i] = 0
+
+                    reward += 100 # reward robots for discovering tasks
+
                         
                     
+            self.most_recent_actions[robot_no] = current_action
+            print(current_action, robot_no, self.most_recent_actions, type(self.most_recent_actions[0]))
             self._robot_clocks[robot_no] = True # lock robot until clock ticks
             
             if np.sum(self._robot_clocks) == self.num_robots: # check if a tick should happen
@@ -257,33 +284,36 @@ class TokamakEnv5(gym.Env):
             pygame.init()
             pygame.display.init()
             self.window = pygame.display.set_mode(
-                (self.window_size, self.window_size)
+                (self.window_size*1.3, self.window_size)
             )
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
     
         font = pygame.font.SysFont('notosans', 25)
-        canvas = pygame.Surface((self.window_size, self.window_size))
+        canvas = pygame.Surface((self.window_size*1.3, self.window_size))
+        
+        tokamak_centre = ((self.window_size/2), self.window_size/2)
+        
         canvas.fill((255, 255, 255))
 
         # draw all positions
         angle = 2*np.pi/self.size
         tokamak_r = self.window_size/2 - 40
         for i in range(self.size):
-            pygame.draw.circle(canvas, (144,144,144), (self.window_size/2, self.window_size/2),tokamak_r, width=1)
+            pygame.draw.circle(canvas, (144,144,144), (tokamak_centre[0], tokamak_centre[1]),tokamak_r, width=1)
             # offset the angle so that other objects are displayed between lines rather than on top
-            xpos = self.window_size/2 + tokamak_r * np.cos((i-0.5)*angle - np.pi) 
-            ypos = self.window_size/2 + tokamak_r * np.sin((i-0.5)*angle - np.pi)
+            xpos = tokamak_centre[0] + tokamak_r * np.cos((i-0.5)*angle - np.pi) 
+            ypos = tokamak_centre[1] + tokamak_r * np.sin((i-0.5)*angle - np.pi)
             pygame.draw.line(canvas,
                              (144,144,144),
-                             (self.window_size/2, self.window_size/2),
+                             (tokamak_centre[0], tokamak_centre[1]),
                              (xpos, ypos))
             
             text = font.render(str(i), True, (0,0,0))
             text_width = text.get_rect().width
             text_height = text.get_rect().height
-            xpos = self.window_size/2 + (tokamak_r*1.05) * np.cos((i)*angle - np.pi) 
-            ypos = self.window_size/2 + (tokamak_r*1.05) * np.sin((i)*angle - np.pi)
+            xpos = tokamak_centre[0] + (tokamak_r*1.05) * np.cos((i)*angle - np.pi) 
+            ypos = tokamak_centre[1] + (tokamak_r*1.05) * np.sin((i)*angle - np.pi)
             canvas.blit(text, (xpos-text_width/2, ypos-text_height/2))
 
         
@@ -292,8 +322,8 @@ class TokamakEnv5(gym.Env):
             if(self._goal_probabilities[i] == 0):
                 continue
             pos = self._goal_locations[i]
-            xpos = self.window_size/2 + tokamak_r * 3/4 * np.cos(angle*pos - np.pi)
-            ypos = self.window_size/2 + tokamak_r * 3/4 * np.sin(angle*pos - np.pi)
+            xpos = tokamak_centre[0] + tokamak_r * 3/4 * np.cos(angle*pos - np.pi)
+            ypos = tokamak_centre[1] + tokamak_r * 3/4 * np.sin(angle*pos - np.pi)
             colour = (255,0,0) if self._goal_probabilities[i] < 1 else (0,200,0)
             circ = pygame.draw.circle(canvas, colour, (xpos, ypos), 30) #maybe make these rects again
             if(self._goal_probabilities[i] < 1 and self._goal_probabilities[i] > 0):
@@ -307,8 +337,8 @@ class TokamakEnv5(gym.Env):
         # draw robots
         for i in range(self.num_robots):
             pos = self._robot_locations[i]
-            xpos = self.window_size/2 + tokamak_r/2 * np.cos(angle*pos - np.pi)
-            ypos = self.window_size/2 + tokamak_r/2 * np.sin(angle*pos - np.pi)
+            xpos = tokamak_centre[0] + tokamak_r/2 * np.cos(angle*pos - np.pi)
+            ypos = tokamak_centre[1] + tokamak_r/2 * np.sin(angle*pos - np.pi)
             circ = pygame.draw.circle(canvas, (0,0,255), (xpos, ypos), 20)
             if(self._robot_clocks[i]):
                 text = font.render(str(i)+ "'", True, (255,255,255))
@@ -318,10 +348,20 @@ class TokamakEnv5(gym.Env):
             text_width = text.get_rect().width
             text_height = text.get_rect().height
             canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
-                                
+
+        print(self.most_recent_actions)
         # draw tick number
-        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((10,0), (40, 40)))
+        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,0), (40, 40)))
         canvas.blit(font.render("t=" + str(self.elapsed), True, (0,0,0)), rect)
+        # most recent actions
+        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
+        canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0,0,0)), rect)
+        
+        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,80), (40, 40)))
+        canvas.blit(font.render("r1: " + str(self.most_recent_actions[1]), True, (0,0,0)), rect)
+        
+        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,120), (40, 40)))
+        canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0,0,0)), rect)
                         
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window
