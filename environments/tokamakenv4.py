@@ -21,14 +21,13 @@ class TokamakEnv4(gym.Env):
     def __init__(self,
                  size=None,
                  num_robots=None,
-                 num_goals=None,
                  goal_locations=None,
                  goal_probabilities = None,
                  render_mode=None):
         
         self.size = size
         self.num_robots = num_robots
-        self.num_goals = num_goals
+        self.num_goals = len(goal_locations)
         self._goal_locations = goal_locations
         self._goal_probabilities = goal_probabilities
         self._original_probabilities = goal_probabilities
@@ -36,7 +35,13 @@ class TokamakEnv4(gym.Env):
         self._goal_resolutions = np.ones_like(goal_probabilities)*-1 
         self.window_size = 700  # The size of the PyGame window
         self.elapsed = 0
-
+        self.parameters = {
+            "size" : size,
+            "num_robots" : num_robots,
+            "goal_locations" : goal_locations,
+            "goal_probabilities" : goal_probabilities
+            }
+        
         obDict = {}
         
         # positions of the robots
@@ -45,7 +50,7 @@ class TokamakEnv4(gym.Env):
             obDict[f"robot{i} clock"] = spaces.Discrete(2) # true = cannot move
             
         # positions of the goals and whether they are complete
-        for i in range(0,num_goals):
+        for i in range(0,self.num_goals):
             obDict[f"goal{i} location"] = spaces.Discrete(size)
             obDict[f"goal{i} probability"] = spaces.Box(low=0, high=1, shape=[1]) # continuous variable in [0,1]. sample() returns array though.
 
@@ -315,8 +320,8 @@ class TokamakEnv4(gym.Env):
             canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
                                 
         # draw tick number
-        rect = pygame.draw.rect(canvas,(0,0,0), pygame.Rect((0,0), (40, 40)))
-        canvas.blit(font.render("t=" + str(self.elapsed), True, (255,255,255)), rect)
+        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((10,0), (40, 40)))
+        canvas.blit(font.render("t=" + str(self.elapsed), True, (0,0,0)), rect)
                         
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window
