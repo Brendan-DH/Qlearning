@@ -320,8 +320,8 @@ class TokamakEnv4(gym.Env):
             canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
                                 
         # draw tick number
-        rect = pygame.draw.rect(canvas,(0,0,0), pygame.Rect((0,0), (40, 40)))
-        canvas.blit(font.render("t=" + str(self.elapsed), True, (255,255,255)), rect)
+        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((10,0), (40, 40)))
+        canvas.blit(font.render("t=" + str(self.elapsed), True, (0,0,0)), rect)
                         
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window
