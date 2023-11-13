@@ -19,7 +19,7 @@ size = 24
 goal_locations = [11,5,6,0,3,2]
 goal_probabilities = [0.1, 0.9, 0.5, 0.1, 0.9, 0.5]
 
-env = gym.make("Tokamak-v4",
+env = gym.make("Tokamak-v5",
                num_robots=num_robots,
                size=size,
                goal_locations=goal_locations,
