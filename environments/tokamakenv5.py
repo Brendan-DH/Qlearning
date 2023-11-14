@@ -277,6 +277,7 @@ class TokamakEnv5(gym.Env):
             return self._render_frame()
     
     def _render_frame(self):
+    
         # note: the -np.pi is to keep the segments consistent with the jorek interpreter        
         
         if self.window is None and self.render_mode == "human":

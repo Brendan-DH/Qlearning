@@ -47,7 +47,7 @@ target_net.load_state_dict(policy_net.state_dict())
 
     
 #%%
-trained_dqn, dur, re, eps = DQN.train_model(env, policy_net, target_net, reset_options, num_episodes=2000)    
+trained_dqn, dur, re, eps = DQN.train_model(env, policy_net, target_net, reset_options, num_episodes=2000, batch_size=256)    
 filename = f"policy_weights_{int(np.random.rand()*1e9)}"
 print(f"Saving as {filename}")
 

@@ -10,7 +10,6 @@ Created on Wed Nov  8 17:43:45 2023
 import gymnasium as gym
 import math
 import random
-import matplotlib
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
@@ -22,6 +21,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import time
 import os
+import sys
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -57,8 +57,8 @@ class DeepQNetwork(nn.Module):
         x = F.relu(self.layer2(x))
         return self.layer3(x)
     
-def select_action(dqn, env, state, epsilon, device="cpu"):
-    global steps_done
+def select_action(dqn, env, state, epsilon):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     sample = random.random()
     if sample > epsilon:
         with torch.no_grad():
@@ -116,7 +116,7 @@ def plot_status(episode_durations, rewards, epsilons):
     host.legend(handles=handles, loc='best')
     plt.pause(0.001)  # pause a bit so that plots are updated
     
-    return fig
+    return fig;
 
 def train_model(
         env,                        # gymnasium environment
@@ -145,6 +145,7 @@ def train_model(
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
     memory = ReplayMemory(10000)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Training running on {device}.")
     torch.set_grad_enabled(True)
     
     if not epsilon_decay:
@@ -188,7 +189,7 @@ def train_model(
             
             memory.push(state, action, next_state, reward) # Store the transition in memory
             state = next_state
-            optimize_model(policy_net, target_net, memory, optimiser, gamma, 128, device)
+            optimize_model(policy_net, target_net, memory, optimiser, gamma, 128)
     
             # Soft update of the target DeepQNetwork
             target_net_state_dict = target_net.state_dict()
@@ -201,7 +202,7 @@ def train_model(
                 episode_durations.append(elapsed)
                 rewards.append(ep_reward)
                 if(plot_frequency != 0 and i_episode%plot_frequency==0 and i_episode > 0):
-                    _ = plot_status(episode_durations, rewards, epsilons);
+                    f = plot_status(episode_durations, rewards, epsilons);
                 if(checkpoint_frequency != 0 and i_episode%checkpoint_frequency==0 and i_episode > 0):
                     torch.save(policy_net.state_dict(), os.getcwd() + f"./outputs/policy_weights_{int(np.random.rand()*1e9)}")
                 break
@@ -210,7 +211,10 @@ def train_model(
     return policy_net, episode_durations, rewards, epsilons
     
     
-def optimize_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batch_size, device = "cpu"):
+def optimize_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batch_size):
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     if len(replay_memory) < batch_size:
         return
     transitions = replay_memory.sample(128) # why 128? should this be batch_size?
@@ -253,6 +257,10 @@ def evaluate_model(dqn, num_episodes, template_env, reset_options, env_name = "T
     
     print("Evaluating...")
     
+    if("win" in sys.platform and render):
+        print("Cannot render on windows...")
+        render=False
+    
     env = gym.make(env_name,
                    size = template_env.parameters["size"],
                    num_robots = template_env.parameters["num_robots"],
@@ -261,6 +269,7 @@ def evaluate_model(dqn, num_episodes, template_env, reset_options, env_name = "T
                    render_mode = "human" if render else None )
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Evaluation running on {device}.")
 
     times = []
     goal_resolutions = []
