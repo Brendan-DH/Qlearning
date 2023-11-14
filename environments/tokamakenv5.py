@@ -9,7 +9,6 @@ Created on Mon Sep 18 14:34:49 2023
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-import pygame
 
 
 class TokamakEnv5(gym.Env):
@@ -105,6 +104,7 @@ class TokamakEnv5(gym.Env):
             
         # reset goals
         self._goal_probabilities = self._original_probabilities.copy()
+        self.most_recent_actions = np.empty((3), np.dtype('U100'))
         self.elapsed = 0
         self._robot_clocks = [False for i in range(self.num_robots)] # set all clocks to false
         
@@ -151,30 +151,30 @@ class TokamakEnv5(gym.Env):
             moving_robot_loc = self._robot_locations[i]
             if(self._robot_clocks[i]):
                 blocked_actions[i*self.num_actions:(i*self.num_actions)+self.num_actions] = 1 #block all actions for this robot
-                
-            for j in range(self.num_robots):
-                other_robot_loc = self._robot_locations[j]
-                
-                if(i==j): # don't need to check robots against themselves
-                    continue
-                
-                if (moving_robot_loc == other_robot_loc):
-                    raise ValueError(f"Two robots occupy the same location (r{i} & r{j} @ {moving_robot_loc}).")
-                
-                # block counter-clockwise movement:
-                if((other_robot_loc == moving_robot_loc + 1) or (moving_robot_loc == self.size-1 and other_robot_loc == 0)):
-                    blocked_actions[(i*self.num_actions)] = 1
-
-                #block clockwise movement:
-                if((other_robot_loc == moving_robot_loc - 1) or (moving_robot_loc == 0 and other_robot_loc == self.size-1)):
-                    blocked_actions[(i*self.num_actions)+1] = 1
+            else:     
+                for j in range(self.num_robots):
+                    other_robot_loc = self._robot_locations[j]
                     
-            #block inspection if robot is not over known task location:
-            block_inspection = 1
-            for j in range(len(self._goal_locations)): 
-                if (self._goal_locations[j] == moving_robot_loc and self._goal_probabilities[j] == 1):
-                    block_inspection = 0
-            blocked_actions[(i*self.num_actions)+2] = block_inspection
+                    if(i==j): # don't need to check robots against themselves
+                        continue
+                    
+                    if (moving_robot_loc == other_robot_loc):
+                        raise ValueError(f"Two robots occupy the same location (r{i} & r{j} @ {moving_robot_loc}).")
+                    
+                    # block counter-clockwise movement:
+                    if((other_robot_loc == moving_robot_loc + 1) or (moving_robot_loc == self.size-1 and other_robot_loc == 0)):
+                        blocked_actions[(i*self.num_actions)] = 1
+    
+                    #block clockwise movement:
+                    if((other_robot_loc == moving_robot_loc - 1) or (moving_robot_loc == 0 and other_robot_loc == self.size-1)):
+                        blocked_actions[(i*self.num_actions)+1] = 1
+                        
+                #block inspection if robot is not over known task location:
+                block_inspection = 1
+                for j in range(len(self._goal_locations)): 
+                    if (self._goal_locations[j] == moving_robot_loc and self._goal_probabilities[j] == 1):
+                        block_inspection = 0
+                blocked_actions[(i*self.num_actions)+2] = block_inspection
                     
         # print(self._robot_locations, blocked_actions)
         return blocked_actions
@@ -189,10 +189,11 @@ class TokamakEnv5(gym.Env):
         # blocked actions give a negative reward and don't progress the system
         
         blocked_actions = self._get_blocked_actions()
+        print(blocked_actions, self._robot_locations)
         if(blocked_actions[action]):
             
             terminated = False
-            reward = -1.0
+            reward = -1
                     
         else: 
             # which action is being taken:
@@ -209,7 +210,7 @@ class TokamakEnv5(gym.Env):
                     self._robot_locations[robot_no]  = current_location + 1
                 if (current_location==self.size-1): # cycle round
                     self._robot_locations[robot_no] = 0
-                reward -= 0.5
+                # reward -= 0.5
                 current_action="move ccw"
             
             
@@ -218,7 +219,7 @@ class TokamakEnv5(gym.Env):
                     self._robot_locations[robot_no] = current_location - 1                
                 if (current_location==0): # cycle round
                     self._robot_locations[robot_no] = self.size-1
-                reward -= 0.5
+                # reward -= 0.5
                 current_action="move cw"
                     
 
@@ -228,10 +229,11 @@ class TokamakEnv5(gym.Env):
                     if(self._goal_locations[i] == current_location and self._goal_probabilities[i]==1):
                         self._goal_probabilities[i] = 0
                         reward += 100 # reward if robots manage to complete a task
-                reward -= 0.5
+                # reward -= 0.5
                 current_action="engage"
                 
             if (rel_action == 3): # wait; nothing happens, no reward lost
+                # reward -= 0.2
                 current_action="wait"
                         
             for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
@@ -277,108 +279,111 @@ class TokamakEnv5(gym.Env):
             return self._render_frame()
     
     def _render_frame(self):
+        
+        # print("Cannot render in win11 version.")
+        print(self.elapsed, self.most_recent_actions)
     
         # note: the -np.pi is to keep the segments consistent with the jorek interpreter        
+
         
-        if self.window is None and self.render_mode == "human":
-            pygame.init()
-            pygame.display.init()
-            self.window = pygame.display.set_mode(
-                (self.window_size*1.3, self.window_size)
-            )
-        if self.clock is None and self.render_mode == "human":
-            self.clock = pygame.time.Clock()
+        # if self.window is None and self.render_mode == "human":
+        #     pygame.init()
+        #     pygame.display.init()
+        #     self.window = pygame.display.set_mode(
+        #         (self.window_size*1.3, self.window_size)
+        #     )
+        # if self.clock is None and self.render_mode == "human":
+        #     self.clock = pygame.time.Clock()
     
-        font = pygame.font.SysFont('notosans', 25)
-        canvas = pygame.Surface((self.window_size*1.3, self.window_size))
+        # font = pygame.font.SysFont('notosans', 25)
+        # canvas = pygame.Surface((self.window_size*1.3, self.window_size))
         
-        tokamak_centre = ((self.window_size/2), self.window_size/2)
+        # tokamak_centre = ((self.window_size/2), self.window_size/2)
         
-        canvas.fill((255, 255, 255))
+        # canvas.fill((255, 255, 255))
 
-        # draw all positions
-        angle = 2*np.pi/self.size
-        tokamak_r = self.window_size/2 - 40
-        for i in range(self.size):
-            pygame.draw.circle(canvas, (144,144,144), (tokamak_centre[0], tokamak_centre[1]),tokamak_r, width=1)
-            # offset the angle so that other objects are displayed between lines rather than on top
-            xpos = tokamak_centre[0] + tokamak_r * np.cos((i-0.5)*angle - np.pi) 
-            ypos = tokamak_centre[1] + tokamak_r * np.sin((i-0.5)*angle - np.pi)
-            pygame.draw.line(canvas,
-                             (144,144,144),
-                             (tokamak_centre[0], tokamak_centre[1]),
-                             (xpos, ypos))
+        # # draw all positions
+        # angle = 2*np.pi/self.size
+        # tokamak_r = self.window_size/2 - 40
+        # for i in range(self.size):
+        #     pygame.draw.circle(canvas, (144,144,144), (tokamak_centre[0], tokamak_centre[1]),tokamak_r, width=1)
+        #     # offset the angle so that other objects are displayed between lines rather than on top
+        #     xpos = tokamak_centre[0] + tokamak_r * np.cos((i-0.5)*angle - np.pi) 
+        #     ypos = tokamak_centre[1] + tokamak_r * np.sin((i-0.5)*angle - np.pi)
+        #     pygame.draw.line(canvas,
+        #                      (144,144,144),
+        #                      (tokamak_centre[0], tokamak_centre[1]),
+        #                      (xpos, ypos))
             
-            text = font.render(str(i), True, (0,0,0))
-            text_width = text.get_rect().width
-            text_height = text.get_rect().height
-            xpos = tokamak_centre[0] + (tokamak_r*1.05) * np.cos((i)*angle - np.pi) 
-            ypos = tokamak_centre[1] + (tokamak_r*1.05) * np.sin((i)*angle - np.pi)
-            canvas.blit(text, (xpos-text_width/2, ypos-text_height/2))
+        #     text = font.render(str(i), True, (0,0,0))
+        #     text_width = text.get_rect().width
+        #     text_height = text.get_rect().height
+        #     xpos = tokamak_centre[0] + (tokamak_r*1.05) * np.cos((i)*angle - np.pi) 
+        #     ypos = tokamak_centre[1] + (tokamak_r*1.05) * np.sin((i)*angle - np.pi)
+        #     canvas.blit(text, (xpos-text_width/2, ypos-text_height/2))
 
         
-        # draw the goals
-        for i in range(self.num_goals):
-            if(self._goal_probabilities[i] == 0):
-                continue
-            pos = self._goal_locations[i]
-            xpos = tokamak_centre[0] + tokamak_r * 3/4 * np.cos(angle*pos - np.pi)
-            ypos = tokamak_centre[1] + tokamak_r * 3/4 * np.sin(angle*pos - np.pi)
-            colour = (255,0,0) if self._goal_probabilities[i] < 1 else (0,200,0)
-            circ = pygame.draw.circle(canvas, colour, (xpos, ypos), 30) #maybe make these rects again
-            if(self._goal_probabilities[i] < 1 and self._goal_probabilities[i] > 0):
-                text = font.render(f"{self._goal_probabilities[i]}?", True, (255,255,255))
-            else:
-                text = font.render(f"{self._goal_probabilities[i]}", True, (255,255,255))
-            text_width = text.get_rect().width
-            text_height = text.get_rect().height
-            canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
+        # # draw the goals
+        # for i in range(self.num_goals):
+        #     if(self._goal_probabilities[i] == 0):
+        #         continue
+        #     pos = self._goal_locations[i]
+        #     xpos = tokamak_centre[0] + tokamak_r * 3/4 * np.cos(angle*pos - np.pi)
+        #     ypos = tokamak_centre[1] + tokamak_r * 3/4 * np.sin(angle*pos - np.pi)
+        #     colour = (255,0,0) if self._goal_probabilities[i] < 1 else (0,200,0)
+        #     circ = pygame.draw.circle(canvas, colour, (xpos, ypos), 30) #maybe make these rects again
+        #     if(self._goal_probabilities[i] < 1 and self._goal_probabilities[i] > 0):
+        #         text = font.render(f"{self._goal_probabilities[i]}?", True, (255,255,255))
+        #     else:
+        #         text = font.render(f"{self._goal_probabilities[i]}", True, (255,255,255))
+        #     text_width = text.get_rect().width
+        #     text_height = text.get_rect().height
+        #     canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
                 
-        # draw robots
-        for i in range(self.num_robots):
-            pos = self._robot_locations[i]
-            xpos = tokamak_centre[0] + tokamak_r/2 * np.cos(angle*pos - np.pi)
-            ypos = tokamak_centre[1] + tokamak_r/2 * np.sin(angle*pos - np.pi)
-            circ = pygame.draw.circle(canvas, (0,0,255), (xpos, ypos), 20)
-            if(self._robot_clocks[i]):
-                text = font.render(str(i)+ "'", True, (255,255,255))
-            else:
-                text = font.render(str(i), True, (255,255,255))
+        # # draw robots
+        # for i in range(self.num_robots):
+        #     pos = self._robot_locations[i]
+        #     xpos = tokamak_centre[0] + tokamak_r/2 * np.cos(angle*pos - np.pi)
+        #     ypos = tokamak_centre[1] + tokamak_r/2 * np.sin(angle*pos - np.pi)
+        #     circ = pygame.draw.circle(canvas, (0,0,255), (xpos, ypos), 20)
+        #     if(self._robot_clocks[i]):
+        #         text = font.render(str(i)+ "'", True, (255,255,255))
+        #     else:
+        #         text = font.render(str(i), True, (255,255,255))
             
-            text_width = text.get_rect().width
-            text_height = text.get_rect().height
-            canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
+        #     text_width = text.get_rect().width
+        #     text_height = text.get_rect().height
+        #     canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
 
-        print(self.most_recent_actions)
-        # draw tick number
-        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,0), (40, 40)))
-        canvas.blit(font.render("t=" + str(self.elapsed), True, (0,0,0)), rect)
-        # most recent actions
-        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
-        canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0,0,0)), rect)
+        # # draw tick number
+        # rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,0), (40, 40)))
+        # canvas.blit(font.render("t=" + str(self.elapsed), True, (0,0,0)), rect)
+        # # most recent actions
+        # rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
+        # canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0,0,0)), rect)
         
-        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,80), (40, 40)))
-        canvas.blit(font.render("r1: " + str(self.most_recent_actions[1]), True, (0,0,0)), rect)
+        # rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,80), (40, 40)))
+        # canvas.blit(font.render("r1: " + str(self.most_recent_actions[1]), True, (0,0,0)), rect)
         
-        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,120), (40, 40)))
-        canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0,0,0)), rect)
+        # rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,120), (40, 40)))
+        # canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0,0,0)), rect)
                         
-        if self.render_mode == "human":
-            # The following line copies our drawings from `canvas` to the visible window
-            self.window.blit(canvas, canvas.get_rect())
-            pygame.event.pump()
-            pygame.display.update()
+        # if self.render_mode == "human":
+        #     # The following line copies our drawings from `canvas` to the visible window
+        #     self.window.blit(canvas, canvas.get_rect())
+        #     pygame.event.pump()
+        #     pygame.display.update()
 
-            # We need to ensure that human-rendering occurs at the predefined framerate.
-            # The following line will automatically add a delay to keep the framerate stable.
-            self.clock.tick(self.metadata["render_fps"])
-        else:  # rgb_array
-            return np.transpose(
-                np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
-                )
+        #     # We need to ensure that human-rendering occurs at the predefined framerate.
+        #     # The following line will automatically add a delay to keep the framerate stable.
+        #     self.clock.tick(self.metadata["render_fps"])
+        # else:  # rgb_array
+        #     return np.transpose(
+        #         np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
+        #         )
     
-    def close(self):
-        if self.window is not None:
-            pygame.display.quit()
-            pygame.quit()
+    # def close(self):
+    #     if self.window is not None:
+    #         pygame.display.quit()
+    #         pygame.quit()
             
