@@ -206,7 +206,7 @@ class TokamakTemplater5(gym.Env):
         if(blocked_actions[action]):
             
             # terminated = False
-            reward = -1.0
+            reward = -10
             current_action = "forbidden"
                     
         else: 
