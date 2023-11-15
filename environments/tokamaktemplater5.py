@@ -12,7 +12,7 @@ from gymnasium import spaces
 import pygame
 
 
-class TokamakEnv5(gym.Env):
+class TokamakTemplater5(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
     
     # def set_parameters(size, num_robots, num_goals, goal_locations):
@@ -21,27 +21,28 @@ class TokamakEnv5(gym.Env):
     def __init__(self,
                  size=None,
                  num_robots=None,
-                 goal_locations=None,
-                 goal_probabilities = None,
+                 num_goals=None,
+                 min_probability=0.5,
+                 max_probability=1,
                  render_mode=None):
         
         self.size = size
         self.num_robots = num_robots
-        self.num_goals = len(goal_locations)
-        self._goal_locations = goal_locations
-        self._goal_probabilities = goal_probabilities
-        self._original_probabilities = goal_probabilities
+        self.num_goals = num_goals
+        self.min_probability = min_probability
+        self.max_probability = max_probability
         # 1 if goal was there. 0 if goal was not. -1 if goal hasn't been resolved yet
-        self._goal_resolutions = np.ones_like(goal_probabilities)*-1 
+        self._goal_resolutions = np.ones((num_goals))*-1 
         self.window_size = 700  # The size of the PyGame window
         self.elapsed = 0
         self.parameters = {
             "size" : size,
             "num_robots" : num_robots,
-            "goal_locations" : goal_locations,
-            "goal_probabilities" : goal_probabilities
+            "num_goals" : num_goals,
+            "min_probability" : min_probability,
+            "max_probability" : max_probability
             }
-        self.num_actions = 4 # this can be changed for dev purposes
+        self.__num_actions = 4 # this can be changed for dev purposes
         self.most_recent_actions = np.empty((3), np.dtype('U100'))
         # print(np.shape(self.most_recent_actions))
         
@@ -62,7 +63,7 @@ class TokamakEnv5(gym.Env):
         
         # actions that the robots can carry out
         # move clockwise/anticlockwise, engage
-        self.action_space = spaces.Discrete(num_robots*self.num_actions)
+        self.action_space = spaces.Discrete(num_robots*self.__num_actions)
         
         # may need an array here for mapping abstract action to 
         # function
@@ -92,19 +93,28 @@ class TokamakEnv5(gym.Env):
         info["av_dist"] = self.av_dist()
         info["goal_resolutions"] = self._goal_resolutions.copy()
         return info
+    
+    def unique_locations(self, num):
+        samples = []
+        for i in range(num):
+            sample = np.random.randint(0,self.size) 
+            while sample in samples:
+                sample = np.random.randint(0, self.size)
+            samples.append(sample)
+        return samples.copy()
+        
         
     def reset(self, seed=None, options=None):
-        # print("reset")
+
         super().reset(seed=seed)
-        if(options):
-            self._robot_locations = options["robot_locations"].copy()
-        else:
-            # reset robot locations to random:
-            self._robot_locations = [self.np_random.integers(0,self.size) 
-                                     for i in range(self.num_robots)] 
-            
+        # reset robot locations to random
+        self._robot_locations = self.unique_locations(self.num_robots)
+        self._goal_locations = self.unique_locations(self.num_goals)
+        # print(self._robot_locations, self._goal_locations)
+        self._goal_probabilities = [np.clip(np.random.rand(),self.min_probability,self.max_probability)
+                                    for i in range(self.num_goals)] 
+        
         # reset goals
-        self._goal_probabilities = self._original_probabilities.copy()
         self.elapsed = 0
         self._robot_clocks = [False for i in range(self.num_robots)] # set all clocks to false
         
@@ -128,6 +138,7 @@ class TokamakEnv5(gym.Env):
             num_active_goals = len(self._goal_locations)
             # num_active_goals = np.sum(np.array(self._goal_probabilities) > 0) # status is True if complete; this calculates num False
             for j in range(len(self._goal_locations)):
+                # print(self._goal_probabilities, j)
                 if self._goal_probabilities[j] == 0: # this goal is already completed
                     continue
                 goal_pos = self._goal_locations[j]
@@ -150,7 +161,7 @@ class TokamakEnv5(gym.Env):
         for i in range(self.num_robots):
             moving_robot_loc = self._robot_locations[i]
             if(self._robot_clocks[i]):
-                blocked_actions[i*self.num_actions:(i*self.num_actions)+self.num_actions] = 1 #block all actions for this robot
+                blocked_actions[i*self.__num_actions:(i*self.__num_actions)+self.__num_actions] = 1 #block all actions for this robot
                 
             for j in range(self.num_robots):
                 other_robot_loc = self._robot_locations[j]
@@ -163,18 +174,18 @@ class TokamakEnv5(gym.Env):
                 
                 # block counter-clockwise movement:
                 if((other_robot_loc == moving_robot_loc + 1) or (moving_robot_loc == self.size-1 and other_robot_loc == 0)):
-                    blocked_actions[(i*self.num_actions)] = 1
+                    blocked_actions[(i*self.__num_actions)] = 1
 
                 #block clockwise movement:
                 if((other_robot_loc == moving_robot_loc - 1) or (moving_robot_loc == 0 and other_robot_loc == self.size-1)):
-                    blocked_actions[(i*self.num_actions)+1] = 1
+                    blocked_actions[(i*self.__num_actions)+1] = 1
                     
             #block inspection if robot is not over known task location:
             block_inspection = 1
             for k in range(len(self._goal_locations)): 
                 if (self._goal_locations[k] == moving_robot_loc and self._goal_probabilities[k] == 1):
                     block_inspection = 0
-            blocked_actions[(i*self.num_actions)+2] = block_inspection
+            blocked_actions[(i*self.__num_actions)+2] = block_inspection
                     
         # print(self._robot_locations, blocked_actions)
         return blocked_actions
@@ -187,15 +198,15 @@ class TokamakEnv5(gym.Env):
     
         # determine blocked actions based on the current state
         # blocked actions give a negative reward and don't progress the system
-        rel_action = action % self.num_actions # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
+        rel_action = action % self.__num_actions # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
         # by which robot:
-        robot_no = int(np.floor(action/self.num_actions))
+        robot_no = int(np.floor(action/self.__num_actions))
         
         blocked_actions = self._get_blocked_actions()
         if(blocked_actions[action]):
             
-            terminated = False
-            reward = -10
+            # terminated = False
+            reward = -1.0
             current_action = "forbidden"
                     
         else: 
@@ -222,18 +233,17 @@ class TokamakEnv5(gym.Env):
                 # reward -= 0.5
                 current_action="move cw"
                     
-
                     
             if (rel_action == 2): # engage robot, complete task
                 for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
                     if(self._goal_locations[i] == current_location and self._goal_probabilities[i]==1):
                         self._goal_probabilities[i] = 0
-                        reward += 1000 * 1/(self.elapsed+1) # reward if robots manage to complete a task
-                # reward -= 0.5
+                        # reward += 100 # reward if robots manage to complete a task
+                # reward += 1
                 current_action="engage"
                 
             if (rel_action == 3): # wait; nothing happens, no reward lost
-                reward -= 1 # we only want to machine to wait when it has nothing useful to do
+                reward -= 1 # want to disincentivise waiting so that the system doesn't just stick to it.
                 current_action="wait"
                         
             for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
@@ -247,8 +257,7 @@ class TokamakEnv5(gym.Env):
                         self._goal_probabilities[i] = 0
                         self._goal_resolutions[i] = 0
 
-                    reward += 100 # reward robots for discovering tasks
-
+                    # reward += 100 # reward robots for discovering tasks
                         
                     
         self.most_recent_actions[robot_no] = current_action
@@ -258,21 +267,18 @@ class TokamakEnv5(gym.Env):
         if np.sum(self._robot_clocks) == self.num_robots: # check if a tick should happen
             self._clock_tick()
             self.elapsed += 1
-
     
-        terminated = True
-        for prob in self._goal_probabilities:
-            if prob > 0:        
-                terminated = False # not terminated if any goals are left
-                        
     
         observation = self._get_obs()
         info = self._get_info()
+    
         
         if self.render_mode == "human":
             self._render_frame()
+        
             
-        return observation, reward, terminated, False, info
+        #terminated is locked to false so that the robots minimise the negative reward from blocked actions.
+        return observation, reward, False, False, info 
         
     def render(self):
         if self.render_mode == "rgb_array":
