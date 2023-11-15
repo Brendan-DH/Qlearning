@@ -91,6 +91,7 @@ class TokamakEnv5(gym.Env):
         info["elapsed"] = self.elapsed
         info["av_dist"] = self.av_dist()
         info["goal_resolutions"] = self._goal_resolutions.copy()
+        info["blocked"] = self._get_blocked_actions()
         return info
         
     def reset(self, seed=None, options=None):
@@ -171,8 +172,8 @@ class TokamakEnv5(gym.Env):
                     
             #block inspection if robot is not over known task location:
             block_inspection = 1
-            for j in range(len(self._goal_locations)): 
-                if (self._goal_locations[j] == moving_robot_loc and self._goal_probabilities[j] == 1):
+            for k in range(len(self._goal_locations)): 
+                if (self._goal_locations[k] == moving_robot_loc and self._goal_probabilities[k] == 1):
                     block_inspection = 0
             blocked_actions[(i*self.num_actions)+2] = block_inspection
                     
@@ -192,7 +193,7 @@ class TokamakEnv5(gym.Env):
         if(blocked_actions[action]):
             
             terminated = False
-            reward = -1.0
+            reward = -1e9
                     
         else: 
             # which action is being taken:
@@ -209,7 +210,7 @@ class TokamakEnv5(gym.Env):
                     self._robot_locations[robot_no]  = current_location + 1
                 if (current_location==self.size-1): # cycle round
                     self._robot_locations[robot_no] = 0
-                reward -= 0.5
+                # reward -= 0.5
                 current_action="move ccw"
             
             
@@ -218,7 +219,7 @@ class TokamakEnv5(gym.Env):
                     self._robot_locations[robot_no] = current_location - 1                
                 if (current_location==0): # cycle round
                     self._robot_locations[robot_no] = self.size-1
-                reward -= 0.5
+                # reward -= 0.5
                 current_action="move cw"
                     
 
@@ -228,7 +229,7 @@ class TokamakEnv5(gym.Env):
                     if(self._goal_locations[i] == current_location and self._goal_probabilities[i]==1):
                         self._goal_probabilities[i] = 0
                         reward += 100 # reward if robots manage to complete a task
-                reward -= 0.5
+                # reward -= 0.5
                 current_action="engage"
                 
             if (rel_action == 3): # wait; nothing happens, no reward lost
