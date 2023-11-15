@@ -68,9 +68,6 @@ def select_action(dqn, env, state, epsilon, forbidden_actions = []):
             return dqn(state).max(1)[1].view(1, 1)
     else:
         sample = env.action_space.sample()
-        while forbidden_actions[sample]: # block forbidden actions (reselect until not forbidden)
-            sample = env.action_space.sample()
-            # print("reselecting action")
         return torch.tensor([[sample]], device=device, dtype=torch.long)
     
     
@@ -172,8 +169,7 @@ def train_model(
         ep_reward = 0
         
         for t in count():
-            blocked = info["blocked"]
-            action = select_action(policy_net, env, state, epsilon, forbidden_actions=blocked)
+            action = select_action(policy_net, env, state, epsilon)
             observation, reward, terminated, truncated, info = env.step(action.item())
             
             # calculate pseudoreward 

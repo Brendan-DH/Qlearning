@@ -91,7 +91,6 @@ class TokamakEnv5(gym.Env):
         info["elapsed"] = self.elapsed
         info["av_dist"] = self.av_dist()
         info["goal_resolutions"] = self._goal_resolutions.copy()
-        info["blocked"] = self._get_blocked_actions()
         return info
         
     def reset(self, seed=None, options=None):
@@ -193,7 +192,7 @@ class TokamakEnv5(gym.Env):
         if(blocked_actions[action]):
             
             terminated = False
-            reward = -1e9
+            reward = -1.0
                     
         else: 
             # which action is being taken:
