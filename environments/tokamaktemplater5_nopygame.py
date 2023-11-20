@@ -161,30 +161,30 @@ class TokamakTemplater5_nopygame(gym.Env):
             moving_robot_loc = self._robot_locations[i]
             if(self._robot_clocks[i]):
                 blocked_actions[i*self.__num_actions:(i*self.__num_actions)+self.__num_actions] = 1 #block all actions for this robot
-                
-            for j in range(self.num_robots):
-                other_robot_loc = self._robot_locations[j]
-                
-                if(i==j): # don't need to check robots against themselves
-                    continue
-                
-                if (moving_robot_loc == other_robot_loc):
-                    raise ValueError(f"Two robots occupy the same location (r{i} & r{j} @ {moving_robot_loc}).")
-                
-                # block counter-clockwise movement:
-                if((other_robot_loc == moving_robot_loc + 1) or (moving_robot_loc == self.size-1 and other_robot_loc == 0)):
-                    blocked_actions[(i*self.__num_actions)] = 1
-
-                #block clockwise movement:
-                if((other_robot_loc == moving_robot_loc - 1) or (moving_robot_loc == 0 and other_robot_loc == self.size-1)):
-                    blocked_actions[(i*self.__num_actions)+1] = 1
+            else: 
+                for j in range(self.num_robots):
+                    other_robot_loc = self._robot_locations[j]
                     
-            #block inspection if robot is not over known task location:
-            block_inspection = 1
-            for k in range(len(self._goal_locations)): 
-                if (self._goal_locations[k] == moving_robot_loc and self._goal_probabilities[k] == 1):
-                    block_inspection = 0
-            blocked_actions[(i*self.__num_actions)+2] = block_inspection
+                    if(i==j): # don't need to check robots against themselves
+                        continue
+                    
+                    if (moving_robot_loc == other_robot_loc):
+                        raise ValueError(f"Two robots occupy the same location (r{i} & r{j} @ {moving_robot_loc}).")
+                    
+                    # block counter-clockwise movement:
+                    if((other_robot_loc == moving_robot_loc + 1) or (moving_robot_loc == self.size-1 and other_robot_loc == 0)):
+                        blocked_actions[(i*self.__num_actions)] = 1
+    
+                    #block clockwise movement:
+                    if((other_robot_loc == moving_robot_loc - 1) or (moving_robot_loc == 0 and other_robot_loc == self.size-1)):
+                        blocked_actions[(i*self.__num_actions)+1] = 1
+                        
+                #block inspection if robot is not over known task location:
+                block_inspection = 1
+                for k in range(len(self._goal_locations)): 
+                    if (self._goal_locations[k] == moving_robot_loc and self._goal_probabilities[k] == 1):
+                        block_inspection = 0
+                blocked_actions[(i*self.__num_actions)+2] = block_inspection
                     
         # print(self._robot_locations, blocked_actions)
         return blocked_actions
