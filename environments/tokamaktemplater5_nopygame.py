@@ -205,7 +205,7 @@ class TokamakTemplater5_nopygame(gym.Env):
         if(blocked_actions[action]):
             
             # terminated = False
-            reward = -10
+            # reward = -10
             current_action = "forbidden"
                     
         else: 

@@ -43,8 +43,8 @@ state, info = env.reset()
 n_observations = len(state)
 
 policy_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
-policy_net.load_state_dict(torch.load(os.getcwd() + "/sample_weights"))
-print("Imported sample weights")
+# policy_net.load_state_dict(torch.load(os.getcwd() + "/sample_weights"))
+# print("Imported sample weights")
 target_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
 target_net.load_state_dict(policy_net.state_dict())
 
@@ -54,7 +54,7 @@ trained_dqn, dur, re, eps = DQN.train_model(env,
                                             policy_net,
                                             target_net,
                                             reset_options,
-                                            alpha = 1e-4,
+                                            alpha = 1e-3,
                                             num_episodes=2000,
                                             batch_size=256)    
 
