@@ -153,12 +153,44 @@ def train_model(
     epsilons = [] 
     episode_durations = []
     rewards = []
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    print(f"""
+            Commensing training.
+            Device: {device}
+            Environment: {env.unwrapped.spec.id}
+            ----
+            
+            Environmental parameters:
+            {env.parameters}
+            {reset_options}
+            
+            ----
+            
+            Training hyperparameters:
+            num_episodes = {num_episodes}
+            gamma = {gamma}
+            epsilon_max = {epsilon_max}
+            epsilon_min = {epsilon_min}
+            epsilon_decay = {"default" if not epsilon_decay else epsilon_decay}
+            explore_time = {explore_time}
+            alpha = {alpha}
+            tau = {tau}
+            max_steps = {"as per env" if not max_steps else max_steps}
+            batch_size = {batch_size}
+            
+            ----
+            
+            Diagnostic values:
+            plot_frequency = {plot_frequency}
+            checkpoint_frequency = {checkpoint_frequency}
+          """)
     
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
     memory = ReplayMemory(10000)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Training running on {device}.")
     torch.set_grad_enabled(True)
+    
+    
     
     if not epsilon_decay:
         epsilon_decay =  np.log(100 * (epsilon_max-epsilon_min)) / (num_episodes-explore_time) # ensures epsilon ~= epsilon_min at end

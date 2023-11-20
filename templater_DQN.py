@@ -12,19 +12,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import DQN
-import os
 
 num_robots = 3
 size = 12
 goal_locations = [11,5,2]
 goal_probabilities = [0.1, 0.9, 0.7]
 
-env_to_use = "Tokamak-v5-nopygame"
+env_to_use = "TokamakTemplater-v5-nopygame"
 
 env = gym.make(env_to_use,
                num_robots=num_robots,
-               goal_locations = goal_locations,
-               goal_probabilities = goal_probabilities,
+               num_goals = len(goal_locations),
+               min_probability = 0.5,
+               max_probability = 0.9,
                size=size,
                render_mode = None )
 reset_options = {"robot_locations" : [1,3,5]}
@@ -43,8 +43,7 @@ state, info = env.reset()
 n_observations = len(state)
 
 policy_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
-policy_net.load_state_dict(torch.load(os.getcwd() + "/sample_weights"))
-print("Imported sample weights")
+# policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/policy_weights_647487388"))
 target_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
 target_net.load_state_dict(policy_net.state_dict())
 
@@ -56,21 +55,12 @@ trained_dqn, dur, re, eps = DQN.train_model(env,
                                             policy_net,
                                             target_net,
                                             reset_options,
-                                            alpha = 1e-4,
-                                            num_episodes=2000,
-                                            batch_size=256)    
+                                            num_episodes=1000,
+                                            batch_size=128)    
 
 torch.save(trained_dqn.state_dict(), f"./outputs/{filename}")
-#%%
-_ = DQN.evaluate_model(dqn = policy_net,
-                       num_episodes = 10,
-                       template_env = env,
-                       reset_options = reset_options,
-                       env_name = env_to_use,
-                       render = True)
 
 
-#%%
 
 
 
