@@ -57,7 +57,8 @@ class DeepQNetwork(nn.Module):
         x = F.relu(self.layer2(x))
         return self.layer3(x)
     
-def select_action(dqn, env, state, epsilon):
+
+def select_action(dqn, env, state, epsilon, forbidden_actions = []):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     sample = random.random()
     if sample > epsilon:
@@ -67,7 +68,8 @@ def select_action(dqn, env, state, epsilon):
             # found, so we pick action with the larger expected reward.
             return dqn(state).max(1)[1].view(1, 1)
     else:
-        return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
+        sample = env.action_space.sample()
+        return torch.tensor([[sample]], device=device, dtype=torch.long)
     
     
 def plot_status(episode_durations, rewards, epsilons):
@@ -141,7 +143,7 @@ def train_model(
         epsilon_decay = None,       # decay rate, will be set automatically if None
         explore_time = 0,           # time at maximum epsilon
         alpha = 1e-3,               # learning rate for policy DeepQNetwork
-        tau = 0.01,                 # soft update rate for target DeepQNetwork
+        tau = 0.005,                # soft update rate for target DeepQNetwork
         max_steps = None,           # max steps per episode
         batch_size = 128,           # batch size of the replay memory
         plot_frequency = 10,        # number of episodes between status plots (0=disabled)
@@ -187,6 +189,9 @@ def train_model(
     
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
     memory = ReplayMemory(10000)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Training running on {device}.")
+
     torch.set_grad_enabled(True)
     
     if not epsilon_decay:
@@ -298,9 +303,10 @@ def evaluate_model(dqn, num_episodes, template_env, reset_options, env_name = "T
     
     print("Evaluating...")
     
-    # if("win" in sys.platform and render):
-    #     print("Cannot render on windows...")
-    #     render=False
+
+    if("win" in sys.platform and render):
+        print("Cannot render on windows...")
+        render=False
     
     env = gym.make(env_name,
                    size = template_env.parameters["size"],

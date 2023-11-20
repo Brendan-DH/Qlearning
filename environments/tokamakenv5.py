@@ -175,7 +175,7 @@ class TokamakEnv5(gym.Env):
                     if (self._goal_locations[j] == moving_robot_loc and self._goal_probabilities[j] == 1):
                         block_inspection = 0
                 blocked_actions[(i*self.num_actions)+2] = block_inspection
-                    
+
         # print(self._robot_locations, blocked_actions)
         return blocked_actions
     
@@ -187,19 +187,20 @@ class TokamakEnv5(gym.Env):
     
         # determine blocked actions based on the current state
         # blocked actions give a negative reward and don't progress the system
+        rel_action = action % self.num_actions # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
+        # by which robot:
+        robot_no = int(np.floor(action/self.num_actions))
         
         blocked_actions = self._get_blocked_actions()
         print(blocked_actions, self._robot_locations)
         if(blocked_actions[action]):
             
             terminated = False
-            reward = -1
+            reward = -10
+            current_action = "forbidden"
                     
         else: 
             # which action is being taken:
-            rel_action = action % self.num_actions # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
-            # by which robot:
-            robot_no = int(np.floor(action/self.num_actions))
             
             current_location = self._robot_locations[robot_no]
             current_action = ""
@@ -228,12 +229,13 @@ class TokamakEnv5(gym.Env):
                 for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
                     if(self._goal_locations[i] == current_location and self._goal_probabilities[i]==1):
                         self._goal_probabilities[i] = 0
-                        reward += 100 # reward if robots manage to complete a task
+                        reward += 1000 * 1/(self.elapsed+1) # reward if robots manage to complete a task
                 # reward -= 0.5
                 current_action="engage"
                 
             if (rel_action == 3): # wait; nothing happens, no reward lost
-                # reward -= 0.2
+
+                reward -= 1 # we only want to machine to wait when it has nothing useful to do
                 current_action="wait"
                         
             for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
@@ -251,19 +253,19 @@ class TokamakEnv5(gym.Env):
 
                         
                     
-            self.most_recent_actions[robot_no] = current_action
-            # print(current_action, robot_no, self.most_recent_actions, type(self.most_recent_actions[0]))
-            self._robot_clocks[robot_no] = True # lock robot until clock ticks
-            
-            if np.sum(self._robot_clocks) == self.num_robots: # check if a tick should happen
-                self._clock_tick()
-                self.elapsed += 1
+        self.most_recent_actions[robot_no] = current_action
+        # print(current_action, robot_no, self.most_recent_actions, type(self.most_recent_actions[0]))
+        self._robot_clocks[robot_no] = True # lock robot until clock ticks
+        
+        if np.sum(self._robot_clocks) == self.num_robots: # check if a tick should happen
+            self._clock_tick()
+            self.elapsed += 1
+
     
-    
-            terminated = True
-            for prob in self._goal_probabilities:
-                if prob > 0:        
-                    terminated = False # not terminated if any goals are left
+        terminated = True
+        for prob in self._goal_probabilities:
+            if prob > 0:        
+                terminated = False # not terminated if any goals are left
                         
     
         observation = self._get_obs()

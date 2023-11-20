@@ -10,17 +10,23 @@ import gymnasium as gym
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import torch
 import DQN
 import sys
 
 num_robots = 3
 size = 12
+<<<<<<< HEAD
 goal_locations = [11,5,2,10,9,8]
 goal_probabilities = [0.5, 0.9, 0.7, 0.5, 0.9, 0.8]
+=======
+goal_locations = [11,5,2]
+goal_probabilities = [0.1, 0.9, 0.7]
+>>>>>>> master
 
-env = gym.make("Tokamak-v5",
+env_to_use = "Tokamak-v5"
+
+env = gym.make(env_to_use,
                num_robots=num_robots,
                size=size,
                goal_locations=goal_locations,
@@ -57,6 +63,7 @@ trained_dqn, dur, re, eps = DQN.train_model(env,
                                             # explore_time=500,
                                             num_episodes=2000,
                                             batch_size=256)    
+
 filename = f"policy_weights_{int(np.random.rand()*1e9)}"
 print(f"Saving as {filename}")
 
@@ -69,7 +76,7 @@ _ = DQN.evaluate_model(dqn = policy_net,
                        num_episodes = 1000,
                        template_env = env,
                        reset_options = reset_options,
-                       env_name = "Tokamak-v5",
+                       env_name = env_to_use,
                        render = True)
 
 
