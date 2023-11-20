@@ -18,13 +18,14 @@ size = 12
 goal_locations = [11,5,2]
 goal_probabilities = [0.1, 0.9, 0.7]
 
-env_to_use = "Tokamak-v5"
+env_to_use = "TokamakTemplater-v5-nopygame"
 
 env = gym.make(env_to_use,
                num_robots=num_robots,
+               num_goals = len(goal_locations),
+               min_probability = 0.5,
+               max_probability = 0.9,
                size=size,
-               goal_locations=goal_locations,
-               goal_probabilities = goal_probabilities,
                render_mode = None )
 reset_options = {"robot_locations" : [1,3,5]}
 # set up matplotlib

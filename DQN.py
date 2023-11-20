@@ -93,6 +93,8 @@ def plot_status(episode_durations, rewards, epsilons):
     epsilon_ax.spines['right'].set_position(('outward', 60))
 
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
+    rewards_t = torch.tensor(rewards, dtype=torch.float)
+
         
     color1, color2, color3 = plt.cm.viridis([0, .5, .9])
     
@@ -102,12 +104,21 @@ def plot_status(episode_durations, rewards, epsilons):
 
     # Take 100-episode averages and plot them too
     if len(durations_t) >= 100:
-        means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
-        means = torch.cat((torch.zeros(99), means))
-        av_plot = host.plot(means.numpy(), color="indianred", label="average", lw = 3);
-        host.axhline(means.numpy()[-1], color = "indianred", alpha = 1, ls = "--")
-        host.text(0, means.numpy()[-1], "avg: "+ str(means.numpy()[-1]))
-        handles=duration_plot+epsilon_plot+reward_plot+av_plot
+        
+        duration_means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
+        duration_means = torch.cat((torch.zeros(99), duration_means))
+        duration_av_plot = host.plot(duration_means.numpy(), color="indianred", label="average dur. ", lw = 3);
+        host.axhline(duration_means.numpy()[-1], color = "indianred", alpha = 1, ls = "--")
+        host.text(0, duration_means.numpy()[-1], "avg dur.: "+ str(duration_means.numpy()[-1]))
+        
+        reward_means = rewards_t.unfold(0, 100, 1).mean(1).view(-1)
+        reward_means = torch.cat((torch.zeros(99), reward_means))
+        reward_av_plot = reward_ax.plot(reward_means.numpy(), color="green", label="average r.", lw = 3);
+        reward_ax.axhline(reward_means.numpy()[-1], color = "green", alpha = 1, ls = "--")
+        reward_ax.text(0, reward_means.numpy()[-1], "avg r.: "+ str(reward_means.numpy()[-1]))
+        
+        handles=duration_plot+epsilon_plot+reward_plot+duration_av_plot+reward_av_plot
+        
     else:
         handles=duration_plot+epsilon_plot+reward_plot
         host.axhline(episode_durations[-1], color = "grey", ls = "--")
