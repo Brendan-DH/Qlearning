@@ -12,7 +12,7 @@ from gymnasium import spaces
 import pygame
 
 
-class TokamakEnv5(gym.Env):
+class TokamakEnv6(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
     
     # def set_parameters(size, num_robots, num_goals, goal_locations):
@@ -31,8 +31,10 @@ class TokamakEnv5(gym.Env):
         self._goal_locations = goal_locations
         self._goal_probabilities = goal_probabilities
         self._original_probabilities = goal_probabilities
-        # 1 if goal was there. 0 if goal was not. -1 if goal hasn't been resolved yet
-        self._goal_resolutions = np.ones_like(goal_probabilities)*-1 
+        # 1 if goal was there. 0 if goal was not, -1 if not yet checked (for resolutions)
+        self._goal_resolutions = np.ones_like(goal_probabilities) * -1
+        self._goal_instantiations = np.zeros_like(goal_probabilities)
+
         self.window_size = 700  # The size of the PyGame window
         self.elapsed = 0
         self.parameters = {
@@ -57,7 +59,12 @@ class TokamakEnv5(gym.Env):
         for i in range(0,self.num_goals):
             obDict[f"goal{i} location"] = spaces.Discrete(size)
             obDict[f"goal{i} probability"] = spaces.Box(low=0, high=1, shape=[1]) # continuous variable in [0,1]. sample() returns array though.
+            obDict[f"goal{i} instantiated"] = spaces.Discrete(2)
+            obDict[f"goal{i} checked"] = spaces.Discrete(2) # records if a goal has been visited yet
+        
+        obDict["elapsed"] = spaces.Discrete(501)
 
+    
         self.observation_space = spaces.Dict(obDict)
         
         # actions that the robots can carry out
@@ -83,6 +90,9 @@ class TokamakEnv5(gym.Env):
         for i in range(0,self.num_goals):
             obs[f"goal{i} location"] = self._goal_locations[i]
             obs[f"goal{i} probability"] = self._goal_probabilities[i]
+            obs[f"goal{i} instantiated"] = self._goal_instantiations[i]
+            obs[f"goal{i} checked"] = self._goal_checked[i]
+        obs["elapsed"] = self.elapsed
             
         return obs
     
@@ -105,13 +115,16 @@ class TokamakEnv5(gym.Env):
             
         # reset goals
         self._goal_probabilities = self._original_probabilities.copy()
+        self._goal_checked = [0 for i in range(self.num_goals)]
         self.elapsed = 0
         self._robot_clocks = [False for i in range(self.num_robots)] # set all clocks to false
         
         return self._get_obs(), self._get_info()
         
         self.elapsed = 0
-        self._goal_resolutions = np.ones_like(self._goal_probabilities) * -1
+        self._goal_resolutions = np.zeros_like(self._goal_probabilities)
+        self._goal_instatiated = np.zeros_like(self._goal_probabilities)
+
         
         if self.render_mode == "human":
             self._render_frame()
@@ -172,8 +185,8 @@ class TokamakEnv5(gym.Env):
                 #block inspection if robot is not over known task location:
                 block_inspection = 1
                 for k in range(len(self._goal_locations)): 
-                    if (self._goal_locations[k] == moving_robot_loc and self._goal_probabilities[k] == 1):
-                        block_inspection = 0
+                    if (self._goal_locations[k] == moving_robot_loc and self._goal_instantiations[k]==1):
+                        block_inspection = 0 # unblock this engage action
                 blocked_actions[(i*self.num_actions)+2] = block_inspection
                     
         # print(self._robot_locations, blocked_actions)
@@ -194,8 +207,7 @@ class TokamakEnv5(gym.Env):
         blocked_actions = self._get_blocked_actions()
         if(blocked_actions[action]):
             
-            terminated = False
-            reward = -10
+            reward = 0.0
             current_action = "forbidden"
                     
         else: 
@@ -204,6 +216,9 @@ class TokamakEnv5(gym.Env):
             current_location = self._robot_locations[robot_no]
             current_action = ""
             reward = 0.0
+            
+            if(np.sum(self._robot_clocks)==0):
+                self.most_recent_actions = np.empty((3), np.dtype('U100'))
             
             if(rel_action == 0): # counter-clockwise movement
                 if (current_location<self.size-1):
@@ -224,11 +239,9 @@ class TokamakEnv5(gym.Env):
                                         
             if (rel_action == 2): # engage robot, complete task
                 for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
-                    if(self._goal_locations[i] == current_location and self._goal_probabilities[i]==1):
-                        self._goal_probabilities[i] = 0
-                        reward += 1000 * 1/(self.elapsed+1) # reward if robots manage to complete a task
-                    # else:
-                    #     reward -= 1
+                    if(self._goal_locations[i] == current_location and self._goal_instantiations[i]==1):
+                        self._goal_instantiations[i] = 0
+                        reward += 1000 - ((self.elapsed+1)/1000)# reward if robots manage to complete a task
                 current_action="engage"
                 
             if (rel_action == 3): # wait; nothing happens, no reward lost
@@ -236,39 +249,40 @@ class TokamakEnv5(gym.Env):
                 current_action="wait"
                         
             for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
-                if(self._goal_locations[i] == self._robot_locations[robot_no] and self._goal_probabilities[i] > 0 and self._goal_probabilities[i] < 1):
-                    
+                if(self._goal_locations[i] == self._robot_locations[robot_no] and self._goal_checked[i] == 0):
+                    self._goal_checked[i] = 1 # note that the goal has been visited and checked
                     # resolve the non-determinism:
                     if np.random.rand() < self._goal_probabilities[i]:
-                        self._goal_probabilities[i] = 1
-                        self._goal_resolutions[i] = 1 # feel like there's a more concise way to do this...
+                        self._goal_resolutions[i] = 1 # the goal exists
+                        self._goal_instantiations[i] = 1 
                     else:
-                        self._goal_probabilities[i] = 0
-                        self._goal_resolutions[i] = 0
-
+                        self._goal_resolutions[i] = 0 # the goal does not
+                        self._goal_instantiations[i] = 0 
+                        
                     reward += 100 # reward robots for discovering tasks
 
                         
                     
-        self.most_recent_actions[robot_no] = current_action
-        # print(current_action, robot_no, self.most_recent_actions, type(self.most_recent_actions[0]))
+            # print(current_action, robot_no, self.most_recent_actions, type(self.most_recent_actions[0]))
         self._robot_clocks[robot_no] = True # lock robot until clock ticks
         
         if np.sum(self._robot_clocks) == self.num_robots: # check if a tick should happen
             self._clock_tick()
             self.elapsed += 1
 
-    
-        terminated = True
-        for prob in self._goal_probabilities:
-            if prob > 0:        
-                terminated = False # not terminated if any goals are left
+        self.most_recent_actions[robot_no] = current_action
+
+        if(all(self._goal_checked) and not any(self._goal_instantiations)):
+            terminated = True
+        else:
+            terminated = False
                         
     
         observation = self._get_obs()
         info = self._get_info()
         
         if self.render_mode == "human":
+            print(f"rendering frame...{self.elapsed}, {action}")
             self._render_frame()
             
         return observation, reward, terminated, False, info
@@ -316,20 +330,23 @@ class TokamakEnv5(gym.Env):
             ypos = tokamak_centre[1] + (tokamak_r*1.05) * np.sin((i)*angle - np.pi)
             canvas.blit(text, (xpos-text_width/2, ypos-text_height/2))
 
-        
         # draw the goals
         for i in range(self.num_goals):
-            if(self._goal_probabilities[i] == 0):
-                continue
             pos = self._goal_locations[i]
             xpos = tokamak_centre[0] + tokamak_r * 3/4 * np.cos(angle*pos - np.pi)
             ypos = tokamak_centre[1] + tokamak_r * 3/4 * np.sin(angle*pos - np.pi)
-            colour = (255,0,0) if self._goal_probabilities[i] < 1 else (0,200,0)
-            circ = pygame.draw.circle(canvas, colour, (xpos, ypos), 30) #maybe make these rects again
-            if(self._goal_probabilities[i] < 1 and self._goal_probabilities[i] > 0):
+            if(self._goal_checked[i]==0):
                 text = font.render(f"{self._goal_probabilities[i]}?", True, (255,255,255))
-            else:
-                text = font.render(f"{self._goal_probabilities[i]}", True, (255,255,255))
+                colour = (255,0,0) 
+            elif(self._goal_checked[i]==1 and self._goal_instantiations[i] == 1):
+                text = font.render("1", True, (255,255,255))
+                colour = (0,0,200) 
+            elif(self._goal_checked[i]==1 and self._goal_instantiations[i] == 0):
+                text = font.render("done", True, (255,255,255))
+                colour = (0,200,0) 
+
+            circ = pygame.draw.circle(canvas, colour, (xpos, ypos), 30) #maybe make these rects again
+            
             text_width = text.get_rect().width
             text_height = text.get_rect().height
             canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
@@ -349,7 +366,14 @@ class TokamakEnv5(gym.Env):
             text_height = text.get_rect().height
             canvas.blit(source=text, dest = (circ.centerx - text_width/2, circ.centery - text_height/2))
 
-        print(self.most_recent_actions)
+        print(f"""
+              epoch: {self.elapsed}
+              robot locations : {self._robot_locations}
+              actions: {self.most_recent_actions}
+              blocked actions: {self._get_blocked_actions()}
+              goal checked : {self._goal_checked}
+              goal instantiations: {self._goal_instantiations}
+              """)
         # draw tick number
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,0), (40, 40)))
         canvas.blit(font.render("t=" + str(self.elapsed), True, (0,0,0)), rect)

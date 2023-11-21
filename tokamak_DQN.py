@@ -19,7 +19,7 @@ size = 12
 goal_locations = [11,5,2,10]
 goal_probabilities = [0.5, 0.9, 0.7, 0.7]
 
-env_to_use = "Tokamak-v5"
+env_to_use = "Tokamak-v6"
 
 env = gym.make(env_to_use,
                num_robots=num_robots,
@@ -55,6 +55,8 @@ trained_dqn, dur, re, eps = DQN.train_model(env,
                                             reset_options,
                                             alpha = 1e-3,
                                             num_episodes=2000,
+                                            epsilon_min = 0,
+                                            usePseudorewards=False,
                                             batch_size=256)    
 
 filename = f"policy_weights_{int(np.random.rand()*1e9)}"
@@ -62,12 +64,14 @@ print(f"Saving as {filename}")
 torch.save(trained_dqn.state_dict(), f"./outputs/{filename}")
 
 #%%
+
+
 _ = DQN.evaluate_model(dqn = policy_net,
                        num_episodes = 1000,
                        template_env = env,
                        reset_options = reset_options,
                        env_name = env_to_use,
-                       render = False)
+                       render = True)
 
 
 #%%

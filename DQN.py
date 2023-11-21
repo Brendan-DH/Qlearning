@@ -307,7 +307,7 @@ def optimize_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batc
     torch.nn.utils.clip_grad_value_(policy_dqn.parameters(), 100) # stops the gradients from becoming too large
     optimiser.step()
     
-def evaluate_model(dqn, num_episodes, template_env, reset_options, env_name = "Tokamak-v5", render=False):
+def evaluate_model(dqn, num_episodes, template_env, reset_options, env_name = "Tokamak-v6", render=False):
     
     print("Evaluating...")
     
@@ -365,7 +365,7 @@ def evaluate_model(dqn, num_episodes, template_env, reset_options, env_name = "T
                  unique_times,
                  ls = "",
                  marker = "o", 
-                 label=f"{int(unique)} goals - avg {int(np.mean(unique_times))}")
+                 label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_times)))
         times_start = len(unique_times) + times_start + num_episodes/20
 
     plt.legend()
