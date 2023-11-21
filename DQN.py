@@ -126,7 +126,7 @@ def plot_status(episode_durations, rewards, epsilons):
 
 
     host.legend(handles=handles, loc='best')
-    plt.pause(0.001)  # pause a bit so that plots are updated
+    # plt.pause(0.001)  # pause a bit so that plots are updated
     
     return fig;
 
@@ -134,7 +134,7 @@ def train_model(
         env,                        # gymnasium environment
         policy_net,                 # policy network to be trained
         target_net,                 # target network to be soft updated
-        reset_options,              # options passed when resetting env
+        reset_options = None,       # options passed when resetting env
         num_episodes = 1000,        # number of episodes for training
         gamma = 0.6,                # discount factor
         epsilon_max = 0.95,         # max exploration rate
@@ -143,6 +143,7 @@ def train_model(
         explore_time = 0,           # time at maximum epsilon
         alpha = 1e-3,               # learning rate for policy DeepQNetwork
         tau = 0.005,                # soft update rate for target DeepQNetwork
+        usePseudorewards = True,    # whether to calculate and use pseudorewards
         max_steps = None,           # max steps per episode
         batch_size = 128,           # batch size of the replay memory
         plot_frequency = 10,        # number of episodes between status plots (0=disabled)
@@ -201,7 +202,10 @@ def train_model(
     start_time = time.time();
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
-        state, info = env.reset(options=reset_options.copy())
+        if reset_options:
+            state, info = env.reset(options=reset_options.copy())
+        else:
+            state, info = env.reset()
         av_dist = info["av_dist"] # average distance of robots from tasks, used for pseudorewards
         state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
         
@@ -219,12 +223,16 @@ def train_model(
             old_av_dist = av_dist # for phi(s)
             av_dist = info["av_dist"] # for phi(s')
             elapsed = info["elapsed"]
-            pseudoreward =  (gamma * 1/(av_dist+1) - 1/(old_av_dist+1))
+            if(usePseudorewards):
+                pseudoreward = (gamma * 1/(av_dist+1) - 1/(old_av_dist+1))
+            else:
+                pseudoreward = 0
             
             reward = torch.tensor([reward+pseudoreward], device=device)
             ep_reward += reward.item()
             
             done = terminated or truncated or (t > max_steps)
+            # print(terminated, truncated, t, done)
     
             if terminated:
                 next_state = None
@@ -247,6 +255,8 @@ def train_model(
                 rewards.append(ep_reward)
                 if(plot_frequency != 0 and i_episode%plot_frequency==0 and i_episode > 0):
                     f = plot_status(episode_durations, rewards, epsilons);
+                    plt.show()
+                    plt.close(f)
                 if(checkpoint_frequency != 0 and i_episode%checkpoint_frequency==0 and i_episode > 0):
                     torch.save(policy_net.state_dict(), os.getcwd() + f"./outputs/policy_weights_{int(np.random.rand()*1e9)}")
                 break

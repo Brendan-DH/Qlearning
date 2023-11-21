@@ -41,7 +41,7 @@ class TokamakEnv5(gym.Env):
             "goal_locations" : goal_locations,
             "goal_probabilities" : goal_probabilities
             }
-        self.num_actions = 4 # this can be changed for dev purposes
+        self.num_actions = 3 # this can be changed for dev purposes
         self.most_recent_actions = np.empty((3), np.dtype('U100'))
         # print(np.shape(self.most_recent_actions))
         
@@ -169,12 +169,12 @@ class TokamakEnv5(gym.Env):
                     if((other_robot_loc == moving_robot_loc - 1) or (moving_robot_loc == 0 and other_robot_loc == self.size-1)):
                         blocked_actions[(i*self.num_actions)+1] = 1
                         
-                #block inspection if robot is not over known task location:
-                block_inspection = 1
-                for k in range(len(self._goal_locations)): 
-                    if (self._goal_locations[k] == moving_robot_loc and self._goal_probabilities[k] == 1):
-                        block_inspection = 0
-                blocked_actions[(i*self.num_actions)+2] = block_inspection
+                # #block inspection if robot is not over known task location:
+                # block_inspection = 1
+                # for k in range(len(self._goal_locations)): 
+                #     if (self._goal_locations[k] == moving_robot_loc and self._goal_probabilities[k] == 1):
+                #         block_inspection = 0
+                # blocked_actions[(i*self.num_actions)+2] = block_inspection
                     
         # print(self._robot_locations, blocked_actions)
         return blocked_actions
@@ -221,20 +221,19 @@ class TokamakEnv5(gym.Env):
                     self._robot_locations[robot_no] = self.size-1
                 # reward -= 0.5
                 current_action="move cw"
-                    
-
-                    
+                                        
             if (rel_action == 2): # engage robot, complete task
                 for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
                     if(self._goal_locations[i] == current_location and self._goal_probabilities[i]==1):
                         self._goal_probabilities[i] = 0
                         reward += 1000 * 1/(self.elapsed+1) # reward if robots manage to complete a task
-                # reward -= 0.5
+                    # else:
+                    #     reward -= 1
                 current_action="engage"
                 
-            if (rel_action == 3): # wait; nothing happens, no reward lost
-                reward -= 1 # we only want to machine to wait when it has nothing useful to do
-                current_action="wait"
+            # if (rel_action == 3): # wait; nothing happens, no reward lost
+            #     reward -= 1 # we only want to machine to wait when it has nothing useful to do
+            #     current_action="wait"
                         
             for i in range(len(self._goal_locations)): # iterate over locations and mark appropriate goals as done
                 if(self._goal_locations[i] == self._robot_locations[robot_no] and self._goal_probabilities[i] > 0 and self._goal_probabilities[i] < 1):
