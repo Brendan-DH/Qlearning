@@ -26,6 +26,31 @@ import sys
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
+system_parameters = namedtuple("system_parameters",
+                               ("size",
+                                "robot_status",
+                                "robot_locations",
+                                "breakage_probability",
+                                "goal_locations",
+                                "goal_probabilities",
+                                "goal_instantiations",
+                                "goal_resolutions",
+                                "goal_checked",
+                                "port_locations",
+                                "elapsed"
+                                ))
+
+
+# these are needed to get around some restrictions on how tuples work:
+def update_system_parameters(t, key, new_value):
+    new_tuple = t._asdict()
+    new_tuple[key] = new_value
+    return system_parameters(**new_tuple)
+
+
+def copy_system_parameters(t):
+    return system_parameters(**t._asdict())
+
 
 class ReplayMemory(object):
 
@@ -55,9 +80,12 @@ class DeepQNetwork(nn.Module):
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
     def forward(self, x):
         # print("forward x.shape", x, x.shape)
-        x = F.relu(self.layer1(x))
-        x = F.relu(self.layer2(x))
-        return self.layer3(x)
+        try:
+            x = F.relu(self.layer1(x))
+            x = F.relu(self.layer2(x))
+            return self.layer3(x)
+        except RuntimeError:
+            print(x)
 
 
 def select_action(dqn, env, state, epsilon, forbidden_actions=[]):
@@ -68,6 +96,8 @@ def select_action(dqn, env, state, epsilon, forbidden_actions=[]):
             # t.max(1) will return the largest column value of each row.
             # second column on max result is index of where max element was
             # found, so we pick action with the larger expected reward.
+            # if(epsilon == 0):
+            # print(dqn(state), dqn(state).max(1)[1].view(1, 1))
             return dqn(state).max(1)[1].view(1, 1)
     else:
         sample = env.action_space.sample()
@@ -85,9 +115,9 @@ def plot_status(episode_durations, rewards, epsilons):
     upper_ax = mid_ax.twinx()
 
     mid_ax.set_ylabel('Duration (ticks)')
-    mid_ax.set_yticks(np.arange(0,
-                                np.floor(max(episode_durations) / 5) * int(max(episode_durations)) + 6,
-                                5))
+    # mid_ax.set_yticks(np.linspace(0,
+    #                               np.floor(max(episode_durations) / 5) * int(max(episode_durations)) + 6,
+    #                               5))
     bot_ax.set_ylabel("Epsilon")
     bot_ax.set_ylim(0,1)
     bot_ax.set_yticks(np.linspace(0,1,21))
@@ -140,16 +170,17 @@ def plot_status(episode_durations, rewards, epsilons):
 
 
 def train_model(
-        env,                        # gymnasium environment
-        policy_net,                 # policy network to be trained
-        target_net,                 # target network to be soft updated
+        env,                      # gymnasium environment
+        policy_net,               # policy network to be trained
+        target_net,               # target network to be soft updated
         reset_options=None,       # options passed when resetting env
         num_episodes=1000,        # number of episodes for training
         gamma=0.6,                # discount factor
         epsilon_max=0.95,         # max exploration rate
         epsilon_min=0.05,         # min exploration rate
         epsilon_decay=None,       # decay rate, will be set automatically if None
-        explore_time=0,           # time at maximum epsilon
+        max_epsilon_time=0,       # time at maximum epsilon
+        min_epsilon_time=100,     # time at minimum epsilon
         alpha=1e-3,               # learning rate for policy DeepQNetwork
         tau=0.005,                # soft update rate for target DeepQNetwork
         usePseudorewards=True,    # whether to calculate and use pseudorewards
@@ -172,7 +203,7 @@ def train_model(
             ----
 
             Environmental parameters:
-            {env.parameters}
+            {env.get_parameters()}
             {reset_options}
 
             ----
@@ -183,7 +214,7 @@ def train_model(
             epsilon_max = {epsilon_max}
             epsilon_min = {epsilon_min}
             epsilon_decay = {"default" if not epsilon_decay else epsilon_decay}
-            explore_time = {explore_time}
+            max_epsilon_time = {max_epsilon_time}
             alpha = {alpha}
             tau = {tau}
             max_steps = {"as per env" if not max_steps else max_steps}
@@ -201,7 +232,7 @@ def train_model(
     torch.set_grad_enabled(True)
 
     if not epsilon_decay:
-        epsilon_decay = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes - explore_time)  # ensures epsilon ~= epsilon_min at end
+        epsilon_decay = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes - min_epsilon_time - max_epsilon_time)  # ensures epsilon ~= epsilon_min at end
 
     if not max_steps:
         max_steps = np.inf
@@ -214,10 +245,22 @@ def train_model(
         else:
             state, info = env.reset()
         av_dist = info["av_dist"]  # average distance of robots from tasks, used for pseudorewards
+        # print("state", state, list(state.values()))
+
         state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
-        epsilon = epsilon_max if i_episode < explore_time else epsilon_min + (epsilon_max - epsilon_min) * \
-            math.exp(-1. * (i_episode - explore_time) * epsilon_decay)
+        if(i_episode < max_epsilon_time):
+            # print("max ep")
+            epsilon = epsilon_max
+        elif(i_episode > num_episodes - min_epsilon_time):
+            # print("min ep")
+            decay_term = math.exp(-1. * (num_episodes - min_epsilon_time) * epsilon_decay)
+            epsilon = epsilon_min + (epsilon_max - epsilon_min) * decay_term + 0.025 * np.sin((i_episode - max_epsilon_time) * 2 * np.pi / 20)
+        else:
+            # print("decaying ep")
+            decay_term = math.exp(-1. * (i_episode - max_epsilon_time) * epsilon_decay)
+            epsilon = epsilon_min + (epsilon_max - epsilon_min) * decay_term
+
         epsilons.append(epsilon)
 
         ep_reward = 0
@@ -229,7 +272,7 @@ def train_model(
             # calculate pseudoreward
             old_av_dist = av_dist  # for phi(s)
             av_dist = info["av_dist"]  # for phi(s')
-            elapsed_ticks = info["elapsed_ticks"]
+            elapsed_ticks = observation["elapsed_ticks"]
             if(usePseudorewards):
                 pseudoreward = (gamma * 1 / (av_dist + 1) - 1 / (old_av_dist + 1))
             else:
@@ -248,7 +291,7 @@ def train_model(
 
             memory.push(state, action, next_state, reward)  # Store the transition in memory
             state = next_state
-            optimize_model(policy_net, target_net, memory, optimiser, gamma, 128)
+            optimise_model(policy_net, target_net, memory, optimiser, gamma, 128)
 
             # Soft update of the target DeepQNetwork
             target_net_state_dict = target_net.state_dict()
@@ -272,13 +315,13 @@ def train_model(
     return policy_net, episode_durations, rewards, epsilons
 
 
-def optimize_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batch_size):
+def optimise_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batch_size):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if len(replay_memory) < batch_size:
         return
-    transitions = replay_memory.sample(128)  # why 128? should this be batch_size?
+    transitions = replay_memory.sample(batch_size)  # why 128? should this be batch_size?
 
     # conglomerate the transitions into one object wherein each entry state, action,
     # etc is a tensor containing all of the corresponding entries of the original transitions array
@@ -295,7 +338,10 @@ def optimize_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batc
 
     # the qvalues of actions in this state. the .gather gets the qvalue corresponding to the
     # indices in 'action_batch'
-    state_action_values = policy_dqn(state_batch).gather(1, action_batch)
+    try:
+        state_action_values = policy_dqn(state_batch).gather(1, action_batch)
+    except AttributeError:
+        print("caught")
 
     # q values of action in the next state
     next_state_values = torch.zeros(batch_size, device=device)
@@ -308,14 +354,92 @@ def optimize_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batc
     criterion = nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
 
-    # Optimize the model
+    # optimise the model
     optimiser.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_value_(policy_dqn.parameters(), 100)  # stops the gradients from becoming too large
     optimiser.step()
 
 
-def evaluate_model(dqn, num_episodes, template_env, reset_options, env_name="Tokamak-v6", render=False):
+def evaluate_model(dqn, num_episodes, system_parameters, reset_options=None, env_name="SEAMSOperationalTokamak-v1", render=False):
+
+    print("Evaluating...")
+
+    if ("win" in sys.platform and render):
+        print("Cannot render on windows...")
+        render = False
+
+    env = gym.make(env_name,
+                   system_parameters=system_parameters,
+                   training=True,
+                   render_mode="human" if render else None)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Evaluation running on {device}.")
+
+    times = []
+    goal_resolutions = []
+    ts = []
+
+    for i in range(num_episodes):
+        state, info = env.reset(options=reset_options.copy())
+
+        states = [state]
+        actions = []
+        state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
+
+        for t in count():
+
+            action = select_action(dqn, env, state, 0)
+            observation, reward, terminated, truncated, info = env.step(action.item())
+            state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
+
+            states.append(observation)
+            actions.append(action)
+
+            done = terminated
+
+            if (done or truncated):
+                times.append(observation["elapsed_ticks"])
+                goal_resolutions.append(np.sum(info["goal_resolutions"]))
+                if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
+                    print(f"{i}/{num_episodes} episodes complete")
+                break
+
+        if(not done):
+            print("deadlock", observation, action)
+        ts.append(t)
+
+    times = np.array(times)
+    plt.figure(figsize=(10,10))
+    times_start = 0
+    # process 'times' into sub-arrays based on the unique entries in goal_resolutions
+    unique_res = np.unique(goal_resolutions)
+    for unique in unique_res:
+        unique_times = times[goal_resolutions == unique]  # groups episodes with this unique number of tasks
+        # plot the times. assign a range on x for each group based on the size of the group and where the last group ended.
+        plt.plot(np.array(range(len(unique_times))) + times_start,
+                 unique_times,
+                 ls="",
+                 marker="o",
+                 label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_times)))
+        times_start = len(unique_times) + times_start + num_episodes / 20
+
+    plt.legend()
+    plt.hlines(np.mean(times), 0, len(times) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
+    plt.text(0,np.mean(times), f"avg: {np.mean(times)}")
+    plt.xticks([])
+    plt.ylabel("Duration / ticks")
+    plt.xlabel("Episode, sorted by number goals encountered")
+    plt.title("Evaluation durations")
+    plt.show()
+
+    print("Evaluation complete.")
+
+    return states, actions, times, ts
+
+
+def evaluate_ensemble(dqn, num_episodes, template_env, reset_options, env_name="Tokamak-v6", render=False):
 
     print("Evaluating...")
 
@@ -336,8 +460,11 @@ def evaluate_model(dqn, num_episodes, template_env, reset_options, env_name="Tok
     times = []
     goal_resolutions = []
 
+    state, info = env.reset(options=reset_options.copy())
+    previous_status = info["status"]
+
     for i in range(num_episodes):
-        state, info = env.reset(options=reset_options)
+        state, info = env.reset(options=reset_options.copy())
 
         states = [state]
         actions = []
@@ -347,6 +474,65 @@ def evaluate_model(dqn, num_episodes, template_env, reset_options, env_name="Tok
 
             action = select_action(dqn, env, state, 0)
             observation, reward, terminated, truncated, info = env.step(action.item())
+
+            # check if any robots have broken
+            current_status = info["status"]  # check status here
+            if current_status != previous_status:  # this will probably cause an error. check how to properly compare arrays
+
+                # if (0 in current_status):  # this indicates that a robot is broken
+                # get all parameters that will be needed to pass forwards
+                parameters = env.get_parameters()
+                num_active_robots = len(parameters["active_robots"])
+                num_broken_robots = len(parameters["broken_robots"])
+
+                # this approach will probably make robots lose their numbering...
+                active_robot_locations = parameters["robot_locations"][parameters["active_robots"]]
+                broken_robot_locations = parameters["robot_locations"][parameters["broken_robots"]]
+
+                if (current_status == "recover"):  # recovery regime
+
+                    # load the appropriate environment and DQN to continue the simulation
+                    dqn.load_state_dict(torch.load(
+                        os.getcwd() + "/trained_weights/" + f"{num_active_robots}-{num_broken_robots}recovery")
+                    )
+
+                    env = gym.make("SEAMSRecoveryTokamakEnv1",
+                                   # normal intantiation parameters:
+                                   size=parameters["size"],
+                                   num_active_robots=num_active_robots,
+                                   num_broken_robots=num_broken_robots,
+                                   goal_locations=parameters["goal_locations"],
+                                   goal_probabilities=parameters["goal_probabilities"],
+                                   # extra parameters to set the initial state of the system:
+                                   active_robot_locations=active_robot_locations,
+                                   broken_robot_locations=broken_robot_locations,
+                                   goal_instantiations=parameters["goal_instantiations"],
+                                   goal_checked=parameters["goal_checked"],
+                                   elapsed=parameters["elapsed"],
+                                   robot_status=current_status
+                                   )
+
+                elif (current_status == "operate"):  # normal operation
+
+                    # load the appropriate environment and DQN to continue the simulation
+                    dqn.load_state_dict(torch.load(
+                        os.getcwd() + "/trained_weights/" + f"{num_active_robots}operate")
+                    )
+
+                    env = gym.make("SEAMSOperationalTokamakEnv1",
+                                   # normal intantiation parameters:
+                                   size=parameters["size"],
+                                   num_robots=parameters["num_robots"],
+                                   goal_locations=parameters["goal_locations"],
+                                   goal_probabilities=parameters["goal_probabilities"],
+                                   # extra parameters to set the initial state of the system:
+                                   robot_locations=parameters["robot_locations"],
+                                   goal_instantiations=parameters["goal_instantiations"],
+                                   goal_checked=parameters["goal_checked"],
+                                   elapsed=parameters["elapsed"],
+                                   robot_status=current_status
+                                   )
+
             state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
             states.append(observation)

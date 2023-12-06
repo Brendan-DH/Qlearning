@@ -14,7 +14,7 @@ import DQN
 import os
 
 
-env_to_use = "SEAMSOperationalTokamak-v1"
+env_to_use = "Tokamak-v7"
 
 
 starting_parameters = DQN.system_parameters(

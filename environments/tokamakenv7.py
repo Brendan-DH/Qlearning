@@ -12,7 +12,7 @@ from gymnasium import spaces
 import pygame
 
 
-class SEAMSOperationalTokamakEnv1(gym.Env):
+class TokamakEnv7(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
     # def set_parameters(size, num_active, num_goals, goal_locations):
