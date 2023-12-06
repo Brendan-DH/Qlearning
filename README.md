@@ -54,7 +54,6 @@ Having added the above snippets, gymnasium should now be able to make the "Tokam
 from gymnasium.envs.tokamak.tokamakenv5 import TokamakEnv5
 ```
 2. Open the `__init__.py` inside `/gymnasium/envs` and add register the environment (see step 3 above).
-    ```
 
 
 
