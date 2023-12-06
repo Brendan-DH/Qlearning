@@ -5,4 +5,5 @@ from gymnasium.envs.tokamak.tokamakenv4 import TokamakEnv4
 from gymnasium.envs.tokamak.tokamakenv5 import TokamakEnv5
 from gymnasium.envs.tokamak.tokamakenv6 import TokamakEnv6
 from gymnasium.envs.tokamak.tokamakenv7 import TokamakEnv7
+from gymnasium.envs.tokamak.tokamakenv8 import TokamakEnv8
 from gymnasium.envs.tokamak.tokamaktemplater5 import TokamakTemplater5

@@ -14,7 +14,7 @@ import DQN
 import os
 import numpy as np
 
-env_to_use = "Tokamak-v7"
+env_to_use = "Tokamak-v8"
 
 
 starting_parameters = DQN.system_parameters(
@@ -43,7 +43,7 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-saved_weights_name = "op_size12_active3_108186"
+saved_weights_name = "saved_weights_182634"
 scenario_id = 108186
 
 #%%
