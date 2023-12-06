@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import torch
 import DQN
 import os
-
+import numpy as np
 
 env_to_use = "Tokamak-v7"
 
@@ -43,7 +43,7 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# saved_weights_name = "policy_weights_735539594"
+saved_weights_name = "op_size12_active3_108186"
 scenario_id = 108186
 
 #%%
@@ -58,34 +58,33 @@ try:
     policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + saved_weights_name))
 except NameError:
     print("No saved weights defined, starting from scratch")
-target_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
-target_net.load_state_dict(policy_net.state_dict())
+    target_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
+    target_net.load_state_dict(policy_net.state_dict())
+    trained_dqn, dur, re, eps = DQN.train_model(env,
+                                                policy_net,
+                                                target_net,
+                                                None,
+                                                alpha=1e-3,
+                                                gamma=0.5,
+                                                num_episodes=1500,
+                                                min_epsilon_time=500,
+                                                epsilon_min=0.05,
+                                                usePseudorewards=False,
+                                                batch_size=256)
 
-
-#%%
-trained_dqn, dur, re, eps = DQN.train_model(env,
-                                            policy_net,
-                                            target_net,
-                                            None,
-                                            alpha=1e-3,
-                                            gamma=0.5,
-                                            num_episodes=3000,
-                                            min_epsilon_time=1000,
-                                            epsilon_min=0.05,
-                                            usePseudorewards=False,
-                                            batch_size=256)
-
-filename = f"op_size{starting_parameters.size}_active{len(starting_parameters.robot_status)}_{scenario_id}"
-print(f"Saving as {filename}")
-torch.save(trained_dqn.state_dict(), f"./outputs/{filename}")
+    filename = f"saved_weights_{int(np.random.rand()*1e6)}"
+    print(f"Saving as {filename}")
+    torch.save(trained_dqn.state_dict(), f"./outputs/{filename}")
 
 #%%
 
 
 s, a, times, ts = DQN.evaluate_model(dqn=policy_net,
-                                     num_episodes=1000,
+                                     num_episodes=100,
                                      system_parameters=starting_parameters,
                                      env_name=env_to_use,
-                                     render=True)
+                                     render=False)
 
-plt.plot(ts)
+plt.figure(figsize=(10,7))
+plt.hist(x=ts, rwidth=0.95)
+plt.xlabel("Total env steps")

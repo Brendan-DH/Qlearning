@@ -382,7 +382,10 @@ def evaluate_model(dqn, num_episodes, system_parameters, reset_options=None, env
     ts = []
 
     for i in range(num_episodes):
-        state, info = env.reset(options=reset_options.copy())
+        if(reset_options):
+            state, info = env.reset(options=reset_options.copy())
+        else:
+            state, info = env.reset()
 
         states = [state]
         actions = []
