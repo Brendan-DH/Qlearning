@@ -46,6 +46,68 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 saved_weights_name = "saved_weights_182634"
 scenario_id = 108186
 
+
+class Action():
+
+    def __init__(self, name, environment, effect_function, execute_function):
+        self.name = name  # human-readable name of the action
+        self.environment = environment  # environment to which the action is applied
+        self.effect_function = effect_function  # dict of probability / state describing result on 'state'
+        self.execute_function = execute_function  # lambda function describing effect of action on environment
+
+    def execute(self):
+        self.effect_function(self.environment)
+
+    def effect(self, state):
+        effect_dict = self.effect_function(self.environment, state)
+        return effect_dict
+
+
+# how do I deal with the action number that is needed for this logic???
+def ef_func(env, action_no, state): 
+    # the effect function for moving robot 1 ccw
+    ef_dict = {}
+    new_state = state.copy()
+    robot_no = int(np.floor(action_no / env.num_actions))
+    current_location = state["robot_locations"][robot_no]
+    robot_no = int(np.floor(action_no / env.num_actions))
+
+    # deterministic part of the result:
+    if (current_location < env.size - 1):
+        new_state["robot_locations"][robot_no] = current_location + 1
+    if (current_location == env.size - 1):  # cycle round
+        new_state["robot_locations"][robot_no] = 0
+
+    # if there is no goal here:
+    if(new_state["robot_locations"][robot_no] not in env.goal_locations):
+        ef_dict = {"1" : new_state}
+        return ef_dict
+
+    # if there is a goal but it's already done:
+    goal_index = env.goal_locations == new_state["robot_locations"][robot_no]
+    if (state["goal_checked"][goal_index] == 0):
+        ef_dict = {"1" : new_state}
+        return ef_dict
+
+    # if a goal needs to be revealed:
+    else:
+        new_state["goal_checked"][goal_index] = 1
+        prob1 = env.goal_probabilities[goal_index]
+        state1 = new_state.copy()
+        state1["goal_instantiations"][goal_index] = 1
+        ef_dict[str(prob1)] = state1
+
+        prob2 = 1 - env.goal_probabilities[goal_index]
+        state2 = new_state.copy()
+        state2["goal_instantiations"][goal_index] = 0
+        ef_dict[str(prob2)] = state2
+
+        return ef_dict
+
+
+# move_1_ccw = Action("move 1 ccw", env, ef_func, ex_func)
+
+
 #%%
 n_actions = env.action_space.n
 state, info = env.reset()

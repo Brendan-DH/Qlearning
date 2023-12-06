@@ -122,6 +122,8 @@ class TokamakEnv8(gym.Env):
 
         return active_robot_locations, broken_robot_locations
 
+    # def query_state_action_pair(self, state, action):
+
     def reset(self, seed=None, options=None):
         # print("reset")
         super().reset(seed=seed)
