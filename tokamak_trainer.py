@@ -65,20 +65,45 @@ class Action():
         return effect_dict
 
 
-# how do I deal with the action number that is needed for this logic???
-def ef_func(env, state, action_no):
+# how do I deal with the action number that is needed for this logic??
+# a generic effect function should not need a action number. template functions can take one
+# the effect function is the function which describes the effect of an action
+def template_move(env, state, action_no):
+    """
+
+    Inputs:
+        env - gymnasium environment
+        state - dictionary describing the current state
+        action_no - number of the action to be executed
+
+    Outputs:
+        ef_dict - dictionary describing the resultant state
+
+    """
+
     # the effect function for moving robot 1 ccw
     ef_dict = {}
     new_state = state.copy()
     robot_no = int(np.floor(action_no / env.num_actions))
     current_location = new_state[f"robot{robot_no} location"]
     robot_no = int(np.floor(action_no / env.num_actions))
+    rel_action = action_no % env.num_actions
 
     # deterministic part of the result:
-    if (current_location < env.size - 1):
-        new_state[f"robot{robot_no} location"] = current_location + 1
-    if (current_location == env.size - 1):  # cycle round
-        new_state[f"robot{robot_no} location"] = 0
+    if(rel_action == 0):
+        # counter-clockwise
+        if (current_location < env.size - 1):
+            new_state[f"robot{robot_no} location"] = current_location + 1
+        if (current_location == env.size - 1):  # cycle round
+            new_state[f"robot{robot_no} location"] = 0
+    elif(rel_action == 1):
+        # clockwise
+        if (current_location > 0):
+            new_state[f"robot{robot_no} location"] = current_location - 1
+        if (current_location == 0):  # cycle round
+            new_state[f"robot{robot_no} location"] = env.size - 1
+    else:
+        raise ValueError("Error: invalid action number for movement effect function!")
 
     # if there is no goal here:
     if(new_state[f"robot{robot_no} location"] not in env.goal_locations):
@@ -108,7 +133,7 @@ def ef_func(env, state, action_no):
         ef_dict[str(prob1)] = state1
 
         # this goal does not exist
-        prob2 = 1 - env.goal_probabilities[goal_index]
+        prob2 = round(1 - env.goal_probabilities[goal_index], 5)  # this may cause problems!!!!!
         state2 = new_state.copy()
         state2[f"goal{goal_index} instantiated"] = 0
         ef_dict[str(prob2)] = state2
@@ -116,20 +141,33 @@ def ef_func(env, state, action_no):
         return ef_dict
 
 
+# then these functions are specific effect functions for certain robots moving in certain directions:
 def r0_ccw(env, state):
-    return ef_func(env, state, 0)
+    return template_move(env, state, 0)
+
+
+def r0_cw(env, state):
+    return template_move(env, state, 1)
 
 
 def r1_ccw(env, state):
-    return ef_func(env, state, 3)
+    return template_move(env, state, 3)
+
+
+def r1_cw(env, state):
+    return template_move(env, state, 4)
 
 
 def r2_ccw(env, state):
-    return ef_func(env, state, 6)
+    return template_move(env, state, 6)
+
+
+def r2_cw(env, state):
+    return template_move(env, state, 7)
 
 
 r1_ccw(env, state)
-
+r2_cw(env, state)
 
 # move_1_ccw = Action("move 1 ccw", env, ef_func, ex_func)
 
