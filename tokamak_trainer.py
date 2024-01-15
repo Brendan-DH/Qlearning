@@ -13,7 +13,7 @@ import torch
 import DQN
 import os
 import numpy as np
-
+# from abc import ABC, abstractmethod
 env_to_use = "Tokamak-v8"
 
 
@@ -23,7 +23,7 @@ starting_parameters = DQN.system_parameters(
     robot_locations=[1,5,6],
     breakage_probability=0.0001,
     goal_locations=[11,5,2,10,9,8],
-    goal_probabilities=[0.5, 0.9, 0.7, 0.7, 0.4, 0.7],
+    goal_probabilities=[0.49, 0.9, 0.7, 0.7, 0.4, 0.7],
     goal_instantiations=[0,1,1,1,0,0],
     goal_resolutions=[0,1,1,1,0,1],
     goal_checked=[1,1,1,1,1,1,0],
@@ -35,6 +35,8 @@ env = gym.make(env_to_use,
                system_parameters=starting_parameters,
                training=True,
                render_mode=None)
+
+state, info = env.reset()
 
 # set up matplotlib
 is_ipython = 'inline' in matplotlib.get_backend()
@@ -64,45 +66,69 @@ class Action():
 
 
 # how do I deal with the action number that is needed for this logic???
-def ef_func(env, action_no, state): 
+def ef_func(env, state, action_no):
     # the effect function for moving robot 1 ccw
     ef_dict = {}
     new_state = state.copy()
     robot_no = int(np.floor(action_no / env.num_actions))
-    current_location = state["robot_locations"][robot_no]
+    current_location = new_state[f"robot{robot_no} location"]
     robot_no = int(np.floor(action_no / env.num_actions))
 
     # deterministic part of the result:
     if (current_location < env.size - 1):
-        new_state["robot_locations"][robot_no] = current_location + 1
+        new_state[f"robot{robot_no} location"] = current_location + 1
     if (current_location == env.size - 1):  # cycle round
-        new_state["robot_locations"][robot_no] = 0
+        new_state[f"robot{robot_no} location"] = 0
 
     # if there is no goal here:
-    if(new_state["robot_locations"][robot_no] not in env.goal_locations):
+    if(new_state[f"robot{robot_no} location"] not in env.goal_locations):
         ef_dict = {"1" : new_state}
         return ef_dict
 
-    # if there is a goal but it's already done:
-    goal_index = env.goal_locations == new_state["robot_locations"][robot_no]
-    if (state["goal_checked"][goal_index] == 0):
+    # if there is a goal here, get the index (i.e. which goal it is)
+    for i, value in enumerate(env.goal_locations):
+        if value == new_state[f"robot{robot_no} location"]:
+            goal_index = i
+            break
+
+    # check if this goal has already been resolved
+    if (state[f"goal{goal_index} checked"] == 1):
         ef_dict = {"1" : new_state}
         return ef_dict
 
     # if a goal needs to be revealed:
     else:
-        new_state["goal_checked"][goal_index] = 1
+        # this goal is now checked
+        new_state[f"goal{goal_index} checked"] = 1
+
+        # this goal exists
         prob1 = env.goal_probabilities[goal_index]
         state1 = new_state.copy()
-        state1["goal_instantiations"][goal_index] = 1
+        state1[f"goal{goal_index} instantiated"] = 1
         ef_dict[str(prob1)] = state1
 
+        # this goal does not exist
         prob2 = 1 - env.goal_probabilities[goal_index]
         state2 = new_state.copy()
-        state2["goal_instantiations"][goal_index] = 0
+        state2[f"goal{goal_index} instantiated"] = 0
         ef_dict[str(prob2)] = state2
 
         return ef_dict
+
+
+def r0_ccw(env, state):
+    return ef_func(env, state, 0)
+
+
+def r1_ccw(env, state):
+    return ef_func(env, state, 3)
+
+
+def r2_ccw(env, state):
+    return ef_func(env, state, 6)
+
+
+r1_ccw(env, state)
 
 
 # move_1_ccw = Action("move 1 ccw", env, ef_func, ex_func)
