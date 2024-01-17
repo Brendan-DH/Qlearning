@@ -278,7 +278,7 @@ class TokamakEnv8(gym.Env):
                         reward += 1000 - ((self.elapsed * self.num_active) / 100) * 500
                 current_action = "engage"
 
-            for i in range(len(self.goal_locations)):  # iterate over locations and mark appropriate goals as done
+            for i in range(len(self.goal_locations)):  # iterate over locations
                 # print(i, self.goal_locations[i], self.goal_checked, self.active_robot_locations)
                 if(self.goal_locations[i] == self.active_robot_locations[robot_no] and self.goal_checked[i] == 0):
                     self.goal_checked[i] = 1  # note that the goal has been visited and checked
