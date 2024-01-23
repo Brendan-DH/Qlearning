@@ -13,6 +13,7 @@ import torch
 import DQN
 import os
 import numpy as np
+from dtmc_checker import CheckDTMC
 
 
 def template_move(env, state, action_no):
@@ -326,7 +327,7 @@ while(not exploration_queue.empty()):
     if (all_done):
         labels_set.add(f"{states_id_dict[str(state)]} done\n")
         # end states loop to themselves (formality):
-        transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(state)]} 1")
+        # transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(state)]} 1")
 
     # iterate over result states:
     result_list = list(result.items())
@@ -375,3 +376,21 @@ f = open(os.getcwd() + "/outputs/dtmc.transrew", "w")
 for i in range(len(rewards_array)):
     f.write(rewards_array[i] + "\n")
 f.close()
+
+
+p_problem_states, unacknowledged_states = CheckDTMC(os.getcwd() + "/outputs/dtmc.tra")
+
+if (len(p_problem_states) == 0):
+    print("Success: all probabilities sum to 1")
+else:
+    print("Error! Some outgoing probabilities do not sum to 1\nstate | total p")
+    for i in range(len(p_problem_states)):
+        print(f"{p_problem_states[i][0]} | {p_problem_states[i][1]}")
+
+if(len(unacknowledged_states) == 0):
+    print("Success: all states included in transition structure")
+else:
+    print("Error! Some encountered states have no outgoing transitions!\nStates:")
+    for i in range(len(unacknowledged_states)):
+        print(unacknowledged_states[i])
+
