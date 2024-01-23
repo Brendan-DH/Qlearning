@@ -263,12 +263,14 @@ except NameError:
 new_id = 0  # an unencountered state will get this id, after which it will be incremented
 
 states_id_dict = {str(initial_state) : 0}
+labels_set = set(["0 init\n"])
 
 exploration_queue = Queue()
 
 new_id += 1
 transitions_array = []
-states_array = []
+states_array = []  # array of state dicts
+labels_array = []  # array of label strings "[state number] [label name]"
 
 # ask the DQN what action should be taken here
 init_state, info = env.reset()
@@ -304,6 +306,19 @@ while(not exploration_queue.empty()):
     elif(action == 8):
         result = r2_inspect(env, state)
 
+    # check if all goals are done, and if so mark this state as a 'done' state
+    all_done = True
+    for i in range(env.num_goals):
+        # iterate over goals in state
+        if(state[f"goal{i} checked"] and not state[f"goal{i} instantiated"]):
+            pass
+        else:
+            all_done = False
+            break
+
+    if (all_done):
+        labels_set.add(f"{states_id_dict[str(state)]} done\n")
+
     # now we have state, probabilities, resultant states, register resultant states:
 
     # iterate over result states:
@@ -324,8 +339,21 @@ while(not exploration_queue.empty()):
         # write the transitions into the file/array
         transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(result_state)]} {prob}")
 
-f = open("dtmc.tra", "w")
+f = open(os.getcwd() + "/outputs/dtmc.tra", "w")
 f.write("dtmc\n")
 for i in range(len(transitions_array)):
     f.write(transitions_array[i] + "\n")
+f.close()
+
+
+f = open(os.getcwd() + "/outputs/dtmc.lab", "w")
+f.write("""
+#DECLARATION
+init done
+#END
+""")
+labels_list = list(labels_set)
+labels_list.sort(key=lambda x: int(x.split()[0]))  # label file must list states in numerical order
+for i in range(len(labels_list)):
+    f.write(labels_list[i])
 f.close()
