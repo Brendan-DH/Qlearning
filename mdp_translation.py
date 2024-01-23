@@ -318,8 +318,8 @@ while(not exploration_queue.empty()):
 
     if (all_done):
         labels_set.add(f"{states_id_dict[str(state)]} done\n")
-
-    # now we have state, probabilities, resultant states, register resultant states:
+        # end states loop to themselves (formality):
+        transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(state)]} 1")
 
     # iterate over result states:
     result_list = list(result.items())
