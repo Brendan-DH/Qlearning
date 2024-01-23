@@ -393,4 +393,3 @@ else:
     print("Error! Some encountered states have no outgoing transitions!\nStates:")
     for i in range(len(unacknowledged_states)):
         print(unacknowledged_states[i])
-
