@@ -251,7 +251,7 @@ n_observations = len(state)
 policy_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
 try:
     assert saved_weights_name
-    print(f"Loading from '/outputs/{saved_weights_name}'")
+    print(f"Loading policy from '/outputs/{saved_weights_name}'")
     policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + saved_weights_name))
 except NameError:
     print("No saved weights defined, starting from scratch")
@@ -271,6 +271,7 @@ new_id += 1
 transitions_array = []
 states_array = []  # array of state dicts
 labels_array = []  # array of label strings "[state number] [label name]"
+rewards_array = []
 
 # ask the DQN what action should be taken here
 init_state, info = env.reset()
@@ -316,6 +317,12 @@ while(not exploration_queue.empty()):
             all_done = False
             break
 
+    # handle clock tick rewards
+    clock_value = 0  # how many robots have ticked
+    for i in range(env.num_active):
+        clock_value += state[f"robot{i} clock"]
+
+    # handle end states
     if (all_done):
         labels_set.add(f"{states_id_dict[str(state)]} done\n")
         # end states loop to themselves (formality):
@@ -325,16 +332,22 @@ while(not exploration_queue.empty()):
     result_list = list(result.items())
     for i in range(len(result_list)):
 
-        new_state_unexplored = False
-
         # add states to states dictionary with IDs if needed
         prob = result_list[i][0]
         result_state = result_list[i][1]
-        if (str(result_state) not in list(states_id_dict.keys())):
+        if (str(result_state) not in list(states_id_dict.keys())):  # a newly discovered state
             states_id_dict[str(result_state)] = new_id
             states_array.append(result_state)
             exploration_queue.put(result_state)
             new_id += 1
+
+        # assign clock tick rewards
+        if (clock_value == env.num_active - 1):
+            new_clock_value = 0
+            for i in range(env.num_active):
+                new_clock_value += result_state[f"robot{i} clock"]
+            if(new_clock_value == 0):
+                rewards_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(result_state)]} 1")
 
         # write the transitions into the file/array
         transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(result_state)]} {prob}")
@@ -356,4 +369,9 @@ labels_list = list(labels_set)
 labels_list.sort(key=lambda x: int(x.split()[0]))  # label file must list states in numerical order
 for i in range(len(labels_list)):
     f.write(labels_list[i])
+f.close()
+
+f = open(os.getcwd() + "/outputs/dtmc.transrew", "w")
+for i in range(len(rewards_array)):
+    f.write(rewards_array[i] + "\n")
 f.close()
