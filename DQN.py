@@ -30,13 +30,11 @@ system_parameters = namedtuple("system_parameters",
                                ("size",
                                 "robot_status",
                                 "robot_locations",
-                                "breakage_probability",
                                 "goal_locations",
                                 "goal_probabilities",
                                 "goal_instantiations",
                                 "goal_resolutions",
                                 "goal_checked",
-                                "port_locations",
                                 "elapsed"
                                 ))
 
@@ -169,25 +167,40 @@ def plot_status(episode_durations, rewards, epsilons):
     return fig
 
 
+def exponential_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_time, min_epsilon_time, decay_rate, num_episodes):
+
+    if(episode < max_epsilon_time):
+        # print("max ep")
+        epsilon = epsilon_max
+    elif(episode > num_episodes - min_epsilon_time):
+        # print("min ep")
+        decay_term = math.exp(-1. * (num_episodes - min_epsilon_time) * decay_rate)
+        epsilon = epsilon_min + (epsilon_max - epsilon_min) * decay_term + 0.025 * np.sin((episode - max_epsilon_time) * 2 * np.pi / 20)
+    else:
+        # print("decaying ep")
+        decay_term = math.exp(-1. * (episode - max_epsilon_time) * decay_rate)
+        epsilon = epsilon_min + (epsilon_max - epsilon_min) * decay_term
+
+    return epsilon
+
+
 def train_model(
-        env,                      # gymnasium environment
-        policy_net,               # policy network to be trained
-        target_net,               # target network to be soft updated
-        reset_options=None,       # options passed when resetting env
-        num_episodes=1000,        # number of episodes for training
-        gamma=0.6,                # discount factor
-        epsilon_max=0.95,         # max exploration rate
-        epsilon_min=0.05,         # min exploration rate
-        epsilon_decay=None,       # decay rate, will be set automatically if None
-        max_epsilon_time=0,       # time at maximum epsilon
-        min_epsilon_time=100,     # time at minimum epsilon
-        alpha=1e-3,               # learning rate for policy DeepQNetwork
-        tau=0.005,                # soft update rate for target DeepQNetwork
-        usePseudorewards=True,    # whether to calculate and use pseudorewards
-        max_steps=None,           # max steps per episode
-        batch_size=128,           # batch size of the replay memory
-        plot_frequency=10,        # number of episodes between status plots (0=disabled)
-        checkpoint_frequency=0    # number of episodes between saving weights (0=disabled)
+        env,                            # gymnasium environment
+        policy_net,                     # policy network to be trained
+        target_net,                     # target network to be soft updated
+        reset_options=None,             # options passed when resetting env
+        num_episodes=1000,              # number of episodes for training
+        gamma=0.6,                      # discount factor
+        epsilon_max=0.95,               # max exploration rate
+        epsilon_min=0.05,               # min exploration rate
+        epsilon_decay_function=None,   # will be exponential if not set
+        alpha=1e-3,                     # learning rate for policy DeepQNetwork
+        tau=0.005,                      # soft update rate for target DeepQNetwork
+        usePseudorewards=True,          # whether to calculate and use pseudorewards
+        max_steps=None,                 # max steps per episode
+        batch_size=128,                 # batch size of the replay memory
+        plot_frequency=10,              # number of episodes between status plots (0=disabled)
+        checkpoint_frequency=0          # number of episodes between saving weights (0=disabled)
 ):
 
     # store values for plotting
@@ -213,8 +226,7 @@ def train_model(
             gamma = {gamma}
             epsilon_max = {epsilon_max}
             epsilon_min = {epsilon_min}
-            epsilon_decay = {"default" if not epsilon_decay else epsilon_decay}
-            max_epsilon_time = {max_epsilon_time}
+            epsilon_decay_function = {"default" if not epsilon_decay_function else "custom"}
             alpha = {alpha}
             tau = {tau}
             max_steps = {"as per env" if not max_steps else max_steps}
@@ -231,8 +243,17 @@ def train_model(
     memory = ReplayMemory(10000)
     torch.set_grad_enabled(True)
 
-    if not epsilon_decay:
-        epsilon_decay = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes - min_epsilon_time - max_epsilon_time)  # ensures epsilon ~= epsilon_min at end
+    if epsilon_decay_function is None:
+        decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes)  # ensures epsilon ~= epsilon_min at end
+
+        def epsilon_decay_function(ep, e_max, e_min):
+            return exponential_epsilon_decay(episode=ep,
+                                             epsilon_max=e_max,
+                                             epsilon_min=e_min,
+                                             max_epsilon_time=0,
+                                             min_epsilon_time=0,
+                                             decay_rate=decay_rate,
+                                             num_episodes=num_episodes)
 
     if not max_steps:
         max_steps = np.inf
@@ -244,23 +265,12 @@ def train_model(
             state, info = env.reset(options=reset_options.copy())
         else:
             state, info = env.reset()
-        av_dist = info["av_dist"]  # average distance of robots from tasks, used for pseudorewards
+        phi = info["phi pseudo"]  # average distance of robots from tasks, used for pseudorewards
         # print("state", state, list(state.values()))
 
         state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
-        if(i_episode < max_epsilon_time):
-            # print("max ep")
-            epsilon = epsilon_max
-        elif(i_episode > num_episodes - min_epsilon_time):
-            # print("min ep")
-            decay_term = math.exp(-1. * (num_episodes - min_epsilon_time) * epsilon_decay)
-            epsilon = epsilon_min + (epsilon_max - epsilon_min) * decay_term + 0.025 * np.sin((i_episode - max_epsilon_time) * 2 * np.pi / 20)
-        else:
-            # print("decaying ep")
-            decay_term = math.exp(-1. * (i_episode - max_epsilon_time) * epsilon_decay)
-            epsilon = epsilon_min + (epsilon_max - epsilon_min) * decay_term
-
+        epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min)
         epsilons.append(epsilon)
 
         ep_reward = 0
@@ -270,11 +280,12 @@ def train_model(
             observation, reward, terminated, truncated, info = env.step(action.item())
 
             # calculate pseudoreward
-            old_av_dist = av_dist  # for phi(s)
-            av_dist = info["av_dist"]  # for phi(s')
-            elapsed_ticks = observation["elapsed_ticks"]
+            old_phi = phi
+            phi = info["phi pseudo"]
+            elapsed_steps = info["elapsed steps"]
+
             if(usePseudorewards):
-                pseudoreward = (gamma * 1 / (av_dist + 1) - 1 / (old_av_dist + 1))
+                pseudoreward = (gamma * (1 / phi) - (1 / old_phi))
             else:
                 pseudoreward = 0
 
@@ -301,7 +312,7 @@ def train_model(
             target_net.load_state_dict(target_net_state_dict)
 
             if done:
-                episode_durations.append(elapsed_ticks)
+                episode_durations.append(elapsed_steps)
                 rewards.append(ep_reward)
                 if (plot_frequency != 0 and i_episode % plot_frequency == 0 and i_episode > 0):
                     f = plot_status(episode_durations, rewards, epsilons)

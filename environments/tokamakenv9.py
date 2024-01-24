@@ -12,7 +12,7 @@ from gymnasium import spaces
 import pygame
 
 
-class TokamakEnv8(gym.Env):
+class TokamakEnv9(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
     # def set_parameters(size, num_active, num_goals, goal_locations):
@@ -27,16 +27,17 @@ class TokamakEnv8(gym.Env):
         self.size = system_parameters.size
         self.robot_status = np.array(system_parameters.robot_status)
         self.elapsed = system_parameters.elapsed
-        self.port_locations = system_parameters.port_locations
-        self.breakage_probability = system_parameters.breakage_probability
+        self.elapsed_steps = 0
+        # self.port_locations = system_parameters.port_locations
+        # self.breakage_probability = system_parameters.breakage_probability
         self.goal_locations = system_parameters.goal_locations
         self.goal_checked = system_parameters.goal_checked
         self.goal_probabilities = system_parameters.goal_probabilities
         self.goal_instantiations = system_parameters.goal_instantiations
         self.num_goals = len(self.goal_locations)
         self.start_locations = np.array(system_parameters.robot_locations.copy())
-        self.active_robot_locations = system_parameters.robot_locations.copy()
-        self.num_active = len(self.active_robot_locations)
+        self.robot_locations = system_parameters.robot_locations.copy()
+        self.num_robots = len(self.robot_locations)
 
         # non-operational (static/inherited) parameters
         self.goal_resolutions = system_parameters.goal_resolutions
@@ -51,7 +52,7 @@ class TokamakEnv8(gym.Env):
         obDict = {}
 
         # positions of the robots
-        for i in range(0,self.num_active):
+        for i in range(0,self.num_robots):
             obDict[f"robot{i} location"] = spaces.Discrete(self.size)
             obDict[f"robot{i} clock"] = spaces.Discrete(2)  # true = cannot move
 
@@ -68,7 +69,7 @@ class TokamakEnv8(gym.Env):
 
         # actions that the robots can carry out
         # move clockwise/anticlockwise, engage
-        self.action_space = spaces.Discrete(self.num_active * self.num_actions)
+        self.action_space = spaces.Discrete(self.num_robots * self.num_actions)
 
         # may need an array here for mapping abstract action to
         # function
@@ -82,8 +83,8 @@ class TokamakEnv8(gym.Env):
     def get_parameters(self):
         parameters = {
             "size": self.size,
-            "num_active" : self.num_active,
-            "robot_locations" : self.active_robot_locations,
+            "num_active" : self.num_robots,
+            "robot_locations" : self.robot_locations,
             "goal_locations" : self.goal_locations,
             "goal_probabilities" : self.goal_probabilities,
             "goal_instantiations" : self.goal_instantiations,
@@ -95,8 +96,8 @@ class TokamakEnv8(gym.Env):
 
     def get_obs(self):
         obs = {}
-        for i in range(0,self.num_active):
-            obs[f"robot{i} location"] = self.active_robot_locations[i]
+        for i in range(0,self.num_robots):
+            obs[f"robot{i} location"] = self.robot_locations[i]
             obs[f"robot{i} clock"] = self.robot_clocks[i]  # true = cannot move
         for i in range(0,self.num_goals):
             obs[f"goal{i} location"] = self.goal_locations[i]
@@ -110,30 +111,32 @@ class TokamakEnv8(gym.Env):
     def get_info(self):
         info = {}
         info["elapsed_ticks"] = self.elapsed
-        info["av_dist"] = self.av_dist()
+        info["elapsed steps"] = self.elapsed_steps
+        info["phi pseudo"] = self.pseudoreward_function()
         info["goal_resolutions"] = self.goal_resolutions.copy()
         info["robot_status"] = self.robot_status.copy()
         return info
 
     def parse_robot_locations(self):
 
-        active_robot_locations = self.start_locations[np.argwhere(self.robot_status)].flatten()
+        robot_locations = self.start_locations[np.argwhere(self.robot_status)].flatten()
         broken_robot_locations = self.start_locations[np.argwhere(self.robot_status - 1)].flatten()
 
-        return active_robot_locations, broken_robot_locations
+        return robot_locations, broken_robot_locations
 
     # def query_state_action_pair(self, state, action):
 
     def reset(self, seed=None, options=None):
         # print("reset")
         super().reset(seed=seed)
-        self.active_robot_locations = self.start_locations.copy()
+        self.robot_locations = self.start_locations.copy()
 
         # reset goals
         self.goal_probabilities = self.goal_probabilities.copy()
         self.goal_checked = [0 for i in range(self.num_goals)]
         self.clock_tick()
         self.elapsed = 0  # must be set to 0 as clock_tick increments by 1
+        self.elapsed_steps = 0
 
         self.goal_resolutions = np.zeros_like(self.goal_probabilities)
         self.goal_instantiated = np.zeros_like(self.goal_probabilities)
@@ -143,14 +146,13 @@ class TokamakEnv8(gym.Env):
 
         return self.get_obs(), self.get_info()
 
-    def av_dist(self):
+    def pseudoreward_function(self):
         tot_av = 0
         # goal positions
-        for i in range(len(self.active_robot_locations)):
-            rob_pos = self.active_robot_locations[i]
+        for i in range(len(self.robot_locations)):
+            rob_pos = self.robot_locations[i]
             rob_av = 0
             num_active_goals = len(self.goal_locations)
-            # num_active_goals = np.sum(np.array(self.goal_probabilities) > 0) # status is True if complete; this calculates num False
             for j in range(len(self.goal_locations)):
                 if self.goal_probabilities[j] == 0:  # this goal is already completed
                     continue
@@ -160,15 +162,15 @@ class TokamakEnv8(gym.Env):
                 mod_dist = min((dist, self.size - dist))  # to account for cyclical space
                 rob_av += mod_dist / num_active_goals
             # average of average distances
-            tot_av += rob_av / len(self.active_robot_locations)
+            tot_av += rob_av / len(self.robot_locations)
         return tot_av
 
     def get_counter_cw_blocked(self, robot_no):
 
-        moving_robot_loc = self.active_robot_locations[robot_no]
+        moving_robot_loc = self.robot_locations[robot_no]
 
-        for j in range(self.num_active):
-            other_robot_loc = self.active_robot_locations[j]
+        for j in range(self.num_robots):
+            other_robot_loc = self.robot_locations[j]
             if(robot_no == j):  # don't need to check robots against themselves
                 continue
             if (moving_robot_loc == other_robot_loc):
@@ -179,10 +181,10 @@ class TokamakEnv8(gym.Env):
 
     def get_cw_blocked(self, robot_no):
 
-        moving_robot_loc = self.active_robot_locations[robot_no]
+        moving_robot_loc = self.robot_locations[robot_no]
 
-        for j in range(self.num_active):
-            other_robot_loc = self.active_robot_locations[j]
+        for j in range(self.num_robots):
+            other_robot_loc = self.robot_locations[j]
             if(robot_no == j):  # don't need to check robots against themselves
                 continue
             if (moving_robot_loc == other_robot_loc):
@@ -199,13 +201,13 @@ class TokamakEnv8(gym.Env):
         # go per robot
         # actions are left, right, inspect
         # lets say for now that robots cannot occupy the same tile
-        for i in range(self.num_active):
-            moving_robot_loc = self.active_robot_locations[i]
+        for i in range(self.num_robots):
+            moving_robot_loc = self.robot_locations[i]
             if(self.robot_clocks[i]):  # has robot's clock ticked?
                 blocked_actions[i * self.num_actions:(i * self.num_actions) + self.num_actions] = 1  # block all actions for this robot
             else:
-                for j in range(self.num_active):
-                    other_robot_loc = self.active_robot_locations[j]
+                for j in range(self.num_robots):
+                    other_robot_loc = self.robot_locations[j]
 
                     if(i == j):  # don't need to check robots against themselves
                         continue
@@ -223,14 +225,16 @@ class TokamakEnv8(gym.Env):
                         block_inspection = 0  # unblock this engage action
                 blocked_actions[(i * self.num_actions) + 2] = block_inspection
 
-        # print(self.active_robot_locations, blocked_actions)
+        # print(self.robot_locations, blocked_actions)
         return blocked_actions
 
     def clock_tick(self):
-        self.robot_clocks = [0 for i in range(self.num_active)]  # set all clocks to false
+        self.robot_clocks = [0 for i in range(self.num_robots)]  # set all clocks to false
         self.elapsed += 1
 
     def step(self, action):
+
+        self.elapsed_steps += 1
 
         # determine blocked actions based on the current state
         # blocked actions give a negative reward and don't progress the system
@@ -247,7 +251,7 @@ class TokamakEnv8(gym.Env):
         else:
             # which action is being taken:
 
-            current_location = self.active_robot_locations[robot_no]
+            current_location = self.robot_locations[robot_no]
             current_action = ""
             reward = 0
 
@@ -256,17 +260,17 @@ class TokamakEnv8(gym.Env):
 
             if(rel_action == 0):  # counter-clockwise movement
                 if (current_location < self.size - 1):
-                    self.active_robot_locations[robot_no] = current_location + 1
+                    self.robot_locations[robot_no] = current_location + 1
                 if (current_location == self.size - 1):  # cycle round
-                    self.active_robot_locations[robot_no] = 0
+                    self.robot_locations[robot_no] = 0
                 # reward -= 0.5
                 current_action = "move ccw"
 
             if(rel_action == 1):  # clockwise movement
                 if (current_location > 0):
-                    self.active_robot_locations[robot_no] = current_location - 1
+                    self.robot_locations[robot_no] = current_location - 1
                 if (current_location == 0):  # cycle round
-                    self.active_robot_locations[robot_no] = self.size - 1
+                    self.robot_locations[robot_no] = self.size - 1
                 # reward -= 0.5
                 current_action = "move cw"
 
@@ -275,12 +279,12 @@ class TokamakEnv8(gym.Env):
                     if(self.goal_locations[i] == current_location and self.goal_instantiations[i] == 1):
                         self.goal_instantiations[i] = 0
                         # reward if robots manage to complete a task. Lessens over time.
-                        reward += 1000 - ((self.elapsed * self.num_active) / 100) * 500
+                        reward += 1000 - ((self.elapsed * self.num_robots) / 100) * 500
                 current_action = "engage"
 
             for i in range(len(self.goal_locations)):  # iterate over locations
-                # print(i, self.goal_locations[i], self.goal_checked, self.active_robot_locations)
-                if(self.goal_locations[i] == self.active_robot_locations[robot_no] and self.goal_checked[i] == 0):
+                # print(i, self.goal_locations[i], self.goal_checked, self.robot_locations)
+                if(self.goal_locations[i] == self.robot_locations[robot_no] and self.goal_checked[i] == 0):
                     self.goal_checked[i] = 1  # note that the goal has been visited and checked
                     # resolve the non-determinism:
                     if np.random.rand() < self.goal_probabilities[i]:
@@ -301,7 +305,7 @@ class TokamakEnv8(gym.Env):
                 self.robot_status[robot_no] = 0
                 print(f"robot {robot_no} broken")
 
-        if np.sum(self.robot_clocks) == self.num_active:  # check if a tick should happen
+        if np.sum(self.robot_clocks) == self.num_robots:  # check if a tick should happen
             self.clock_tick()
 
         self.most_recent_actions[robot_no] = current_action
@@ -388,8 +392,8 @@ class TokamakEnv8(gym.Env):
             canvas.blit(source=text, dest=(circ.centerx - text_width / 2, circ.centery - text_height / 2))
 
         # draw robots
-        for i in range(self.num_active):
-            pos = self.active_robot_locations[i]
+        for i in range(self.num_robots):
+            pos = self.robot_locations[i]
             xpos = tokamak_centre[0] + tokamak_r / 2 * np.cos(angle * pos - np.pi)
             ypos = tokamak_centre[1] + tokamak_r / 2 * np.sin(angle * pos - np.pi)
             circ = pygame.draw.circle(canvas, (0,0,255), (xpos, ypos), 20)
@@ -407,7 +411,7 @@ class TokamakEnv8(gym.Env):
 
         print(f"""
               epoch: {self.elapsed}-{np.sum(self.robot_clocks)}
-              robot locations : {self.active_robot_locations}
+              robot locations : {self.robot_locations}
               actions: {self.most_recent_actions}
               blocked actions: {self.get_blocked_actions()}
               goal checked : {self.goal_checked}

@@ -14,20 +14,18 @@ import DQN
 import os
 import numpy as np
 # from abc import ABC, abstractmethod
-env_to_use = "Tokamak-v8"
+env_to_use = "Tokamak-v9"
 
 
 starting_parameters = DQN.system_parameters(
     size=12,
     robot_status=[1,1,1],
     robot_locations=[1,5,6],
-    breakage_probability=0.0001,
     goal_locations=[11,5,2,10,9,8],
     goal_probabilities=[0.49, 0.9, 0.7, 0.7, 0.4, 0.7],
-    goal_instantiations=[0,1,1,1,0,0],
-    goal_resolutions=[0,1,1,1,0,1],
-    goal_checked=[1,1,1,1,1,1,0],
-    port_locations=[0,11],
+    goal_instantiations=[0,0,0,0,0,0],
+    goal_resolutions=[0,0,0,0,0,0],
+    goal_checked=[0,0,0,0,0,0,0],
     elapsed=0,
 )
 
@@ -45,7 +43,7 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-saved_weights_name = "saved_weights_182634"
+# saved_weights_name = "saved_weights_182634"
 scenario_id = 108186
 
 
@@ -68,11 +66,11 @@ except NameError:
                                                 target_net,
                                                 None,
                                                 alpha=1e-3,
-                                                gamma=0.5,
-                                                num_episodes=1500,
-                                                min_epsilon_time=500,
+                                                gamma=0.7,
+                                                num_episodes=2500,
+                                                # min_epsilon_time=500,
                                                 epsilon_min=0.05,
-                                                usePseudorewards=False,
+                                                usePseudorewards=True,
                                                 batch_size=256)
 
     filename = f"saved_weights_{int(np.random.rand()*1e6)}"
