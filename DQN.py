@@ -184,6 +184,20 @@ def exponential_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_tim
     return epsilon
 
 
+def linear_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_time, min_epsilon_time, num_episodes):
+
+    gradient = (epsilon_min - epsilon_max) / (num_episodes - max_epsilon_time - min_epsilon_time)
+
+    if(episode < max_epsilon_time):
+        epsilon = epsilon_max
+    elif(episode > num_episodes - min_epsilon_time):
+        epsilon = epsilon_min
+    else:
+        epsilon = epsilon_max + (gradient * (episode - max_epsilon_time))
+
+    return epsilon
+
+
 def train_model(
         env,                            # gymnasium environment
         policy_net,                     # policy network to be trained
@@ -193,7 +207,7 @@ def train_model(
         gamma=0.6,                      # discount factor
         epsilon_max=0.95,               # max exploration rate
         epsilon_min=0.05,               # min exploration rate
-        epsilon_decay_function=None,   # will be exponential if not set
+        epsilon_decay_function=None,    # will be exponential if not set.
         alpha=1e-3,                     # learning rate for policy DeepQNetwork
         tau=0.005,                      # soft update rate for target DeepQNetwork
         usePseudorewards=True,          # whether to calculate and use pseudorewards
@@ -202,6 +216,30 @@ def train_model(
         plot_frequency=10,              # number of episodes between status plots (0=disabled)
         checkpoint_frequency=0          # number of episodes between saving weights (0=disabled)
 ):
+    """
+    For training a DQN on a gymnasium environment.
+
+    Inputs:
+        env,                            # gymnasium environment
+        policy_net,                     # policy network to be trained
+        target_net,                     # target network to be soft updated
+        reset_options=None,             # options passed when resetting env
+        num_episodes=1000,              # number of episodes for training
+        gamma=0.6,                      # discount factor
+        epsilon_max=0.95,               # max exploration rate
+        epsilon_min=0.05,               # min exploration rate
+        epsilon_decay_function=None,    # will be exponential if not set. takes (epsiode, max_epsilon, min_epsilon) as arguments
+        alpha=1e-3,                     # learning rate for policy DeepQNetwork
+        tau=0.005,                      # soft update rate for target DeepQNetwork
+        usePseudorewards=True,          # whether to calculate and use pseudorewards
+        max_steps=None,                 # max steps per episode
+        batch_size=128,                 # batch size of the replay memory
+        plot_frequency=10,              # number of episodes between status plots (0=disabled)
+        checkpoint_frequency=0          # number of episodes between saving weights (0=disabled)
+
+    Outputs:
+        (None)
+    """
 
     # store values for plotting
     epsilons = []
@@ -246,14 +284,14 @@ def train_model(
     if epsilon_decay_function is None:
         decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes)  # ensures epsilon ~= epsilon_min at end
 
-        def epsilon_decay_function(ep, e_max, e_min):
+        def epsilon_decay_function(ep, e_max, e_min, num_eps):
             return exponential_epsilon_decay(episode=ep,
                                              epsilon_max=e_max,
                                              epsilon_min=e_min,
                                              max_epsilon_time=0,
                                              min_epsilon_time=0,
                                              decay_rate=decay_rate,
-                                             num_episodes=num_episodes)
+                                             num_episodes=num_eps)
 
     if not max_steps:
         max_steps = np.inf
@@ -270,7 +308,7 @@ def train_model(
 
         state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
-        epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min)
+        epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
         epsilons.append(epsilon)
 
         ep_reward = 0
