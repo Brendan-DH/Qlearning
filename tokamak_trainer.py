@@ -13,6 +13,7 @@ import torch
 import DQN
 import os
 import numpy as np
+import mdp_translation as mdpt
 # from abc import ABC, abstractmethod
 env_to_use = "Tokamak-v9"
 
@@ -21,18 +22,22 @@ starting_parameters = DQN.system_parameters(
     size=12,
     robot_status=[1,1,1],
     robot_locations=[1,5,6],
-    goal_locations=[11,5,2,10,9,8],
-    goal_probabilities=[0.9, 0.9, 0.7, 0.7, 0.3, 0.7],
+    goal_locations=[11,5,2],
+    goal_probabilities=[0.9, 0.9, 0.7],
     goal_instantiations=[0,0,0,0,0,0],
     goal_resolutions=[0,0,0,0,0,0],
     goal_checked=[0,0,0,0,0,0,0],
-    elapsed=0,
+    elapsed_ticks=0,
 )
 
 env = gym.make(env_to_use,
                system_parameters=starting_parameters,
+               transition_model=mdpt.t_model,
+               reward_model=mdpt.r_model,
+               blocked_model=mdpt.b_model,
                training=True,
                render_mode=None)
+
 
 state, info = env.reset()
 
@@ -72,7 +77,7 @@ except NameError:
                                                 alpha=1e-3,
                                                 gamma=0.7,
                                                 num_episodes=3000,
-                                                usePseudorewards=True,
+                                                usePseudorewards=False,
                                                 batch_size=256)
 
     filename = f"saved_weights_{int(np.random.rand()*1e6)}"

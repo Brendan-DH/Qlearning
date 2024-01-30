@@ -35,7 +35,7 @@ system_parameters = namedtuple("system_parameters",
                                 "goal_instantiations",
                                 "goal_resolutions",
                                 "goal_checked",
-                                "elapsed"
+                                "elapsed_ticks"
                                 ))
 
 
@@ -254,7 +254,7 @@ def train_model(
             ----
 
             Environmental parameters:
-            {env.get_parameters()}
+            {env.state}
             {reset_options}
 
             ----
@@ -303,7 +303,9 @@ def train_model(
             state, info = env.reset(options=reset_options.copy())
         else:
             state, info = env.reset()
-        phi = info["phi pseudo"]  # average distance of robots from tasks, used for pseudorewards
+
+        if(usePseudorewards):
+            phi = info["phi pseudo"]  # average distance of robots from tasks, used for pseudorewards
         # print("state", state, list(state.values()))
 
         state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
@@ -316,13 +318,12 @@ def train_model(
         for t in count():
             action = select_action(policy_net, env, state, epsilon)
             observation, reward, terminated, truncated, info = env.step(action.item())
-
-            # calculate pseudoreward
-            old_phi = phi
-            phi = info["phi pseudo"]
             elapsed_steps = info["elapsed steps"]
-
+            
+            # calculate pseudoreward
             if(usePseudorewards):
+                old_phi = phi
+                phi = info["phi pseudo"]
                 pseudoreward = (gamma * (1 / phi) - (1 / old_phi))
             else:
                 pseudoreward = 0
