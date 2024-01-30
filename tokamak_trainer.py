@@ -22,8 +22,8 @@ starting_parameters = DQN.system_parameters(
     size=12,
     robot_status=[1,1,1],
     robot_locations=[1,5,6],
-    goal_locations=[11,5,2],
-    goal_probabilities=[0.9, 0.9, 0.7],
+    goal_locations=[11],
+    goal_probabilities=[1],
     goal_instantiations=[0,0,0,0,0,0],
     goal_resolutions=[0,0,0,0,0,0],
     goal_checked=[0,0,0,0,0,0,0],
@@ -48,8 +48,8 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# saved_weights_name = "saved_weights_182634"
-scenario_id = 108186
+# saved_weights_name = "saved_weights_391732"  #"saved_weights_182634"
+# scenario_id = 108186
 
 
 def decay_function(ep, e_max, e_min, num_eps):
@@ -74,9 +74,10 @@ except NameError:
                                                 policy_net,
                                                 target_net,
                                                 epsilon_decay_function=decay_function,
-                                                alpha=1e-3,
+                                                alpha=1e-1,
                                                 gamma=0.7,
-                                                num_episodes=3000,
+                                                reset_options={"type": "random"},
+                                                num_episodes=1000,
                                                 usePseudorewards=False,
                                                 batch_size=256)
 
@@ -88,9 +89,12 @@ except NameError:
 
 
 s, a, times, ts = DQN.evaluate_model(dqn=policy_net,
-                                     num_episodes=100,
+                                     num_episodes=1,
                                      system_parameters=starting_parameters,
                                      env_name=env_to_use,
+                                     transition_model=mdpt.t_model,
+                                     reward_model=mdpt.r_model,
+                                     blocked_model=mdpt.b_model,
                                      render=False)
 
 plt.figure(figsize=(10,7))

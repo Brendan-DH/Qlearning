@@ -96,6 +96,7 @@ def select_action(dqn, env, state, epsilon, forbidden_actions=[]):
             # found, so we pick action with the larger expected reward.
             # if(epsilon == 0):
             # print(dqn(state), dqn(state).max(1)[1].view(1, 1))
+            print(dqn(state), dqn(state).max(1)[1].view(1, 1))
             return dqn(state).max(1)[1].view(1, 1)
     else:
         sample = env.action_space.sample()
@@ -131,7 +132,7 @@ def plot_status(episode_durations, rewards, epsilons):
     color1, color2, color3 = plt.cm.viridis([0, .5, .9])
 
     epsilon_plot = bot_ax.plot(np.array(epsilons), color="orange", label="epsilon", zorder=0)
-    duration_plot = mid_ax.plot(np.array(episode_durations), color="royalblue", label="durations", zorder=5)
+    duration_plot = mid_ax.plot(np.array(episode_durations), color="royalblue", alpha=0.2, label="durations", zorder=5)
     reward_plot = upper_ax.plot(np.array(rewards), color="mediumseagreen", alpha=0.5, label="rewards",zorder=10)
 
     bot_ax.set_zorder(0)
@@ -223,7 +224,7 @@ def train_model(
         env,                            # gymnasium environment
         policy_net,                     # policy network to be trained
         target_net,                     # target network to be soft updated
-        reset_options=None,             # options passed when resetting env
+        reset_options=None,             # optioreset_optionsns passed when resetting env
         num_episodes=1000,              # number of episodes for training
         gamma=0.6,                      # discount factor
         epsilon_max=0.95,               # max exploration rate
@@ -300,6 +301,7 @@ def train_model(
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
         if reset_options:
+            print(reset_options)
             state, info = env.reset(options=reset_options.copy())
         else:
             state, info = env.reset()
@@ -319,7 +321,7 @@ def train_model(
             action = select_action(policy_net, env, state, epsilon)
             observation, reward, terminated, truncated, info = env.step(action.item())
             elapsed_steps = info["elapsed steps"]
-            
+
             # calculate pseudoreward
             if(usePseudorewards):
                 old_phi = phi
@@ -411,7 +413,15 @@ def optimise_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batc
     optimiser.step()
 
 
-def evaluate_model(dqn, num_episodes, system_parameters, reset_options=None, env_name="SEAMSOperationalTokamak-v1", render=False):
+def evaluate_model(dqn,
+                   num_episodes,
+                   system_parameters,
+                   reset_options=None,
+                   env_name=None,
+                   transition_model=None,
+                   reward_model=None,
+                   blocked_model=None,
+                   render=False):
 
     print("Evaluating...")
 
@@ -421,6 +431,9 @@ def evaluate_model(dqn, num_episodes, system_parameters, reset_options=None, env
 
     env = gym.make(env_name,
                    system_parameters=system_parameters,
+                   transition_model=transition_model,
+                   reward_model=reward_model,
+                   blocked_model=blocked_model,
                    training=True,
                    render_mode="human" if render else None)
 
@@ -436,6 +449,7 @@ def evaluate_model(dqn, num_episodes, system_parameters, reset_options=None, env
             state, info = env.reset(options=reset_options.copy())
         else:
             state, info = env.reset()
+            print(state)
 
         states = [state]
         actions = []
@@ -453,8 +467,8 @@ def evaluate_model(dqn, num_episodes, system_parameters, reset_options=None, env
             done = terminated
 
             if (done or truncated):
-                times.append(observation["elapsed_ticks"])
-                goal_resolutions.append(np.sum(info["goal_resolutions"]))
+                times.append(observation["elapsed ticks"])
+                # goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
                     print(f"{i}/{num_episodes} episodes complete")
                 break
@@ -494,7 +508,7 @@ def evaluate_model(dqn, num_episodes, system_parameters, reset_options=None, env
 
 def evaluate_ensemble(dqn, num_episodes, template_env, reset_options, env_name="Tokamak-v6", render=False):
 
-    print("Evaluating...")
+    print("Evaluating...", reset_options)
 
     if ("win" in sys.platform and render):
         print("Cannot render on windows...")

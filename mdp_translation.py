@@ -74,11 +74,9 @@ def template_inspect(env, state, action_no):
     robot_no = int(np.floor(action_no / env.num_actions))
 
     new_state = state.copy()
+    print("inspect", robot_no)
 
     for i in range(env.num_goals):
-        # goal_loc = state[f"goal{i} location"]
-        # robot_loc = state[f"robot{robot_no} location"]
-        # print(f"goal num: {i}, goal loc: {goal_loc }, robot no: {robot_no}, robot loc: {robot_loc}")
         if (state[f"goal{i} location"] == state[f"robot{robot_no} location"] and state[f"goal{i} instantiated"] == 1):
             new_state[f"goal{i} instantiated"] = 0
 
@@ -231,6 +229,10 @@ def t_model(env, state, action_no):
     # (i.e. number of robots). could possibly be made dynamic later.
 
     if(env.blocked_model(env, state)[action_no] == 1):
+        if(action_no == 2 or action_no == 5 or action_no == 8):
+            print("blocked:", action_no, [state[f"robot{i} clock"] for i in range(env.num_robots)],
+                  [state[f"goal{i} instantiated"] for i in range(env.num_goals)],
+                  [state[f"robot{i} location"] for i in range(env.num_robots)])
         robot_no = int(np.floor(action_no / env.num_actions))
         new_state = clock_effect(env, state, robot_no)
         p = [1]
@@ -264,26 +266,27 @@ def r_model(env, s, action, sprime):
     reward = 0
 
     # rewards for blocked actions
+    # the reward function doesn't strictly rely on the action taken,
+    # but this is an easy way to see if it was a 'blocked' transition
     if env.blocked_model(env, s)[action]:
-        reward += -1
+        reward += -0.1
         return reward
 
-    rel_action = action % env.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage
+    # rel_action = action % env.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage
 
     # rewards for discovering goals - this only happens after a robot has moved
-    if (rel_action == 2):  # engage robot, complete task
-        for i in range(env.num_goals):
-            # check if any goals have become checked
-            if(s[f"goal checked{i}"] != sprime[f"goal checked{i}"]):
-                reward += 100
+    for i in range(env.num_goals):
+        # check if any goals have become checked
+        if(s[f"goal{i} checked"] != sprime[f"goal{i} checked"]):
+            return 100
 
     # rewards for completing goals
-    if (rel_action == 3):
-        for i in range(env.num_goals):
-            if(s[f"goal_instantiated{i}"] == 1 and sprime[f"goal instantiated{i}"] == 0):
-                reward += 1000 - (s["elapsed"] * env.num_robots) / 100 * 500
+    for i in range(env.num_goals):
+        if(s[f"goal{i} instantiated"] == 1 and sprime[f"goal{i} instantiated"] == 0):
+            print("bingo")
+            return 1000  # - (s["elapsed"] * env.num_robots) / 100 * 500
 
-    return reward
+    return 0
 
 
 def b_model(env, state):
@@ -308,9 +311,10 @@ def b_model(env, state):
             blocked_actions[(i * env.num_actions) + 1] = get_cw_blocked(env, state, i)
 
             block_inspection = 1
-            for k in range(env.num_robots):
+            for k in range(env.num_goals):
                 if (state[f"goal{k} location"] == moving_robot_loc and state[f"goal{k} instantiated"] == 1):
                     block_inspection = 0  # unblock this engage action
+                    break
             blocked_actions[(i * env.num_actions) + 2] = block_inspection
 
     return blocked_actions

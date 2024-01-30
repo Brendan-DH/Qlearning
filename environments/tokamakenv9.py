@@ -33,18 +33,17 @@ class TokamakEnv9(gym.Env):
         self.reward_model = reward_model
         self.blocked_model = blocked_model
 
-        state["elapsed_ticks"] = system_parameters.elapsed_ticks
+        for i in range(len(system_parameters.robot_locations)):
+            state[f"robot{i} location"] = system_parameters.robot_locations[i]
+            state[f"robot{i} clock"] = 0
         for i in range(len(system_parameters.goal_locations)):
             state[f"goal{i} location"] = system_parameters.goal_locations[i]
             state[f"goal{i} checked"] = system_parameters.goal_checked[i]
             state[f"goal{i} instantiated"] = system_parameters.goal_instantiations[i]
             state[f"goal{i} probability"] = system_parameters.goal_probabilities[i]
+        state["elapsed ticks"] = system_parameters.elapsed_ticks
 
-        for i in range(len(system_parameters.robot_locations)):
-            state[f"robot{i} location"] = system_parameters.robot_locations[i]
-            state[f"robot{i} clock"] = 0
-
-        self.state = state
+        self.state = state.copy()
         self.initial_state = state.copy()
 
         # non-operational (static/inherited) parameters
@@ -62,21 +61,29 @@ class TokamakEnv9(gym.Env):
         self.most_recent_actions = np.empty((3), np.dtype('U100'))
         self.render_mode = render_mode
 
+        # observations are an exact copy of 'state'
         obDict = {}
-
-        # positions of the robots
         for i in range(0,self.num_robots):
             obDict[f"robot{i} location"] = spaces.Discrete(self.size)
             obDict[f"robot{i} clock"] = spaces.Discrete(2)  # true = cannot move
-
-        # positions of the goals and whether they are complete
         for i in range(0,self.num_goals):
             obDict[f"goal{i} location"] = spaces.Discrete(self.size)
             obDict[f"goal{i} probability"] = spaces.Box(low=0, high=1, shape=[1])  # continuous variable in [0,1]. sample() returns array though.
             obDict[f"goal{i} instantiated"] = spaces.Discrete(2)
             obDict[f"goal{i} checked"] = spaces.Discrete(2)  # records if a goal has been visited yet
+        obDict["elapsed ticks"] = spaces.Discrete(100)
 
-        obDict["elapsed_ticks"] = spaces.Discrete(100)
+        self.action_labels = [
+            "r0 ccw",
+            "r0 cw",
+            "r0 engage",
+            "r1 ccw",
+            "r1 cw",
+            "r1 engage",
+            "r2 ccw",
+            "r2 cw",
+            "r2 engage"
+        ]
 
         self.observation_space = spaces.Dict(obDict)
 
@@ -109,10 +116,11 @@ class TokamakEnv9(gym.Env):
 
     def get_info(self):
         info = {}
-        info["elapsed_ticks"] = self.state["elapsed_ticks"]
+        info["elapsed ticks"] = self.state["elapsed ticks"]
         info["elapsed steps"] = self.elapsed_steps
         # info["phi pseudo"] = self.pseudoreward_function()
-        info["goal_resolutions"] = self.goal_resolutions.copy()
+        # for i in range(self.num_goals):
+        #     info[f"goal{i} resolution"] = self.
         return info
 
     def parse_robot_locations(self):
@@ -127,13 +135,30 @@ class TokamakEnv9(gym.Env):
     def reset(self, seed=None, options=None):
         # print("reset")
         super().reset(seed=seed)
-        self.state = self.initial_state.copy()
+        if(options):
+            if(options["type"] == "random"):
+                state = {}
+                random_r_locations = np.random.choice([i for i in range(self.size)], size=self.num_robots, replace=False)
+                for i in range(self.num_robots):
+                    state[f"robot{i} location"] = random_r_locations[i]
+                    state[f"robot{i} clock"] = np.random.randint(0,1)
+                for i in range(self.num_goals):
+                    state[f"goal{i} location"] = self.initial_state[f"goal{i} location"]
+                    state[f"goal{i} checked"] = np.random.randint(0,1)
+                    state[f"goal{i} instantiated"] = np.random.randint(0,1)
+                    state[f"goal{i} probability"] = self.initial_state[f"goal{i} probability"]
+                state["elapsed ticks"] = np.random.randint(0,30)
+                self.state = state.copy()
+        else:
+            self.state = self.initial_state.copy()
         self.elapsed_steps = 0
 
-        if self.render_mode == "human":
-            self.render_frame()
+        info = self.get_info()
 
-        return self.get_obs(), self.get_info()
+        if self.render_mode == "human":
+            self.render_frame(self.state, info)
+
+        return self.get_obs(), info
 
     # def pseudoreward_function(self):
     #     tot_av = 0
@@ -157,31 +182,33 @@ class TokamakEnv9(gym.Env):
     # def transition_model(self, state, action_no):
     #     raise NotImplementedError("The transistion model of this environment is not defined.")
 
-    # def reward_model(self, current_state, action, new_state):
+    # def reward_model(self, old_state, action, new_state):
     #     raise NotImplementedError("The rewards model of this environment is not defined.")
 
     def step(self, action):
 
         self.elapsed_steps += 1
 
-        current_state = self.get_obs()
+        old_state = self.get_obs()
 
-        p_array, s_array = self.transition_model(self, current_state, action)
+        p_array, s_array = self.transition_model(self, old_state, action)
         #implement r_array/reward
 
-        # roll dice to detemine resultant state
+        # roll dice to detemine resultant state from possibilities
         roll = np.random.random()
         t = 0
         chosen_state = -1
         for i in range(len(p_array)):
             t += p_array[i]
+            # print("probs:", t, p_array)
             if (roll < t):
                 chosen_state = i
+                break
         if(chosen_state < 0):
             raise ValueError("Something has gone wrong with choosing the state")
 
         # get the reward for this transition based on the reward model
-        reward = self.reward_model(self, current_state, action, s_array[chosen_state])
+        reward = self.reward_model(self, old_state, action, s_array[chosen_state])
 
         # assume the new state
         self.state = s_array[chosen_state]
@@ -191,12 +218,18 @@ class TokamakEnv9(gym.Env):
         # set terminated (all goals checked and not instantiated)
         terminated = True
         for i in range(self.num_goals):
-            if (not (self.state[f"goal{i} checked"] or self.state[f"goal{i} instantiated"])):
+            if (self.state[f"goal{i} checked"] == 0 or self.state[f"goal{i} instantiated"] == 1):
                 terminated = False
                 break
 
         if self.render_mode == "human":
-            self.render_frame()
+            robot_no = int(np.floor(action / self.num_actions))
+            if(self.blocked_model(self, old_state)[action]):
+                self.most_recent_actions[robot_no] = "wait"
+            else:
+                self.most_recent_actions[robot_no] = self.action_labels[action]
+                print(self.most_recent_actions)
+            self.render_frame(self.state, info)
 
         return s_array[chosen_state], reward, terminated, False, info
 
@@ -204,7 +237,7 @@ class TokamakEnv9(gym.Env):
         if self.render_mode == "rgb_array":
             return self.render_frame()
 
-    def render_frame(self):
+    def render_frame(self, state, info):
         # note: the -np.pi is to keep the segments consistent with the jorek interpreter
 
         if self.window is None and self.render_mode == "human":
@@ -245,20 +278,20 @@ class TokamakEnv9(gym.Env):
 
         # draw the goals
         for i in range(self.num_goals):
-            pos = self.goal_locations[i]
+            pos = state[f"goal{i} location"]
             xpos = tokamak_centre[0] + tokamak_r * 3 / 4 * np.cos(angle * pos - np.pi)
             ypos = tokamak_centre[1] + tokamak_r * 3 / 4 * np.sin(angle * pos - np.pi)
-            if(self.goal_checked[i] == 0):
-                text = font.render(f"{self.goal_probabilities[i]}?", True, (255,255,255))
+            if(state[f"goal{i} checked"] == 0):
+                text = font.render(f"goal{i} probability", True, (255,255,255))
                 colour = (255,0,0)
-            elif(self.goal_checked[i] == 1):
-                if(self.goal_resolutions[i] == 0):
-                    text = font.render("0", True, (255,255,255))
-                    colour = (200,200,200)
-                elif(self.goal_instantiations[i] == 1):
+            elif(state[f"goal{i} checked"] == 1):
+                # if(info[f"goal{i} resolution"] == 0):
+                #     text = font.render("0", True, (255,255,255))
+                #     colour = (200,200,200)
+                if(state[f"goal{i} instantiated"] == 1):
                     text = font.render("1", True, (255,255,255))
                     colour = (0,200,0)
-                elif(self.goal_instantiations[i] == 0):
+                elif(state[f"goal{i} instantiated"] == 0):
                     text = font.render("done", True, (255,255,255))
                     colour = (0,200,0)
 
@@ -270,11 +303,11 @@ class TokamakEnv9(gym.Env):
 
         # draw robots
         for i in range(self.num_robots):
-            pos = self.robot_locations[i]
+            pos = state[f"robot{i} location"]
             xpos = tokamak_centre[0] + tokamak_r / 2 * np.cos(angle * pos - np.pi)
             ypos = tokamak_centre[1] + tokamak_r / 2 * np.sin(angle * pos - np.pi)
             circ = pygame.draw.circle(canvas, (0,0,255), (xpos, ypos), 20)
-            if(self.robot_clocks[i]):
+            if(state[f"robot{i} clock"]):
                 text = font.render(str(i) + "'", True, (255,255,255))
             else:
                 text = font.render(str(i), True, (255,255,255))
@@ -286,27 +319,31 @@ class TokamakEnv9(gym.Env):
         circ = pygame.draw.circle(canvas, (255,255,255), tokamak_centre, 60)
         circ = pygame.draw.circle(canvas, (144,144,144), tokamak_centre, 60, width=1)
 
+        # print(f"""
+        #       epoch: {state["elapsed"]}
+        #       robot locations : {self.robot_locations}
+        #       actions: {self.most_recent_actions}
+        #       blocked actions: {self.get_blocked_actions()}
+        #       goal checked : {self.goal_checked}
+        #       goal instantiations: {self.goal_instantiations}
+        #       """)
+
         print(f"""
-              epoch: {self.elapsed}-{np.sum(self.robot_clocks)}
-              robot locations : {self.robot_locations}
-              actions: {self.most_recent_actions}
-              blocked actions: {self.get_blocked_actions()}
-              goal checked : {self.goal_checked}
-              goal instantiations: {self.goal_instantiations}
+              epoch: {info["elapsed steps"]}
               """)
 
         # draw tick number
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,0), (40, 40)))
-        canvas.blit(font.render("t=" + str(self.elapsed), True, (0,0,0)), rect)
+        canvas.blit(font.render("t=" + str(state["elapsed ticks"]), True, (0,0,0)), rect)
         # most recent actions
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
-        canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0,0,0)), rect)
+        canvas.blit(font.render("r0: " + str(self.most_recent_actions[state["elapsed ticks"] + 0]), True, (0,0,0)), rect)
 
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,80), (40, 40)))
-        canvas.blit(font.render("r1: " + str(self.most_recent_actions[1]), True, (0,0,0)), rect)
+        canvas.blit(font.render("r1: " + str(self.most_recent_actions[state["elapsed ticks"] + 1]), True, (0,0,0)), rect)
 
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,120), (40, 40)))
-        canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0,0,0)), rect)
+        canvas.blit(font.render("r2: " + str(self.most_recent_actions[state["elapsed ticks"] + 2]), True, (0,0,0)), rect)
 
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window
