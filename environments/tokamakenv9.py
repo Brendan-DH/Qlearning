@@ -118,9 +118,6 @@ class TokamakEnv9(gym.Env):
         info = {}
         info["elapsed ticks"] = self.state["elapsed ticks"]
         info["elapsed steps"] = self.elapsed_steps
-        # info["phi pseudo"] = self.pseudoreward_function()
-        # for i in range(self.num_goals):
-        #     info[f"goal{i} resolution"] = self.
         return info
 
     def parse_robot_locations(self):
@@ -328,22 +325,22 @@ class TokamakEnv9(gym.Env):
         #       goal instantiations: {self.goal_instantiations}
         #       """)
 
-        print(f"""
-              epoch: {info["elapsed steps"]}
-              """)
+        # print(f"""
+        #       epoch: {info["elapsed steps"]}
+        #       """)
 
         # draw tick number
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,0), (40, 40)))
         canvas.blit(font.render("t=" + str(state["elapsed ticks"]), True, (0,0,0)), rect)
         # most recent actions
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
-        canvas.blit(font.render("r0: " + str(self.most_recent_actions[state["elapsed ticks"] + 0]), True, (0,0,0)), rect)
+        canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0,0,0)), rect)
 
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,80), (40, 40)))
-        canvas.blit(font.render("r1: " + str(self.most_recent_actions[state["elapsed ticks"] + 1]), True, (0,0,0)), rect)
+        canvas.blit(font.render("r1: " + str(self.most_recent_actions[1]), True, (0,0,0)), rect)
 
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,120), (40, 40)))
-        canvas.blit(font.render("r2: " + str(self.most_recent_actions[state["elapsed ticks"] + 2]), True, (0,0,0)), rect)
+        canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0,0,0)), rect)
 
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window

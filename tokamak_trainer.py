@@ -22,8 +22,8 @@ starting_parameters = DQN.system_parameters(
     size=12,
     robot_status=[1,1,1],
     robot_locations=[1,5,6],
-    goal_locations=[11],
-    goal_probabilities=[1],
+    goal_locations=[11,3,5, 8, 1, 0],
+    goal_probabilities=[0.7,0.7,0.7, 0.7, 0.7, 0.7],
     goal_instantiations=[0,0,0,0,0,0],
     goal_resolutions=[0,0,0,0,0,0],
     goal_checked=[0,0,0,0,0,0,0],
@@ -48,12 +48,12 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# saved_weights_name = "saved_weights_391732"  #"saved_weights_182634"
+# saved_weights_name = "saved_weights_23876"  # "saved_weights_182634"
 # scenario_id = 108186
 
 
 def decay_function(ep, e_max, e_min, num_eps):
-    return DQN.linear_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min, num_episodes=num_eps, max_epsilon_time=200, min_epsilon_time=200)
+    return DQN.linear_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min, num_episodes=num_eps, max_epsilon_time=50, min_epsilon_time=50)
 
 
 #%%
@@ -74,10 +74,10 @@ except NameError:
                                                 policy_net,
                                                 target_net,
                                                 epsilon_decay_function=decay_function,
-                                                alpha=1e-1,
-                                                gamma=0.7,
+                                                alpha=1e-3,
+                                                gamma=0.95,
                                                 reset_options={"type": "random"},
-                                                num_episodes=1000,
+                                                num_episodes=4000,
                                                 usePseudorewards=False,
                                                 batch_size=256)
 
@@ -88,15 +88,22 @@ except NameError:
 #%%
 
 
-s, a, times, ts = DQN.evaluate_model(dqn=policy_net,
-                                     num_episodes=1,
-                                     system_parameters=starting_parameters,
-                                     env_name=env_to_use,
-                                     transition_model=mdpt.t_model,
-                                     reward_model=mdpt.r_model,
-                                     blocked_model=mdpt.b_model,
-                                     render=False)
+s, a, ticks, steps = DQN.evaluate_model(dqn=policy_net,
+                                        num_episodes=1000,
+                                        system_parameters=starting_parameters,
+                                        env_name=env_to_use,
+                                        transition_model=mdpt.t_model,
+                                        reward_model=mdpt.r_model,
+                                        blocked_model=mdpt.b_model,
+                                        render=False)
 
 plt.figure(figsize=(10,7))
-plt.hist(x=ts, rwidth=0.95)
+plt.hist(x=steps, rwidth=0.95)
 plt.xlabel("Total env steps")
+
+
+plt.figure(figsize=(10,7))
+plt.hist(x=ticks, rwidth=0.95)
+plt.xlabel("Total env ticks")
+
+print(ticks)

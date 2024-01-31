@@ -96,7 +96,6 @@ def select_action(dqn, env, state, epsilon, forbidden_actions=[]):
             # found, so we pick action with the larger expected reward.
             # if(epsilon == 0):
             # print(dqn(state), dqn(state).max(1)[1].view(1, 1))
-            print(dqn(state), dqn(state).max(1)[1].view(1, 1))
             return dqn(state).max(1)[1].view(1, 1)
     else:
         sample = env.action_space.sample()
@@ -301,7 +300,6 @@ def train_model(
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
         if reset_options:
-            print(reset_options)
             state, info = env.reset(options=reset_options.copy())
         else:
             state, info = env.reset()
@@ -343,7 +341,7 @@ def train_model(
 
             memory.push(state, action, next_state, reward)  # Store the transition in memory
             state = next_state
-            optimise_model(policy_net, target_net, memory, optimiser, gamma, 128)
+            optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
 
             # Soft update of the target DeepQNetwork
             target_net_state_dict = target_net.state_dict()
@@ -440,16 +438,15 @@ def evaluate_model(dqn,
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Evaluation running on {device}.")
 
-    times = []
+    ticks = []
     goal_resolutions = []
-    ts = []
+    steps = []
 
     for i in range(num_episodes):
         if(reset_options):
             state, info = env.reset(options=reset_options.copy())
         else:
             state, info = env.reset()
-            print(state)
 
         states = [state]
         actions = []
@@ -467,7 +464,7 @@ def evaluate_model(dqn,
             done = terminated
 
             if (done or truncated):
-                times.append(observation["elapsed ticks"])
+                ticks.append(info["elapsed ticks"])
                 # goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
                     print(f"{i}/{num_episodes} episodes complete")
@@ -475,26 +472,26 @@ def evaluate_model(dqn,
 
         if(not done):
             print("deadlock", observation, action)
-        ts.append(t)
+        steps.append(t)
 
-    times = np.array(times)
+    ticks = np.array(ticks)
     plt.figure(figsize=(10,10))
-    times_start = 0
-    # process 'times' into sub-arrays based on the unique entries in goal_resolutions
+    ticks_start = 0
+    # process 'ticks' into sub-arrays based on the unique entries in goal_resolutions
     unique_res = np.unique(goal_resolutions)
     for unique in unique_res:
-        unique_times = times[goal_resolutions == unique]  # groups episodes with this unique number of tasks
-        # plot the times. assign a range on x for each group based on the size of the group and where the last group ended.
-        plt.plot(np.array(range(len(unique_times))) + times_start,
-                 unique_times,
+        unique_ticks = ticks[goal_resolutions == unique]  # groups episodes with this unique number of tasks
+        # plot the ticks. assign a range on x for each group based on the size of the group and where the last group ended.
+        plt.plot(np.array(range(len(unique_ticks))) + ticks_start,
+                 unique_ticks,
                  ls="",
                  marker="o",
-                 label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_times)))
-        times_start = len(unique_times) + times_start + num_episodes / 20
+                 label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_ticks)))
+        ticks_start = len(unique_ticks) + ticks_start + num_episodes / 20
 
     plt.legend()
-    plt.hlines(np.mean(times), 0, len(times) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
-    plt.text(0,np.mean(times), f"avg: {np.mean(times)}")
+    plt.hlines(np.mean(ticks), 0, len(ticks) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
+    plt.text(0,np.mean(ticks), f"avg: {np.mean(ticks)}")
     plt.xticks([])
     plt.ylabel("Duration / ticks")
     plt.xlabel("Episode, sorted by number goals encountered")
@@ -503,7 +500,7 @@ def evaluate_model(dqn,
 
     print("Evaluation complete.")
 
-    return states, actions, times, ts
+    return states, actions, ticks, steps
 
 
 def evaluate_ensemble(dqn, num_episodes, template_env, reset_options, env_name="Tokamak-v6", render=False):

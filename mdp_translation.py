@@ -74,11 +74,11 @@ def template_inspect(env, state, action_no):
     robot_no = int(np.floor(action_no / env.num_actions))
 
     new_state = state.copy()
-    print("inspect", robot_no)
 
     for i in range(env.num_goals):
         if (state[f"goal{i} location"] == state[f"robot{robot_no} location"] and state[f"goal{i} instantiated"] == 1):
             new_state[f"goal{i} instantiated"] = 0
+            new_state[f"goal{i} probability"] = 0
 
     new_state = clock_effect(env, new_state, robot_no)  # at this point, goals have been inspected
 
@@ -178,6 +178,7 @@ def clock_effect(env, state, robot_no):
     # else if all clocks are ticked:
     for i in range(env.num_robots):
         new_state[f"robot{i} clock"] = 0  # set all clocks to 0
+        new_state["elapsed ticks"] += 1
 
     return new_state.copy()
 
@@ -229,10 +230,6 @@ def t_model(env, state, action_no):
     # (i.e. number of robots). could possibly be made dynamic later.
 
     if(env.blocked_model(env, state)[action_no] == 1):
-        if(action_no == 2 or action_no == 5 or action_no == 8):
-            print("blocked:", action_no, [state[f"robot{i} clock"] for i in range(env.num_robots)],
-                  [state[f"goal{i} instantiated"] for i in range(env.num_goals)],
-                  [state[f"robot{i} location"] for i in range(env.num_robots)])
         robot_no = int(np.floor(action_no / env.num_actions))
         new_state = clock_effect(env, state, robot_no)
         p = [1]
@@ -278,13 +275,12 @@ def r_model(env, s, action, sprime):
     for i in range(env.num_goals):
         # check if any goals have become checked
         if(s[f"goal{i} checked"] != sprime[f"goal{i} checked"]):
-            return 100
+            return 1000
 
     # rewards for completing goals
     for i in range(env.num_goals):
         if(s[f"goal{i} instantiated"] == 1 and sprime[f"goal{i} instantiated"] == 0):
-            print("bingo")
-            return 1000  # - (s["elapsed"] * env.num_robots) / 100 * 500
+            return 100  # - (s["elapsed"] * env.num_robots) / 100 * 500
 
     return 0
 
