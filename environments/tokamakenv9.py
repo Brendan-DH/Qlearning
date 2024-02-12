@@ -10,6 +10,8 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import pygame
+import random
+from collections import namedtuple, deque
 
 
 class TokamakEnv9(gym.Env):
@@ -32,6 +34,8 @@ class TokamakEnv9(gym.Env):
         self.transition_model = transition_model
         self.reward_model = reward_model
         self.blocked_model = blocked_model
+        self.runstates = []
+        self.statetree = []
 
         for i in range(len(system_parameters.robot_locations)):
             state[f"robot{i} location"] = system_parameters.robot_locations[i]
@@ -53,6 +57,10 @@ class TokamakEnv9(gym.Env):
         self.start_locations = np.array(system_parameters.robot_locations.copy())
         self.num_goals = len(system_parameters.goal_locations)
         self.num_robots = len(system_parameters.robot_locations)
+
+        # Transition = namedtuple('Transition', (f"robot{self.num_robots}clock"))
+        # a = Transition("test")
+        # print(a)
 
         # internal/environmental parameters
         self.training = training
@@ -94,7 +102,6 @@ class TokamakEnv9(gym.Env):
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.window = None
         self.clock = None
-        self.elapsed = 0
         self.reset()
 
     def get_parameters(self):
@@ -106,7 +113,7 @@ class TokamakEnv9(gym.Env):
             "goal_probabilities" : self.goal_probabilities,
             "goal_instantiations" : self.goal_instantiations,
             "goal_checked" : self.goal_checked,
-            "elapsed" : self.elapsed
+            # "elapsed" : self.elapsed
         }
 
         return parameters
@@ -116,8 +123,9 @@ class TokamakEnv9(gym.Env):
 
     def get_info(self):
         info = {}
-        info["elapsed ticks"] = self.state["elapsed ticks"]
+        info["elapsed ticks"] = self.elapsed_ticks  # CURRENTLY ALWAYS 0!
         info["elapsed steps"] = self.elapsed_steps
+        info["pseudoreward"] = self.pseudoreward_function()
         return info
 
     def parse_robot_locations(self):
@@ -144,11 +152,18 @@ class TokamakEnv9(gym.Env):
                     state[f"goal{i} checked"] = np.random.randint(0,1)
                     state[f"goal{i} instantiated"] = np.random.randint(0,1)
                     state[f"goal{i} probability"] = self.initial_state[f"goal{i} probability"]
-                state["elapsed ticks"] = np.random.randint(0,30)
+                # state["elapsed ticks"] = np.random.randint(0,30)
                 self.state = state.copy()
+            if(options["type"] == "statetree"):
+                self.runstates = []
+                if(len(self.statetree) > 0):
+                    self.state = random.sample(self.statetree, 1)[0].copy()
+                else:
+                    self.state = self.initial_state.copy()
         else:
             self.state = self.initial_state.copy()
         self.elapsed_steps = 0
+        self.elapsed_ticks = 0
 
         info = self.get_info()
 
@@ -157,30 +172,26 @@ class TokamakEnv9(gym.Env):
 
         return self.get_obs(), info
 
-    # def pseudoreward_function(self):
-    #     tot_av = 0
-    #     # goal positions
-    #     for i in range(len(self.robot_locations)):
-    #         rob_pos = self.robot_locations[i]
-    #         rob_av = 0
-    #         num_active_goals = len(self.goal_locations)
-    #         for j in range(len(self.goal_locations)):
-    #             if self.goal_probabilities[j] == 0:  # this goal is already completed
-    #                 continue
-    #             goal_pos = self.goal_locations[j]
-    #             #calculate average distance of robot from each goal:
-    #             dist = abs(rob_pos - goal_pos) * self.goal_probabilities[j]  # weight by the probability that it is actually there
-    #             mod_dist = min((dist, self.size - dist))  # to account for cyclical space
-    #             rob_av += mod_dist / num_active_goals
-    #         # average of average distances
-    #         tot_av += rob_av / len(self.robot_locations)
-    #     return tot_av
+    def pseudoreward_function(self):
+        tot = 0
+        # goal positions
+        for i in range(self.num_robots):
+            rob_pos = self.state[f"robot{i} location"]
+            for j in range(self.num_goals):
+                if self.state[f"goal{j} probability"] == 0:  # this goal is already completed
+                    tot += 0
+                    continue
+                goal_pos = self.state[f"goal{j} location"]
+                #calculate average distance of robot from each goal:
+                naive_dist = abs(rob_pos - goal_pos) * self.state[f"goal{j} probability"]  # weight by the probability that it is actually there
+                tot += min((naive_dist, self.size - naive_dist))  # to account for cyclical space
+        return -tot  # -ve sign so that it should be minimised
 
-    # def transition_model(self, state, action_no):
-    #     raise NotImplementedError("The transistion model of this environment is not defined.")
+    def transition_model(self, state, action_no):
+        raise NotImplementedError("The transistion model of this environment is not defined.")
 
-    # def reward_model(self, old_state, action, new_state):
-    #     raise NotImplementedError("The rewards model of this environment is not defined.")
+    def reward_model(self, old_state, action, new_state):
+        raise NotImplementedError("The rewards model of this environment is not defined.")
 
     def step(self, action):
 
@@ -227,6 +238,13 @@ class TokamakEnv9(gym.Env):
                 self.most_recent_actions[robot_no] = self.action_labels[action]
                 print(self.most_recent_actions)
             self.render_frame(self.state, info)
+
+        if(s_array[chosen_state] not in self.runstates):
+            self.statetree.append(s_array[chosen_state])
+
+        if(terminated):
+            for state in self.runstates:
+                self.statetree.append(state)
 
         return s_array[chosen_state], reward, terminated, False, info
 

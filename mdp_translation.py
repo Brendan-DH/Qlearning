@@ -178,7 +178,7 @@ def clock_effect(env, state, robot_no):
     # else if all clocks are ticked:
     for i in range(env.num_robots):
         new_state[f"robot{i} clock"] = 0  # set all clocks to 0
-        new_state["elapsed ticks"] += 1
+        # new_state["elapsed ticks"] += 1
 
     return new_state.copy()
 

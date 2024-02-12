@@ -35,6 +35,7 @@ def propagate_ensemble(env, num_particles, num_samples, initial_state, time_hori
     allowed = list(actions - blocked)
     evaluations = np.zeros((env.action_space.n))
     print("Allowed actions:", allowed)
+
     # choose an action
     for start_action in allowed:
         print(f"Testing: {start_action}")

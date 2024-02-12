@@ -22,6 +22,7 @@ import torch.nn.functional as F
 import time
 import os
 import sys
+from queue import Queue
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -64,6 +65,19 @@ class ReplayMemory(object):
 
     def __len__(self):
         return len(self.memory)
+    
+# class StateTreeList(object):
+    
+#     def __init__(self, capacity, expiry):
+#         self.states = Queue(maxsize=capacity)
+        
+#     def update_tree(self, state):
+#         if(state in self.states[:,0]):
+            
+#         else:
+#             self.states.put([state,expiry])
+            
+    
 
 
 class DeepQNetwork(nn.Module):
@@ -305,8 +319,7 @@ def train_model(
             state, info = env.reset()
 
         if(usePseudorewards):
-            phi = info["phi pseudo"]  # average distance of robots from tasks, used for pseudorewards
-        # print("state", state, list(state.values()))
+            phi_sprime = info["pseudoreward"]  # phi_sprime is the pseudoreward of the new state
 
         state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
@@ -322,9 +335,9 @@ def train_model(
 
             # calculate pseudoreward
             if(usePseudorewards):
-                old_phi = phi
-                phi = info["phi pseudo"]
-                pseudoreward = (gamma * (1 / phi) - (1 / old_phi))
+                phi = phi_sprime
+                phi_sprime = info["pseudoreward"]
+                pseudoreward = (gamma * phi_sprime - phi)
             else:
                 pseudoreward = 0
 
