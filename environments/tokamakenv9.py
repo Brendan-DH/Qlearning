@@ -12,6 +12,7 @@ from gymnasium import spaces
 import pygame
 import random
 from collections import namedtuple, deque
+from DQN import hashdict
 
 
 class TokamakEnv9(gym.Env):
@@ -45,7 +46,7 @@ class TokamakEnv9(gym.Env):
             state[f"goal{i} checked"] = system_parameters.goal_checked[i]
             state[f"goal{i} instantiated"] = system_parameters.goal_instantiations[i]
             state[f"goal{i} probability"] = system_parameters.goal_probabilities[i]
-        state["elapsed ticks"] = system_parameters.elapsed_ticks
+        # state["elapsed ticks"] = system_parameters.elapsed_ticks
 
         self.state = state.copy()
         self.initial_state = state.copy()
@@ -79,7 +80,7 @@ class TokamakEnv9(gym.Env):
             obDict[f"goal{i} probability"] = spaces.Box(low=0, high=1, shape=[1])  # continuous variable in [0,1]. sample() returns array though.
             obDict[f"goal{i} instantiated"] = spaces.Discrete(2)
             obDict[f"goal{i} checked"] = spaces.Discrete(2)  # records if a goal has been visited yet
-        obDict["elapsed ticks"] = spaces.Discrete(100)
+        # obDict["elapsed ticks"] = spaces.Discrete(100)
 
         self.action_labels = [
             "r0 ccw",
@@ -154,12 +155,10 @@ class TokamakEnv9(gym.Env):
                     state[f"goal{i} probability"] = self.initial_state[f"goal{i} probability"]
                 # state["elapsed ticks"] = np.random.randint(0,30)
                 self.state = state.copy()
-            if(options["type"] == "statetree"):
-                self.runstates = []
-                if(len(self.statetree) > 0):
-                    self.state = random.sample(self.statetree, 1)[0].copy()
-                else:
-                    self.state = self.initial_state.copy()
+            if(options["type"] == "state"):
+                # assert options["state"]
+                # print(options["state"])
+                self.state = options["state"].copy()
         else:
             self.state = self.initial_state.copy()
         self.elapsed_steps = 0

@@ -22,7 +22,6 @@ import torch.nn.functional as F
 import time
 import os
 import sys
-from queue import Queue
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -51,6 +50,12 @@ def copy_system_parameters(t):
     return system_parameters(**t._asdict())
 
 
+class hashdict(dict):
+
+    def __hash__(self):
+        return hash(frozenset(self))
+
+
 class ReplayMemory(object):
 
     def __init__(self, capacity):
@@ -65,19 +70,6 @@ class ReplayMemory(object):
 
     def __len__(self):
         return len(self.memory)
-    
-# class StateTreeList(object):
-    
-#     def __init__(self, capacity, expiry):
-#         self.states = Queue(maxsize=capacity)
-        
-#     def update_tree(self, state):
-#         if(state in self.states[:,0]):
-            
-#         else:
-#             self.states.put([state,expiry])
-            
-    
 
 
 class DeepQNetwork(nn.Module):
@@ -294,6 +286,10 @@ def train_model(
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
     memory = ReplayMemory(10000)
     torch.set_grad_enabled(True)
+    if(reset_options and reset_options["type"] == "statetree"):
+        state, info = env.reset()
+        state_tree = np.array([hashdict(state) for i in range(100)], dtype=hashdict)
+        state_tree_utilities = np.ones((100)) * -1000
 
     if epsilon_decay_function is None:
         decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes)  # ensures epsilon ~= epsilon_min at end
@@ -314,6 +310,16 @@ def train_model(
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
         if reset_options:
+            # if using the state tree approach, use the initial state with a set chance
+            # otherwise, use a state sampled from the state tree
+            if(reset_options["type"] == "statetree"):
+
+                if(np.random.random() < 0.5):
+                    state, info = env.reset()
+                else:
+                    reset_state = random.choice(state_tree)
+                    state, info = env.reset(options={"type" : "state", "state" : reset_state})
+
             state, info = env.reset(options=reset_options.copy())
         else:
             state, info = env.reset()
@@ -321,7 +327,7 @@ def train_model(
         if(usePseudorewards):
             phi_sprime = info["pseudoreward"]  # phi_sprime is the pseudoreward of the new state
 
-        state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
+        stateT = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
         epsilons.append(epsilon)
@@ -329,8 +335,29 @@ def train_model(
         ep_reward = 0
 
         for t in count():
-            action = select_action(policy_net, env, state, epsilon)
-            observation, reward, terminated, truncated, info = env.step(action.item())
+
+            # calculate action utilities and choose action
+            action_utilities = policy_net.forward(stateT)
+            if(np.random.random() < epsilon):
+                sample = env.action_space.sample()
+                action = torch.tensor([[sample]], device=device, dtype=torch.long)
+            else:
+                action = action_utilities.max(1)[1].view(1, 1)
+
+            # deal with state tree resets:
+            if(reset_options and reset_options["type"] == "statetree" and t > 0):
+                hashedState = hashdict(state)
+                if(hashedState not in state_tree):
+                    av_utility = np.mean(action_utilities.tolist())
+                    start_point = random.randint(0, len(state_tree) - 11)  # doing it like this makes the very last state unlikely to be replaced
+                    for i in range(start_point, start_point + 10):
+                        if(state_tree_utilities[i] < av_utility):
+                            # print(np.mean(state_tree_utilities))
+                            state_tree[i] = hashedState
+                            state_tree_utilities[i] = av_utility
+                            break
+
+            observation, reward, terminated, truncated, info = env.step(action)
             elapsed_steps = info["elapsed steps"]
 
             # calculate pseudoreward
@@ -348,12 +375,13 @@ def train_model(
             # print(terminated, truncated, t, done)
 
             if terminated:
-                next_state = None
+                next_stateT = None
             else:
-                next_state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
+                next_stateT = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
-            memory.push(state, action, next_state, reward)  # Store the transition in memory
-            state = next_state
+            memory.push(stateT, action, next_stateT, reward)  # Store the transition in memory
+            stateT = next_stateT
+
             optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
 
             # Soft update of the target DeepQNetwork
@@ -451,8 +479,8 @@ def evaluate_model(dqn,
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Evaluation running on {device}.")
 
-    ticks = []
-    goal_resolutions = []
+    # ticks = []
+    # goal_resolutions = []
     steps = []
 
     for i in range(num_episodes):
@@ -477,7 +505,7 @@ def evaluate_model(dqn,
             done = terminated
 
             if (done or truncated):
-                ticks.append(info["elapsed ticks"])
+                # ticks.append(info["elapsed ticks"])
                 # goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
                     print(f"{i}/{num_episodes} episodes complete")
@@ -487,167 +515,39 @@ def evaluate_model(dqn,
             print("deadlock", observation, action)
         steps.append(t)
 
-    ticks = np.array(ticks)
-    plt.figure(figsize=(10,10))
-    ticks_start = 0
-    # process 'ticks' into sub-arrays based on the unique entries in goal_resolutions
-    unique_res = np.unique(goal_resolutions)
-    for unique in unique_res:
-        unique_ticks = ticks[goal_resolutions == unique]  # groups episodes with this unique number of tasks
-        # plot the ticks. assign a range on x for each group based on the size of the group and where the last group ended.
-        plt.plot(np.array(range(len(unique_ticks))) + ticks_start,
-                 unique_ticks,
-                 ls="",
-                 marker="o",
-                 label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_ticks)))
-        ticks_start = len(unique_ticks) + ticks_start + num_episodes / 20
+    # ticks = np.array(ticks)
+    # plt.figure(figsize=(10,10))
+    # ticks_start = 0
+    # # process 'ticks' into sub-arrays based on the unique entries in goal_resolutions
+    # unique_res = np.unique(goal_resolutions)
+    # for unique in unique_res:
+    #     unique_ticks = ticks[goal_resolutions == unique]  # groups episodes with this unique number of tasks
+    #     # plot the ticks. assign a range on x for each group based on the size of the group and where the last group ended.
+    #     plt.plot(np.array(range(len(unique_ticks))) + ticks_start,
+    #              unique_ticks,
+    #              ls="",
+    #              marker="o",
+    #              label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_ticks)))
+    #     ticks_start = len(unique_ticks) + ticks_start + num_episodes / 20
 
-    plt.legend()
-    plt.hlines(np.mean(ticks), 0, len(ticks) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
-    plt.text(0,np.mean(ticks), f"avg: {np.mean(ticks)}")
-    plt.xticks([])
-    plt.ylabel("Duration / ticks")
-    plt.xlabel("Episode, sorted by number goals encountered")
-    plt.title("Evaluation durations")
-    plt.show()
-
-    print("Evaluation complete.")
-
-    return states, actions, ticks, steps
-
-
-def evaluate_ensemble(dqn, num_episodes, template_env, reset_options, env_name="Tokamak-v6", render=False):
-
-    print("Evaluating...", reset_options)
-
-    if ("win" in sys.platform and render):
-        print("Cannot render on windows...")
-        render = False
-
-    env = gym.make(env_name,
-                   size=template_env.parameters["size"],
-                   num_robots=template_env.parameters["num_robots"],
-                   goal_locations=template_env.parameters["goal_locations"],
-                   goal_probabilities=template_env.parameters["goal_probabilities"],
-                   render_mode="human" if render else None)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Evaluation running on {device}.")
-
-    times = []
-    goal_resolutions = []
-
-    state, info = env.reset(options=reset_options.copy())
-    previous_status = info["status"]
-
-    for i in range(num_episodes):
-        state, info = env.reset(options=reset_options.copy())
-
-        states = [state]
-        actions = []
-        state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
-
-        for t in count():
-
-            action = select_action(dqn, env, state, 0)
-            observation, reward, terminated, truncated, info = env.step(action.item())
-
-            # check if any robots have broken
-            current_status = info["status"]  # check status here
-            if current_status != previous_status:  # this will probably cause an error. check how to properly compare arrays
-
-                # if (0 in current_status):  # this indicates that a robot is broken
-                # get all parameters that will be needed to pass forwards
-                parameters = env.get_parameters()
-                num_active_robots = len(parameters["active_robots"])
-                num_broken_robots = len(parameters["broken_robots"])
-
-                # this approach will probably make robots lose their numbering...
-                active_robot_locations = parameters["robot_locations"][parameters["active_robots"]]
-                broken_robot_locations = parameters["robot_locations"][parameters["broken_robots"]]
-
-                if (current_status == "recover"):  # recovery regime
-
-                    # load the appropriate environment and DQN to continue the simulation
-                    dqn.load_state_dict(torch.load(
-                        os.getcwd() + "/trained_weights/" + f"{num_active_robots}-{num_broken_robots}recovery")
-                    )
-
-                    env = gym.make("SEAMSRecoveryTokamakEnv1",
-                                   # normal intantiation parameters:
-                                   size=parameters["size"],
-                                   num_active_robots=num_active_robots,
-                                   num_broken_robots=num_broken_robots,
-                                   goal_locations=parameters["goal_locations"],
-                                   goal_probabilities=parameters["goal_probabilities"],
-                                   # extra parameters to set the initial state of the system:
-                                   active_robot_locations=active_robot_locations,
-                                   broken_robot_locations=broken_robot_locations,
-                                   goal_instantiations=parameters["goal_instantiations"],
-                                   goal_checked=parameters["goal_checked"],
-                                   elapsed=parameters["elapsed"],
-                                   robot_status=current_status
-                                   )
-
-                elif (current_status == "operate"):  # normal operation
-
-                    # load the appropriate environment and DQN to continue the simulation
-                    dqn.load_state_dict(torch.load(
-                        os.getcwd() + "/trained_weights/" + f"{num_active_robots}operate")
-                    )
-
-                    env = gym.make("SEAMSOperationalTokamakEnv1",
-                                   # normal intantiation parameters:
-                                   size=parameters["size"],
-                                   num_robots=parameters["num_robots"],
-                                   goal_locations=parameters["goal_locations"],
-                                   goal_probabilities=parameters["goal_probabilities"],
-                                   # extra parameters to set the initial state of the system:
-                                   robot_locations=parameters["robot_locations"],
-                                   goal_instantiations=parameters["goal_instantiations"],
-                                   goal_checked=parameters["goal_checked"],
-                                   elapsed=parameters["elapsed"],
-                                   robot_status=current_status
-                                   )
-
-            state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
-
-            states.append(observation)
-            actions.append(action)
-
-            done = terminated or truncated
-
-            if (done):
-                times.append(info["elapsed_ticks"])
-                goal_resolutions.append(np.sum(info["goal_resolutions"]))
-                if (i % int(num_episodes / 10) == 0):
-                    print(f"{i}/{num_episodes} episodes complete")
-                break
-
-    times = np.array(times)
-    plt.figure(figsize=(10,10))
-    times_start = 0
-    # process 'times' into sub-arrays based on the unique entries in goal_resolutions
-    unique_res = np.unique(goal_resolutions)
-    for unique in unique_res:
-        unique_times = times[goal_resolutions == unique]  # groups episodes with this unique number of tasks
-        # plot the times. assign a range on x for each group based on the size of the group and where the last group ended.
-        plt.plot(np.array(range(len(unique_times))) + times_start,
-                 unique_times,
-                 ls="",
-                 marker="o",
-                 label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_times)))
-        times_start = len(unique_times) + times_start + num_episodes / 20
-
-    plt.legend()
-    plt.hlines(np.mean(times), 0, len(times) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
-    plt.text(0,np.mean(times), f"avg: {np.mean(times)}")
-    plt.xticks([])
-    plt.ylabel("Duration / ticks")
-    plt.xlabel("Episode, sorted by number goals encountered")
-    plt.title("Evaluation durations")
-    plt.show()
+    # plt.legend()
+    # plt.hlines(np.mean(ticks), 0, len(ticks) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
+    # plt.text(0,np.mean(ticks), f"avg: {np.mean(ticks)}")
+    # plt.xticks([])
+    # plt.ylabel("Duration / ticks")
+    # plt.xlabel("Episode, sorted by number goals encountered")
+    # plt.title("Evaluation durations")
+    # plt.show()
 
     print("Evaluation complete.")
 
-    return states, actions
+    return states, actions, steps  # states, actions, ticks, steps
+
+def verify_model(policy_net, env):
+    """
+    Inputs:
+        policy_net - the NN encoding the policy to be verified
+        env  - the environment in which the policy operates
+    """
+    
+    
