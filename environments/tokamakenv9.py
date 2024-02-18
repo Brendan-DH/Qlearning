@@ -176,14 +176,17 @@ class TokamakEnv9(gym.Env):
         # goal positions
         for i in range(self.num_robots):
             rob_pos = self.state[f"robot{i} location"]
+            min_mod_dist = self.size * 2
             for j in range(self.num_goals):
                 if self.state[f"goal{j} probability"] == 0:  # this goal is already completed
-                    tot += 0
-                    continue
-                goal_pos = self.state[f"goal{j} location"]
-                #calculate average distance of robot from each goal:
-                naive_dist = abs(rob_pos - goal_pos) * self.state[f"goal{j} probability"]  # weight by the probability that it is actually there
-                tot += min((naive_dist, self.size - naive_dist))  # to account for cyclical space
+                    pass
+                else:
+                    goal_pos = self.state[f"goal{j} location"]
+                    #calculate average distance of robot from each goal:
+                    naive_dist = abs(rob_pos - goal_pos)  # weight by the probability that it is actually there
+                    mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
+                    min_mod_dist = min(mod_dist, min_mod_dist)
+            tot += min_mod_dist
         return -tot  # -ve sign so that it should be minimised
 
     def transition_model(self, state, action_no):
@@ -220,8 +223,6 @@ class TokamakEnv9(gym.Env):
         # assume the new state
         self.state = s_array[chosen_state]
 
-        info = self.get_info()
-
         # set terminated (all goals checked and not instantiated)
         terminated = True
         for i in range(self.num_goals):
@@ -229,7 +230,17 @@ class TokamakEnv9(gym.Env):
                 terminated = False
                 break
 
+        if(s_array[chosen_state] not in self.runstates):
+            self.statetree.append(s_array[chosen_state])
+
+        if(terminated):
+            for state in self.runstates:
+                self.statetree.append(state)
+
+        info = self.get_info()
+
         if self.render_mode == "human":
+            # checking if the robot performed a wait action
             robot_no = int(np.floor(action / self.num_actions))
             if(self.blocked_model(self, old_state)[action]):
                 self.most_recent_actions[robot_no] = "wait"
@@ -237,13 +248,6 @@ class TokamakEnv9(gym.Env):
                 self.most_recent_actions[robot_no] = self.action_labels[action]
                 print(self.most_recent_actions)
             self.render_frame(self.state, info)
-
-        if(s_array[chosen_state] not in self.runstates):
-            self.statetree.append(s_array[chosen_state])
-
-        if(terminated):
-            for state in self.runstates:
-                self.statetree.append(state)
 
         return s_array[chosen_state], reward, terminated, False, info
 
@@ -303,10 +307,10 @@ class TokamakEnv9(gym.Env):
                 #     text = font.render("0", True, (255,255,255))
                 #     colour = (200,200,200)
                 if(state[f"goal{i} instantiated"] == 1):
-                    text = font.render("1", True, (255,255,255))
+                    text = font.render(str(state[f"goal{i} probability"]), True, (255,255,255))
                     colour = (0,200,0)
                 elif(state[f"goal{i} instantiated"] == 0):
-                    text = font.render("done", True, (255,255,255))
+                    text = font.render(str(state[f"goal{i} probability"]), True, (255,255,255))
                     colour = (0,200,0)
 
             circ = pygame.draw.circle(canvas, colour, (xpos, ypos), 30)  # maybe make these rects again
@@ -346,9 +350,9 @@ class TokamakEnv9(gym.Env):
         #       epoch: {info["elapsed steps"]}
         #       """)
 
-        # draw tick number
-        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,0), (40, 40)))
-        canvas.blit(font.render("t=" + str(state["elapsed ticks"]), True, (0,0,0)), rect)
+        # # draw tick number
+        # rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,0), (40, 40)))
+        # canvas.blit(font.render("t=" + str(state["elapsed ticks"]), True, (0,0,0)), rect)
         # most recent actions
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
         canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0,0,0)), rect)
