@@ -22,8 +22,8 @@ starting_parameters = DQN.system_parameters(
     size=12,
     robot_status=[1,1,1],
     robot_locations=[1,5,6],
-    goal_locations=[11,3,5,2,8,0],
-    goal_probabilities=[0.7,0.7,0.7, 0.7,0.7,0.7],
+    goal_locations=[11,3,5],  # 2,8,0],
+    goal_probabilities=[0.7,0.7,0.7],  # 0.7],  # 0.7, 0.7,0.7],
     goal_instantiations=[0,0,0,0,0,0],
     goal_resolutions=[0,0,0,0,0,0],
     goal_checked=[0,0,0,0,0,0,0],
@@ -74,11 +74,15 @@ except NameError:
                                                 policy_net,
                                                 target_net,
                                                 epsilon_decay_function=decay_function,
+                                                # epsilon_min=0,
                                                 alpha=1e-3,
-                                                gamma=0.95,
+                                                gamma=0.2,
                                                 reset_options={"type": "statetree"},
-                                                num_episodes=2000,
-                                                usePseudorewards=False,
+                                                num_episodes=500,
+                                                usePseudorewards=True,
+                                                plot_frequency=20,
+                                                tree_prune_frequency=10000,
+                                                state_tree_capacity=100,
                                                 batch_size=256)
 
     filename = f"saved_weights_{int(np.random.rand()*1e6)}"
@@ -90,11 +94,7 @@ except NameError:
 
 s, a, steps = DQN.evaluate_model(dqn=policy_net,
                                  num_episodes=1000,
-                                 system_parameters=starting_parameters,
-                                 env_name=env_to_use,
-                                 transition_model=mdpt.t_model,
-                                 reward_model=mdpt.r_model,
-                                 blocked_model=mdpt.b_model,
+                                 env=env,
                                  render=False)
 
 plt.figure(figsize=(10,7))
@@ -104,6 +104,7 @@ plt.xlabel("Total env steps")
 
 # plt.figure(figsize=(10,7))
 # plt.hist(x=ticks, rwidth=0.95)
+
 # plt.xlabel("Total env ticks")
 
 # print(ticks)

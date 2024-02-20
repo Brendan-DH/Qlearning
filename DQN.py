@@ -219,6 +219,8 @@ def train_model(
         usePseudorewards=True,          # whether to calculate and use pseudorewards
         max_steps=None,                 # max steps per episode
         batch_size=128,                 # batch size of the replay memory
+        state_tree_capacity=200,      # capacity of the state tree
+        tree_prune_frequency=10,        # number of episodes between pruning the state tree
         plot_frequency=10,              # number of episodes between status plots (0=disabled)
         checkpoint_frequency=0          # number of episodes between saving weights (0=disabled)
 ):
@@ -240,6 +242,8 @@ def train_model(
         usePseudorewards=True,          # whether to calculate and use pseudorewards
         max_steps=None,                 # max steps per episode
         batch_size=128,                 # batch size of the replay memory
+        state_tree_capacity = 200,      # capacity of the state tree
+        tree_prune_frequency=10,        # number of episodes between pruning the state tree
         plot_frequency=10,              # number of episodes between status plots (0=disabled)
         checkpoint_frequency=0          # number of episodes between saving weights (0=disabled)
 
@@ -273,6 +277,8 @@ def train_model(
             epsilon_decay_function = {"default" if not epsilon_decay_function else "custom"}
             alpha = {alpha}
             tau = {tau}
+            state_tree_capacity = {state_tree_capacity}
+            tree_prune_frequency = {tree_prune_frequency}
             max_steps = {"as per env" if not max_steps else max_steps}
             batch_size = {batch_size}
 
@@ -283,14 +289,23 @@ def train_model(
             checkpoint_frequency = {checkpoint_frequency}
           """)
 
+    # Initialisation of NN apparatus
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
     memory = ReplayMemory(10000)
     torch.set_grad_enabled(True)
-    if(reset_options and reset_options["type"] == "statetree"):
-        state, info = env.reset()
-        state_tree = np.array([hashdict(state) for i in range(100)], dtype=hashdict)
-        state_tree_utilities = np.ones((100)) * -1000
 
+    state, info = env.reset()  # reset to init
+    # state tree reset optimisation
+    if(reset_options and reset_options["type"] == "statetree"):
+        prior_state = state
+        prior_utility = -1000
+        state_tree = np.array([hashdict(state) for i in range(state_tree_capacity)], dtype=hashdict)
+        state_tree_utilities = np.ones((state_tree_capacity)) * -1000
+        state_tree_priors = np.array([hashdict(state) for i in range(state_tree_capacity)], dtype=hashdict)
+        state_tree_prior_utilities = np.ones((state_tree_capacity)) * -1000
+
+    # Initialise some hyperparameters
+    # if no decay function is supplied, set it to a default exponential decay
     if epsilon_decay_function is None:
         decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes)  # ensures epsilon ~= epsilon_min at end
 
@@ -302,38 +317,36 @@ def train_model(
                                              min_epsilon_time=0,
                                              decay_rate=decay_rate,
                                              num_episodes=num_eps)
-
     if not max_steps:
-        max_steps = np.inf
+        max_steps = np.inf  # rememeber: ultimately defined by the gym environment
 
+    # Loop over training epsiodes
     start_time = time.time()
     for i_episode in range(num_episodes):
+
+        # calculate the new epsilon
+        epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
+        epsilons.append(epsilon)
+
         # Initialize the environment and get its state
         if reset_options:
-            # if using the state tree approach, use the initial state with a set chance
-            # otherwise, use a state sampled from the state tree
             if(reset_options["type"] == "statetree"):
-
-                if(np.random.random() < 0.5):
+                if(np.random.random() > epsilon):
                     state, info = env.reset()
                 else:
                     reset_state = random.choice(state_tree)
                     state, info = env.reset(options={"type" : "state", "state" : reset_state})
-
-            state, info = env.reset(options=reset_options.copy())
+            # plot_state_tree(state_tree, env)
         else:
             state, info = env.reset()
 
+        # Initialise the first state
         if(usePseudorewards):
             phi_sprime = info["pseudoreward"]  # phi_sprime is the pseudoreward of the new state
-
         stateT = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
-
-        epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
-        epsilons.append(epsilon)
-
         ep_reward = 0
 
+        # Navigate the environment
         for t in count():
 
             # calculate action utilities and choose action
@@ -344,21 +357,65 @@ def train_model(
             else:
                 action = action_utilities.max(1)[1].view(1, 1)
 
-            # deal with state tree resets:
+            # deal with state tree resets: ####################################
             if(reset_options and reset_options["type"] == "statetree" and t > 0):
-                hashedState = hashdict(state)
+                # print(state)
+                hashedState = hashdict(env.state)  # note state is the old state here
+                av_utility = np.max(action_utilities.tolist())
+                # print(np.mean(state_tree_utilities))
                 if(hashedState not in state_tree):
-                    av_utility = np.mean(action_utilities.tolist())
-                    start_point = random.randint(0, len(state_tree) - 11)  # doing it like this makes the very last state unlikely to be replaced
+                    # print(f"{hashedState} not in tree")
+                    # doing it like this makes the very last state unlikely to be replaced
+                    start_point = random.randint(0, len(state_tree) - 11)
                     for i in range(start_point, start_point + 10):
                         if(state_tree_utilities[i] < av_utility):
-                            # print(np.mean(state_tree_utilities))
+                            # print("replace", i)
                             state_tree[i] = hashedState
                             state_tree_utilities[i] = av_utility
+                            state_tree_priors[i] = hashdict(prior_state)
+                            state_tree_prior_utilities[i] = prior_utility
                             break
+                else:
+                    # the random choice will be invoked when all states are init
+                    state_index = random.choice(np.argwhere(state_tree == hashedState))
+                    if (state_tree_prior_utilities[state_index] < prior_utility):
+                        state_tree_priors[state_index] = prior_state
+                        state_tree_prior_utilities[state_index] = prior_utility
 
+                # prune the tree every so often
+                # one could also do this continuously whilst checking the utility of prior states
+                if(t % tree_prune_frequency == 0 and t != 0):
+                    counter = 0
+                    # print("tree")
+                    # print(state_tree)
+                    for i in range(len(state_tree)):
+                        # print("prior")
+                        # print(state_tree_priors[i])
+                        if (state_tree_priors[i] not in state_tree):
+                            state_tree[i] = hashdict(env.initial_state)
+                            state_tree_utilities[i] = -1000
+                            state_tree_priors[i] = hashdict(env.initial_state)
+                            state_tree_prior_utilities[i] = -1000
+                            counter += 1
+                            # print("removal")
+                    # print(f"Prune ({t}, {counter} removals)")
+                    # surviving_indices = np.argwhere(state_tree != -1)
+                    # for i in range(len(state_tree)):
+                    #     if i not in surviving_indices:
+                    #         random_surviving_index = random.choice(surviving_indices).item()
+                    #         state_tree[i] = state_tree[random_surviving_index].copy()
+                    #         state_tree_utilities[i] = state_tree_utilities[random_surviving_index].copy()
+                    #         state_tree_priors[i] = state_tree_priors[random_surviving_index].copy()
+                    #         state_tree_prior_utilities[i] = state_tree_utilities[random_surviving_index].copy()
+                    # # print("new tree")
+                    # print(state_tree)
+                # set the new prior state for next loop
+                prior_state = hashdict(env.state)
+                prior_utility = av_utility
+            # #################################################################
+
+            # apply action to environment
             observation, reward, terminated, truncated, info = env.step(action)
-            elapsed_steps = info["elapsed steps"]
 
             # calculate pseudoreward
             if(usePseudorewards):
@@ -368,33 +425,37 @@ def train_model(
             else:
                 pseudoreward = 0
 
+            # calculate reward
             reward = torch.tensor([reward + pseudoreward], device=device)
             ep_reward += reward.item()
 
+            # work out if the run is over
             done = terminated or truncated or (t > max_steps)
-            # print(terminated, truncated, t, done)
-
             if terminated:
                 next_stateT = None
             else:
                 next_stateT = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
-            memory.push(stateT, action, next_stateT, reward)  # Store the transition in memory
+            # move transition to the replay memory
+            memory.push(stateT, action, next_stateT, reward)
             stateT = next_stateT
 
+            # run optimiser
             optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
 
-            # Soft update of the target DeepQNetwork
+            # Soft-update the target net
             target_net_state_dict = target_net.state_dict()
             policy_net_state_dict = policy_net.state_dict()
             for key in policy_net_state_dict:
                 target_net_state_dict[key] = policy_net_state_dict[key] * tau + target_net_state_dict[key] * (1 - tau)
             target_net.load_state_dict(target_net_state_dict)
 
+            # if done, process data and make plots
             if done:
-                episode_durations.append(elapsed_steps)
+                episode_durations.append(info["elapsed steps"])
                 rewards.append(ep_reward)
                 if (plot_frequency != 0 and i_episode % plot_frequency == 0 and i_episode > 0):
+                    # plot_state_tree(state_tree, env, False)
                     f = plot_status(episode_durations, rewards, epsilons)
                     plt.show()
                     plt.close(f)
@@ -452,14 +513,22 @@ def optimise_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batc
     optimiser.step()
 
 
+def plot_state_tree(state_tree, env, reset=False):
+    plt.figure(figsize=(10,10))
+    plt.scatter([state["x"] for state in state_tree], [state["y"] for state in state_tree])
+    plt.plot([env.goal[0]], [env.goal[1]], marker="x", color="orange", markersize=10)
+    if(reset):
+        plt.plot([env.state["x"]], [env.state["y"]], marker="$O$", color="magenta", markersize=20)
+    else:
+        plt.plot([env.state["x"]], [env.state["y"]], marker="x", color="red", markersize=10)
+
+    plt.show()
+
+
 def evaluate_model(dqn,
                    num_episodes,
-                   system_parameters,
+                   env,
                    reset_options=None,
-                   env_name=None,
-                   transition_model=None,
-                   reward_model=None,
-                   blocked_model=None,
                    render=False):
 
     print("Evaluating...")
@@ -468,20 +537,13 @@ def evaluate_model(dqn,
         print("Cannot render on windows...")
         render = False
 
-    env = gym.make(env_name,
-                   system_parameters=system_parameters,
-                   transition_model=transition_model,
-                   reward_model=reward_model,
-                   blocked_model=blocked_model,
-                   training=True,
-                   render_mode="human" if render else None)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Evaluation running on {device}.")
 
     # ticks = []
     # goal_resolutions = []
     steps = []
+    deadlock_counter = 0
 
     for i in range(num_episodes):
         if(reset_options):
@@ -512,7 +574,9 @@ def evaluate_model(dqn,
                 break
 
         if(not done):
-            print("deadlock", observation, action)
+            deadlock_counter += 1
+            print(f"failed ({deadlock_counter})")
+
         steps.append(t)
 
     # ticks = np.array(ticks)
@@ -543,11 +607,10 @@ def evaluate_model(dqn,
 
     return states, actions, steps  # states, actions, ticks, steps
 
+
 def verify_model(policy_net, env):
     """
     Inputs:
         policy_net - the NN encoding the policy to be verified
         env  - the environment in which the policy operates
     """
-    
-    
