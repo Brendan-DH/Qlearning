@@ -22,8 +22,8 @@ starting_parameters = DQN.system_parameters(
     size=12,
     robot_status=[1,1,1],
     robot_locations=[1,5,6],
-    goal_locations=[11,3,5],  # 2,8,0],
-    goal_probabilities=[0.7,0.7,0.7],  # 0.7],  # 0.7, 0.7,0.7],
+    goal_locations=[11,3,5,2,8],
+    goal_probabilities=[0.7,0.7,0.7, 0.7, 0.7],
     goal_instantiations=[0,0,0,0,0,0],
     goal_resolutions=[0,0,0,0,0,0],
     goal_checked=[0,0,0,0,0,0,0],
@@ -78,11 +78,11 @@ except NameError:
                                                 alpha=1e-3,
                                                 gamma=0.2,
                                                 reset_options={"type": "statetree"},
-                                                num_episodes=500,
+                                                num_episodes=3000,
                                                 usePseudorewards=True,
-                                                plot_frequency=20,
-                                                tree_prune_frequency=10000,
-                                                state_tree_capacity=100,
+                                                plot_frequency=200,
+                                                tree_prune_frequency=1e9,
+                                                state_tree_capacity=300,
                                                 batch_size=256)
 
     filename = f"saved_weights_{int(np.random.rand()*1e6)}"

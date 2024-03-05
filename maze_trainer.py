@@ -12,8 +12,8 @@ import DQN
 device = "cpu"
 
 env = gym.make("MazeEnv",
-               size=100,
-               goal=[99,99],
+               size=10,
+               goal=[9,9],
                walls=[])
 
 state, info = env.reset()

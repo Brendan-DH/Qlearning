@@ -15,6 +15,7 @@ from collections import namedtuple, deque
 from itertools import count
 import numpy as np
 
+from torch.optim.lr_scheduler import LambdaLR
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -357,6 +358,35 @@ def train_model(
             else:
                 action = action_utilities.max(1)[1].view(1, 1)
 
+            # apply action to environment
+            observation, reward, terminated, truncated, info = env.step(action)
+
+            # calculate pseudoreward
+            if(usePseudorewards):
+                phi = phi_sprime
+                phi_sprime = info["pseudoreward"]
+                pseudoreward = (gamma * phi_sprime - phi)
+            else:
+                pseudoreward = 0
+
+            # calculate reward
+            reward = torch.tensor([reward + pseudoreward], device=device)
+            ep_reward += reward.item()
+
+            # work out if the run is over
+            done = terminated or truncated or (t > max_steps)
+            if terminated:
+                next_stateT = None
+            else:
+                next_stateT = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
+
+            # move transition to the replay memory
+            memory.push(stateT, action, next_stateT, reward)
+            stateT = next_stateT
+
+            # run optimiser
+            optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
+
             # deal with state tree resets: ####################################
             if(reset_options and reset_options["type"] == "statetree" and t > 0):
                 # print(state)
@@ -413,35 +443,6 @@ def train_model(
                 prior_state = hashdict(env.state)
                 prior_utility = av_utility
             # #################################################################
-
-            # apply action to environment
-            observation, reward, terminated, truncated, info = env.step(action)
-
-            # calculate pseudoreward
-            if(usePseudorewards):
-                phi = phi_sprime
-                phi_sprime = info["pseudoreward"]
-                pseudoreward = (gamma * phi_sprime - phi)
-            else:
-                pseudoreward = 0
-
-            # calculate reward
-            reward = torch.tensor([reward + pseudoreward], device=device)
-            ep_reward += reward.item()
-
-            # work out if the run is over
-            done = terminated or truncated or (t > max_steps)
-            if terminated:
-                next_stateT = None
-            else:
-                next_stateT = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
-
-            # move transition to the replay memory
-            memory.push(stateT, action, next_stateT, reward)
-            stateT = next_stateT
-
-            # run optimiser
-            optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
 
             # Soft-update the target net
             target_net_state_dict = target_net.state_dict()
@@ -575,7 +576,6 @@ def evaluate_model(dqn,
 
         if(not done):
             deadlock_counter += 1
-            print(f"failed ({deadlock_counter})")
 
         steps.append(t)
 
@@ -604,6 +604,7 @@ def evaluate_model(dqn,
     # plt.show()
 
     print("Evaluation complete.")
+    print(f"Failed to complete {deadlock_counter} times")
 
     return states, actions, steps  # states, actions, ticks, steps
 
