@@ -13,20 +13,18 @@ import torch
 import DQN
 import os
 import numpy as np
-import mdp_translation as mdpt
+import transition_model as mdpt
 # from abc import ABC, abstractmethod
-env_to_use = "Tokamak-v9"
+env_to_use = "Tokamak-v10"
 
 
 starting_parameters = DQN.system_parameters(
     size=12,
     robot_status=[1,1,1],
     robot_locations=[1,5,6],
-    goal_locations=[11,3,5,2,8],
-    goal_probabilities=[0.7,0.7,0.7, 0.7, 0.7],
-    goal_instantiations=[0,0,0,0,0,0],
-    goal_resolutions=[0,0,0,0,0,0],
-    goal_checked=[0,0,0,0,0,0,0],
+    goal_locations=[11,3,5,2,8,7],
+    goal_probabilities=[0.7,0.7,0.7, 0.7, 0.7,0.7],
+    goal_activations=[1,1,1,1,1,1],
     elapsed_ticks=0,
 )
 
@@ -77,7 +75,7 @@ except NameError:
                                                 # epsilon_min=0,
                                                 alpha=1e-3,
                                                 gamma=0.2,
-                                                reset_options={"type": "statetree"},
+                                                # reset_options={"type": "statetree"},
                                                 num_episodes=3000,
                                                 usePseudorewards=True,
                                                 plot_frequency=200,

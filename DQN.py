@@ -33,9 +33,7 @@ system_parameters = namedtuple("system_parameters",
                                 "robot_locations",
                                 "goal_locations",
                                 "goal_probabilities",
-                                "goal_instantiations",
-                                "goal_resolutions",
-                                "goal_checked",
+                                "goal_activations",
                                 "elapsed_ticks"
                                 ))
 
@@ -79,7 +77,8 @@ class DeepQNetwork(nn.Module):
         super(DeepQNetwork, self).__init__()
         self.layer1 = nn.Linear(n_observations, 128)
         self.layer2 = nn.Linear(128, 128)
-        self.layer3 = nn.Linear(128, n_actions)
+        self.layer3 = nn.Linear(128, 128)
+        self.layer4 = nn.Linear(128, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
@@ -88,7 +87,8 @@ class DeepQNetwork(nn.Module):
         try:
             x = F.relu(self.layer1(x))
             x = F.relu(self.layer2(x))
-            return self.layer3(x)
+            x = F.relu(self.layer3(x))
+            return self.layer4(x)
         except RuntimeError:
             print(x)
 
