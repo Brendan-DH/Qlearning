@@ -33,9 +33,7 @@ system_parameters = namedtuple("system_parameters",
                                 "robot_locations",
                                 "goal_locations",
                                 "goal_probabilities",
-                                "goal_instantiations",
-                                "goal_resolutions",
-                                "goal_checked",
+                                "goal_activations",
                                 "elapsed_ticks"
                                 ))
 
@@ -77,11 +75,10 @@ class DeepQNetwork(nn.Module):
 
     def __init__(self, n_observations, n_actions):
         super(DeepQNetwork, self).__init__()
-        self.input_layer = nn.Linear(n_observations, 128)
-        self.hidden_layer1 = nn.Linear(128, 128)
-        self.hidden_layer2 = nn.Linear(128, 128)
-        self.hidden_layer3 = nn.Linear(128, 128)
-        self.ouput_layer = nn.Linear(128, n_actions)
+        self.layer1 = nn.Linear(n_observations, 128)
+        self.layer2 = nn.Linear(128, 128)
+        self.layer3 = nn.Linear(128, 128)
+        self.layer4 = nn.Linear(128, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
@@ -90,7 +87,8 @@ class DeepQNetwork(nn.Module):
         try:
             x = F.relu(self.layer1(x))
             x = F.relu(self.layer2(x))
-            return self.layer3(x)
+            x = F.relu(self.layer3(x))
+            return self.layer4(x)
         except RuntimeError:
             print(x)
 
@@ -321,11 +319,14 @@ def train_model(
                                              decay_rate=decay_rate,
                                              num_episodes=num_eps)
     if not max_steps:
-        max_steps = np.inf  # rememeber: ultimately defined by the gym environment
+        max_steps = np.inf  # remember: ultimately defined by the gym environment
 
     # Loop over training epsiodes
     start_time = time.time()
     for i_episode in range(num_episodes):
+
+        if((i_episode % int(num_episodes / 10)) == 0):
+            print(f"{i_episode}/{num_episodes} complete...")
 
         # calculate the new epsilon
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
@@ -540,6 +541,9 @@ def evaluate_model(dqn,
         print("Cannot render on windows...")
         render = False
 
+    env.set_rendering(render)
+
+    print(render, env.render)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Evaluation running on {device}.")
 
@@ -560,12 +564,16 @@ def evaluate_model(dqn,
 
         for t in count():
 
-            action = select_action(dqn, env, state, 0)
+            action_utilities = dqn.forward(state)
+            action = action_utilities.max(1)[1].view(1, 1)
+
+            # apply action to environment
             observation, reward, terminated, truncated, info = env.step(action.item())
-            state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
             states.append(observation)
             actions.append(action)
+
+            state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
             done = terminated
 
@@ -606,7 +614,7 @@ def evaluate_model(dqn,
     # plt.show()
 
     print("Evaluation complete.")
-    print(f"Failed to complete {deadlock_counter} times")
+    print(f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter==0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
 
     return states, actions, steps  # states, actions, ticks, steps
 

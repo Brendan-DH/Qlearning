@@ -13,20 +13,18 @@ import torch
 import DQN
 import os
 import numpy as np
-import mdp_translation as mdpt
+import system_logic.probabilstic_completion as mdpt
 # from abc import ABC, abstractmethod
-env_to_use = "Tokamak-v9"
-
+env_to_use = "Tokamak-v10"
+env_size = 12
 
 starting_parameters = DQN.system_parameters(
-    size=12,
+    size=env_size,
     robot_status=[1,1,1],
-    robot_locations=[1,5,6],
-    goal_locations=[11,3,5,2,8],
-    goal_probabilities=[0.7,0.7,0.7, 0.7, 0.7],
-    goal_instantiations=[0,0,0,0,0,0],
-    goal_resolutions=[0,0,0,0,0,0],
-    goal_checked=[0,0,0,0,0,0,0],
+    robot_locations=[1,2,3],
+    goal_locations=[i for i in range(env_size)],
+    goal_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
+    goal_activations=[1 for i in range(0, env_size)],
     elapsed_ticks=0,
 )
 
@@ -35,8 +33,7 @@ env = gym.make(env_to_use,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
-               training=True,
-               render_mode=None)
+               training=True)
 
 
 state, info = env.reset()
@@ -73,16 +70,17 @@ except NameError:
     trained_dqn, dur, re, eps = DQN.train_model(env,
                                                 policy_net,
                                                 target_net,
-                                                epsilon_decay_function=decay_function,
-                                                # epsilon_min=0,
-                                                alpha=1e-3,
-                                                gamma=0.2,
+                                                # epsilon_decay_function=decay_function,
+                                                epsilon_min=0,
+                                                alpha=1e-4,
+                                                gamma=0.95,
                                                 reset_options={"type": "statetree"},
-                                                num_episodes=3000,
+                                                num_episodes=4000,
                                                 usePseudorewards=True,
-                                                plot_frequency=200,
+                                                plot_frequency=np.inf,
+                                                max_steps=500,
                                                 tree_prune_frequency=1e9,
-                                                state_tree_capacity=300,
+                                                state_tree_capacity=100,
                                                 batch_size=256)
 
     filename = f"saved_weights_{int(np.random.rand()*1e6)}"

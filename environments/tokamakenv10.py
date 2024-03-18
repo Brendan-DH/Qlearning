@@ -10,16 +10,16 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import pygame
-import random
-from collections import namedtuple, deque
-from DQN import hashdict
 
 
-class TokamakEnv9(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+class TokamakEnv10(gym.Env):
+    metadata = {"render_modes": [], "render_fps": 4}
 
     # def set_parameters(size, num_active, num_goals, goal_locations):
     #     return None
+
+    def set_rendering(self, rendering):
+        self.render = rendering
 
     def __init__(self,
                  system_parameters,
@@ -27,7 +27,7 @@ class TokamakEnv9(gym.Env):
                  blocked_model,
                  reward_model,
                  training=True,
-                 render_mode=None):
+                 render=False):
 
         # operational parameters
         state = {}
@@ -37,22 +37,22 @@ class TokamakEnv9(gym.Env):
         self.blocked_model = blocked_model
         self.runstates = []
         self.statetree = []
+        self.render = render
 
         for i in range(len(system_parameters.robot_locations)):
             state[f"robot{i} location"] = system_parameters.robot_locations[i]
             state[f"robot{i} clock"] = 0
         for i in range(len(system_parameters.goal_locations)):
             state[f"goal{i} location"] = system_parameters.goal_locations[i]
-            state[f"goal{i} checked"] = system_parameters.goal_checked[i]
-            state[f"goal{i} instantiated"] = system_parameters.goal_instantiations[i]
             state[f"goal{i} probability"] = system_parameters.goal_probabilities[i]
+            state[f"goal{i} active"] = system_parameters.goal_activations[i]
+
         # state["elapsed ticks"] = system_parameters.elapsed_ticks
 
         self.state = state.copy()
         self.initial_state = state.copy()
 
         # non-operational (static/inherited) parameters
-        self.goal_resolutions = system_parameters.goal_resolutions
         self.size = system_parameters.size
         self.elapsed_steps = 0
         self.start_locations = np.array(system_parameters.robot_locations.copy())
@@ -68,7 +68,7 @@ class TokamakEnv9(gym.Env):
         self.window_size = 700  # The size of the PyGame window
         self.num_actions = 3  # this can be changed for dev purposes
         self.most_recent_actions = np.empty((3), np.dtype('U100'))
-        self.render_mode = render_mode
+        # self.render_mode = render_mode
 
         # observations are an exact copy of 'state'
         obDict = {}
@@ -78,8 +78,7 @@ class TokamakEnv9(gym.Env):
         for i in range(0,self.num_goals):
             obDict[f"goal{i} location"] = spaces.Discrete(self.size)
             obDict[f"goal{i} probability"] = spaces.Box(low=0, high=1, shape=[1])  # continuous variable in [0,1]. sample() returns array though.
-            obDict[f"goal{i} instantiated"] = spaces.Discrete(2)
-            obDict[f"goal{i} checked"] = spaces.Discrete(2)  # records if a goal has been visited yet
+            obDict[f"goal{i} active"] = spaces.Discrete(2)
         # obDict["elapsed ticks"] = spaces.Discrete(100)
 
         self.action_labels = [
@@ -100,24 +99,24 @@ class TokamakEnv9(gym.Env):
         # move clockwise/anticlockwise, engage
         self.action_space = spaces.Discrete(self.num_robots * self.num_actions)
 
-        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        # assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.window = None
         self.clock = None
         self.reset()
 
     def get_parameters(self):
-        parameters = {
-            "size": self.size,
-            "num_active" : self.num_robots,
-            "robot_locations" : self.robot_locations,
-            "goal_locations" : self.goal_locations,
-            "goal_probabilities" : self.goal_probabilities,
-            "goal_instantiations" : self.goal_instantiations,
-            "goal_checked" : self.goal_checked,
-            # "elapsed" : self.elapsed
-        }
+        # parameters = {
+        #     "size": self.size,
+        #     "num_active" : self.num_robots,
+        #     "robot_locations" : self.robot_locations,
+        #     "goal_locations" : self.goal_locations,
+        #     "goal_probabilities" : self.goal_probabilities,
+        #     "goal_activations" : self.goal_activations,
+        #     # "elapsed" : self.elapsed
+        # }
+        # return parameters
 
-        return parameters
+        raise NotImplementedError()
 
     def get_obs(self):
         return self.state.copy()
@@ -166,7 +165,7 @@ class TokamakEnv9(gym.Env):
 
         info = self.get_info()
 
-        if self.render_mode == "human":
+        if self.render:
             self.render_frame(self.state, info)
 
         return self.get_obs(), info
@@ -178,7 +177,7 @@ class TokamakEnv9(gym.Env):
             rob_pos = self.state[f"robot{i} location"]
             min_mod_dist = self.size * 2
             for j in range(self.num_goals):
-                if self.state[f"goal{j} probability"] == 0:  # this goal is already completed
+                if self.state[f"goal{j} active"] == 0:  # this goal is already completed
                     pass
                 else:
                     goal_pos = self.state[f"goal{j} location"]
@@ -226,7 +225,7 @@ class TokamakEnv9(gym.Env):
         # set terminated (all goals checked and not instantiated)
         terminated = True
         for i in range(self.num_goals):
-            if (self.state[f"goal{i} checked"] == 0 or self.state[f"goal{i} instantiated"] == 1):
+            if (self.state[f"goal{i} active"] == 1):
                 terminated = False
                 break
 
@@ -239,7 +238,7 @@ class TokamakEnv9(gym.Env):
 
         info = self.get_info()
 
-        if self.render_mode == "human":
+        if self.render:
             # checking if the robot performed a wait action
             robot_no = int(np.floor(action / self.num_actions))
             if(self.blocked_model(self, old_state)[action]):
@@ -258,13 +257,13 @@ class TokamakEnv9(gym.Env):
     def render_frame(self, state, info):
         # note: the -np.pi is to keep the segments consistent with the jorek interpreter
 
-        if self.window is None and self.render_mode == "human":
+        if self.window is None:
             pygame.init()
             pygame.display.init()
             self.window = pygame.display.set_mode(
                 (self.window_size * 1.3, self.window_size)
             )
-        if self.clock is None and self.render_mode == "human":
+        if self.clock is None:
             self.clock = pygame.time.Clock()
 
         font = pygame.font.SysFont('notosans', 25)
@@ -299,19 +298,12 @@ class TokamakEnv9(gym.Env):
             pos = state[f"goal{i} location"]
             xpos = tokamak_centre[0] + tokamak_r * 3 / 4 * np.cos(angle * pos - np.pi)
             ypos = tokamak_centre[1] + tokamak_r * 3 / 4 * np.sin(angle * pos - np.pi)
-            if(state[f"goal{i} checked"] == 0):
-                text = font.render(f"goal{i} probability", True, (255,255,255))
-                colour = (255,0,0)
-            elif(state[f"goal{i} checked"] == 1):
-                # if(info[f"goal{i} resolution"] == 0):
-                #     text = font.render("0", True, (255,255,255))
-                #     colour = (200,200,200)
-                if(state[f"goal{i} instantiated"] == 1):
-                    text = font.render(str(state[f"goal{i} probability"]), True, (255,255,255))
-                    colour = (0,200,0)
-                elif(state[f"goal{i} instantiated"] == 0):
-                    text = font.render(str(state[f"goal{i} probability"]), True, (255,255,255))
-                    colour = (0,200,0)
+            if(state[f"goal{i} active"] == 1):
+                text = font.render(str(state[f"goal{i} probability"]), True, (255,255,255))
+                colour = (0,200,0)
+            elif(state[f"goal{i} active"] == 0):
+                text = font.render(str(state[f"goal{i} probability"]), True, (255,255,255))
+                colour = (100,100,100)
 
             circ = pygame.draw.circle(canvas, colour, (xpos, ypos), 30)  # maybe make these rects again
 
@@ -363,19 +355,14 @@ class TokamakEnv9(gym.Env):
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,120), (40, 40)))
         canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0,0,0)), rect)
 
-        if self.render_mode == "human":
-            # The following line copies our drawings from `canvas` to the visible window
-            self.window.blit(canvas, canvas.get_rect())
-            pygame.event.pump()
-            pygame.display.update()
+        # The following line copies our drawings from `canvas` to the visible window
+        self.window.blit(canvas, canvas.get_rect())
+        pygame.event.pump()
+        pygame.display.update()
 
-            # We need to ensure that human-rendering occurs at the predefined framerate.
-            # The following line will automatically add a delay to keep the framerate stable.
-            self.clock.tick(self.metadata["render_fps"])
-        else:  # rgb_array
-            return np.transpose(
-                np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
-            )
+        # We need to ensure that human-rendering occurs at the predefined framerate.
+        # The following line will automatically add a delay to keep the framerate stable.
+        self.clock.tick(self.metadata["render_fps"])
 
     def close(self):
         if self.window is not None:
