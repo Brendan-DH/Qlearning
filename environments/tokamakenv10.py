@@ -13,10 +13,13 @@ import pygame
 
 
 class TokamakEnv10(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+    metadata = {"render_modes": [], "render_fps": 4}
 
     # def set_parameters(size, num_active, num_goals, goal_locations):
     #     return None
+
+    def set_rendering(self, rendering):
+        self.render = rendering
 
     def __init__(self,
                  system_parameters,
@@ -24,7 +27,6 @@ class TokamakEnv10(gym.Env):
                  blocked_model,
                  reward_model,
                  training=True,
-                 render_mode="human",
                  render=False):
 
         # operational parameters
@@ -66,7 +68,7 @@ class TokamakEnv10(gym.Env):
         self.window_size = 700  # The size of the PyGame window
         self.num_actions = 3  # this can be changed for dev purposes
         self.most_recent_actions = np.empty((3), np.dtype('U100'))
-        self.render_mode = render_mode
+        # self.render_mode = render_mode
 
         # observations are an exact copy of 'state'
         obDict = {}
@@ -97,7 +99,7 @@ class TokamakEnv10(gym.Env):
         # move clockwise/anticlockwise, engage
         self.action_space = spaces.Discrete(self.num_robots * self.num_actions)
 
-        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        # assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.window = None
         self.clock = None
         self.reset()
@@ -163,7 +165,7 @@ class TokamakEnv10(gym.Env):
 
         info = self.get_info()
 
-        if self.render_mode == "human":
+        if self.render:
             self.render_frame(self.state, info)
 
         return self.get_obs(), info
@@ -255,13 +257,13 @@ class TokamakEnv10(gym.Env):
     def render_frame(self, state, info):
         # note: the -np.pi is to keep the segments consistent with the jorek interpreter
 
-        if self.window is None and self.render_mode == "human":
+        if self.window is None:
             pygame.init()
             pygame.display.init()
             self.window = pygame.display.set_mode(
                 (self.window_size * 1.3, self.window_size)
             )
-        if self.clock is None and self.render_mode == "human":
+        if self.clock is None:
             self.clock = pygame.time.Clock()
 
         font = pygame.font.SysFont('notosans', 25)
@@ -353,19 +355,14 @@ class TokamakEnv10(gym.Env):
         rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,120), (40, 40)))
         canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0,0,0)), rect)
 
-        if self.render_mode == "human":
-            # The following line copies our drawings from `canvas` to the visible window
-            self.window.blit(canvas, canvas.get_rect())
-            pygame.event.pump()
-            pygame.display.update()
+        # The following line copies our drawings from `canvas` to the visible window
+        self.window.blit(canvas, canvas.get_rect())
+        pygame.event.pump()
+        pygame.display.update()
 
-            # We need to ensure that human-rendering occurs at the predefined framerate.
-            # The following line will automatically add a delay to keep the framerate stable.
-            self.clock.tick(self.metadata["render_fps"])
-        else:  # rgb_array
-            return np.transpose(
-                np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
-            )
+        # We need to ensure that human-rendering occurs at the predefined framerate.
+        # The following line will automatically add a delay to keep the framerate stable.
+        self.clock.tick(self.metadata["render_fps"])
 
     def close(self):
         if self.window is not None:

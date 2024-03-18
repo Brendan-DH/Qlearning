@@ -319,11 +319,14 @@ def train_model(
                                              decay_rate=decay_rate,
                                              num_episodes=num_eps)
     if not max_steps:
-        max_steps = np.inf  # rememeber: ultimately defined by the gym environment
+        max_steps = np.inf  # remember: ultimately defined by the gym environment
 
     # Loop over training epsiodes
     start_time = time.time()
     for i_episode in range(num_episodes):
+
+        if((i_episode % int(num_episodes / 10)) == 0):
+            print(f"{i_episode}/{num_episodes} complete...")
 
         # calculate the new epsilon
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
@@ -538,6 +541,9 @@ def evaluate_model(dqn,
         print("Cannot render on windows...")
         render = False
 
+    env.set_rendering(render)
+
+    print(render, env.render)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Evaluation running on {device}.")
 
@@ -558,12 +564,16 @@ def evaluate_model(dqn,
 
         for t in count():
 
-            action = select_action(dqn, env, state, 0)
+            action_utilities = dqn.forward(state)
+            action = action_utilities.max(1)[1].view(1, 1)
+
+            # apply action to environment
             observation, reward, terminated, truncated, info = env.step(action.item())
-            state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
             states.append(observation)
             actions.append(action)
+
+            state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
             done = terminated
 
@@ -604,7 +614,7 @@ def evaluate_model(dqn,
     # plt.show()
 
     print("Evaluation complete.")
-    print(f"Failed to complete {deadlock_counter} times")
+    print(f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter==0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
 
     return states, actions, steps  # states, actions, ticks, steps
 
