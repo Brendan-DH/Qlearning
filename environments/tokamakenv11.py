@@ -12,7 +12,7 @@ from gymnasium import spaces
 import pygame
 
 
-class TokamakEnv10(gym.Env):
+class TokamakEnv11(gym.Env):
     metadata = {"render_modes": [], "render_fps": 4}
 
     # def set_parameters(size, num_active, num_goals, goal_locations):
@@ -128,6 +128,13 @@ class TokamakEnv10(gym.Env):
         info["pseudoreward"] = self.pseudoreward_function()
         return info
 
+    def parse_robot_locations(self):
+
+        robot_locations = self.start_locations[np.argwhere(self.robot_status)].flatten()
+        broken_robot_locations = self.start_locations[np.argwhere(self.robot_status - 1)].flatten()
+
+        return robot_locations, broken_robot_locations
+
     # def query_state_action_pair(self, state, action):
 
     def reset(self, seed=None, options=None):
@@ -213,7 +220,7 @@ class TokamakEnv10(gym.Env):
         reward = self.reward_model(self, old_state, action, s_array[chosen_state])
 
         # assume the new state
-        self.state = s_array[chosen_state].copy()
+        self.state = s_array[chosen_state]
 
         # set terminated (all goals checked and not instantiated)
         terminated = True

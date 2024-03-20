@@ -8,5 +8,6 @@ from gymnasium.envs.tokamak.tokamakenv7 import TokamakEnv7
 from gymnasium.envs.tokamak.tokamakenv8 import TokamakEnv8
 from gymnasium.envs.tokamak.tokamakenv9 import TokamakEnv9
 from gymnasium.envs.tokamak.tokamakenv10 import TokamakEnv10
+from gymnasium.envs.tokamak.tokamakenv11 import TokamakEnv11
 from gymnasium.envs.tokamak.mazeenv import MazeEnv
 from gymnasium.envs.tokamak.tokamaktemplater5 import TokamakTemplater5

@@ -18,7 +18,7 @@ import system_logic.probabilstic_completion as mdpt
 env_to_use = "Tokamak-v10"
 env_size = 12
 
-starting_parameters = DQN.system_parameters(
+large_case = DQN.system_parameters(
     size=env_size,
     robot_status=[1,1,1],
     robot_locations=[1,2,3],
@@ -28,8 +28,29 @@ starting_parameters = DQN.system_parameters(
     elapsed_ticks=0,
 )
 
+small_case1 = DQN.system_parameters(
+    size=env_size,
+    robot_status=[1,1,1],
+    robot_locations=[1,2,3],
+    goal_locations=[11, 5, 7],
+    goal_probabilities=[0.95, 0.95, 0.95],
+    goal_activations=[1,1,1],
+    elapsed_ticks=0,
+)
+
+small_case2 = DQN.system_parameters(
+    size=env_size,
+    robot_status=[1,1,1],
+    robot_locations=[1, 5, 6],
+    goal_locations=[11, 3, 5],
+    goal_probabilities=[0.95, 0.95, 0.95],
+    goal_activations=[1,1,1],
+    elapsed_ticks=0,
+)
+
+
 env = gym.make(env_to_use,
-               system_parameters=starting_parameters,
+               system_parameters=large_case,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
@@ -45,7 +66,7 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# saved_weights_name = "saved_weights_23876"  # "saved_weights_182634"
+# saved_weights_name = "saved_weights_754832"
 # scenario_id = 108186
 
 
@@ -74,14 +95,16 @@ except NameError:
                                                 epsilon_min=0,
                                                 alpha=1e-4,
                                                 gamma=0.95,
-                                                reset_options={"type": "statetree"},
-                                                num_episodes=4000,
+                                                # reset_options={"type": "statetree"},
+                                                num_episodes=5000,
                                                 usePseudorewards=True,
-                                                plot_frequency=np.inf,
+                                                plot_frequency=500,
                                                 max_steps=500,
-                                                tree_prune_frequency=1e9,
-                                                state_tree_capacity=100,
-                                                batch_size=256)
+                                                buffer_size=50000,
+                                                # tree_prune_frequency=1e9,
+                                                # state_tree_capacity=100,
+                                                checkpoint_frequency=500,
+                                                batch_size=128)
 
     filename = f"saved_weights_{int(np.random.rand()*1e6)}"
     print(f"Saving as {filename}")
@@ -91,9 +114,9 @@ except NameError:
 
 
 s, a, steps = DQN.evaluate_model(dqn=policy_net,
-                                 num_episodes=1000,
+                                 num_episodes=100,
                                  env=env,
-                                 render=False)
+                                 render=True)
 
 plt.figure(figsize=(10,7))
 plt.hist(x=steps, rwidth=0.95)

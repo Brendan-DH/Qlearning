@@ -58,11 +58,16 @@ class hashdict(dict):
 class ReplayMemory(object):
 
     def __init__(self, capacity):
+        self.capacity = capacity
+        self.warning = False
         self.memory = deque([], maxlen=capacity)
 
     def push(self, *args):
         """Save a transition"""
         self.memory.append(Transition(*args))
+        if(len(self) == self.capacity and self.warning is False):
+            print("REPLAY AT CAPACITY: " + str(len(self)))
+            self.warning = True
 
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
@@ -78,7 +83,8 @@ class DeepQNetwork(nn.Module):
         self.layer1 = nn.Linear(n_observations, 128)
         self.layer2 = nn.Linear(128, 128)
         self.layer3 = nn.Linear(128, 128)
-        self.layer4 = nn.Linear(128, n_actions)
+        self.layer4 = nn.Linear(128, 128)
+        self.layer5 = nn.Linear(128, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
@@ -88,7 +94,8 @@ class DeepQNetwork(nn.Module):
             x = F.relu(self.layer1(x))
             x = F.relu(self.layer2(x))
             x = F.relu(self.layer3(x))
-            return self.layer4(x)
+            x = F.relu(self.layer4(x))
+            return self.layer5(x)
         except RuntimeError:
             print(x)
 
@@ -216,14 +223,16 @@ def train_model(
         epsilon_min=0.05,               # min exploration rate
         epsilon_decay_function=None,    # will be exponential if not set.
         alpha=1e-3,                     # learning rate for policy DeepQNetwork
-        tau=0.005,                      # soft update rate for target DeepQNetwork
+        tau=0.005,                      # soft update rate for ap DeepQNetwork
         usePseudorewards=True,          # whether to calculate and use pseudorewards
         max_steps=None,                 # max steps per episode
         batch_size=128,                 # batch size of the replay memory
-        state_tree_capacity=200,      # capacity of the state tree
+        buffer_size=10000,              # total size of replay memory buffer
+        state_tree_capacity=200,        # capacity of the state tree
         tree_prune_frequency=10,        # number of episodes between pruning the state tree
         plot_frequency=10,              # number of episodes between status plots (0=disabled)
-        checkpoint_frequency=0          # number of episodes between saving weights (0=disabled)
+        checkpoint_frequency=0,          # number of episodes between saving weights (0=disabled)
+        # save_plot_data=False            # whether to save the plotting data to a file
 ):
     """
     For training a DQN on a gymnasium environment.
@@ -243,6 +252,7 @@ def train_model(
         usePseudorewards=True,          # whether to calculate and use pseudorewards
         max_steps=None,                 # max steps per episode
         batch_size=128,                 # batch size of the replay memory
+        buffer_size=10000               # total size of replay memory buffer
         state_tree_capacity = 200,      # capacity of the state tree
         tree_prune_frequency=10,        # number of episodes between pruning the state tree
         plot_frequency=10,              # number of episodes between status plots (0=disabled)
@@ -257,6 +267,7 @@ def train_model(
     episode_durations = []
     rewards = []
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    state_string = str(env.state).replace(',', ',\n\t')
 
     print(f"""
             Commensing training.
@@ -265,7 +276,7 @@ def train_model(
             ----
 
             Environmental parameters:
-            {env.state}
+            {state_string}
             {reset_options}
 
             ----
@@ -282,6 +293,7 @@ def train_model(
             tree_prune_frequency = {tree_prune_frequency}
             max_steps = {"as per env" if not max_steps else max_steps}
             batch_size = {batch_size}
+            buffer_size = {buffer_size}
 
             ----
 
@@ -292,8 +304,13 @@ def train_model(
 
     # Initialisation of NN apparatus
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
-    memory = ReplayMemory(10000)
+    memory = ReplayMemory(buffer_size)
     torch.set_grad_enabled(True)
+    plotting_on = plot_frequency < num_episodes and plot_frequency != 0
+    checkpoints_on = checkpoint_frequency < num_episodes and checkpoint_frequency != 0
+    if(checkpoints_on):
+        file = open(os.getcwd() + "/outputs/checkpoints/diagnostics", "w")
+        file.write("# no data yet...")
 
     state, info = env.reset()  # reset to init
     # state tree reset optimisation
@@ -330,7 +347,8 @@ def train_model(
 
         # calculate the new epsilon
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
-        epsilons.append(epsilon)
+        if(plotting_on or checkpoints_on):
+            epsilons.append(epsilon)
 
         # Initialize the environment and get its state
         if reset_options:
@@ -456,15 +474,18 @@ def train_model(
 
             # if done, process data and make plots
             if done:
-                episode_durations.append(info["elapsed steps"])
-                rewards.append(ep_reward)
-                if (plot_frequency != 0 and i_episode % plot_frequency == 0 and i_episode > 0):
+                if(plotting_on or checkpoints_on):
+                    episode_durations.append(info["elapsed steps"])
+                    rewards.append(ep_reward)
+                if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
                     # plot_state_tree(state_tree, env, False)
                     f = plot_status(episode_durations, rewards, epsilons)
                     plt.show()
                     plt.close(f)
-                if (checkpoint_frequency != 0 and i_episode % checkpoint_frequency == 0 and i_episode > 0):
-                    torch.save(policy_net.state_dict(), os.getcwd() + f"./outputs/policy_weights_{int(np.random.rand()*1e9)}")
+                if (checkpoints_on and i_episode % checkpoint_frequency == 0 and i_episode > 0):
+                    # write durations, rewards and epsilons to file
+                    np.savetxt(os.getcwd() + "/outputs/checkpoints/diagnostics", np.vstack((episode_durations,rewards,epsilons)).transpose())
+                    torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/checkpoints/policy_weights_epoch{i_episode}")
                 break
 
     print(f"Training complete in {int(time.time()-start_time)} seconds.")
@@ -483,11 +504,12 @@ def optimise_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batc
     # etc is a tensor containing all of the corresponding entries of the original transitions array
     batch = Transition(*zip(*transitions))
 
-    # boolean mask of which states are final
+    # boolean mask of which states are final (i.e. termination occurs in this state)
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                             batch.next_state)), device=device, dtype=torch.bool)
-    non_final_next_states = torch.cat([s for s in batch.next_state
-                                       if s is not None])
+
+    # collection of non-final s
+    non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
     state_batch = torch.cat(batch.state)
     action_batch = torch.cat(batch.action)
     reward_batch = torch.cat(batch.reward)
