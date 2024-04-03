@@ -70,15 +70,13 @@ class TokamakEnv11(gym.Env):
         self.most_recent_actions = np.empty((3), np.dtype('U100'))
         # self.render_mode = render_mode
 
-        # observations are an exact copy of 'state'
+        # observations actually contain less info than states now
         obDict = {}
         for i in range(0,self.num_robots):
             obDict[f"robot{i} location"] = spaces.Discrete(self.size)
             obDict[f"robot{i} clock"] = spaces.Discrete(2)  # true = cannot move
         for i in range(0,self.num_goals):
-            obDict[f"goal{i} location"] = spaces.Discrete(self.size)
-            obDict[f"goal{i} probability"] = spaces.Box(low=0, high=1, shape=[1])  # continuous variable in [0,1]. sample() returns array though.
-            obDict[f"goal{i} active"] = spaces.Discrete(2)
+            obDict["active goals"] = spaces.Discrete(len(system_parameters.goal_locations))
         # obDict["elapsed ticks"] = spaces.Discrete(100)
 
         self.action_labels = [
@@ -119,7 +117,13 @@ class TokamakEnv11(gym.Env):
         raise NotImplementedError()
 
     def get_obs(self):
-        return self.state.copy()
+        obs = {}
+        for i in range(0,self.num_robots):
+            obs[f"robot{i} location"] = self.state[f"robot{i} location"]
+            obs[f"robot{i} clock"] = self.state[f"robot{i} clock"]
+        for i in range(0,self.num_goals):
+            obs["active goals"] = np.sum([self.state[f"goal{i} active"] for i in range(0, self.num_goals)])
+        return obs
 
     def get_info(self):
         info = {}
@@ -198,7 +202,7 @@ class TokamakEnv11(gym.Env):
 
         self.elapsed_steps += 1
 
-        old_state = self.get_obs()
+        old_state = self.state.copy()
 
         p_array, s_array = self.transition_model(self, old_state, action)
         #implement r_array/reward
@@ -245,10 +249,11 @@ class TokamakEnv11(gym.Env):
                 self.most_recent_actions[robot_no] = "wait"
             else:
                 self.most_recent_actions[robot_no] = self.action_labels[action]
-                print(self.most_recent_actions)
             self.render_frame(self.state, info)
 
-        return s_array[chosen_state], reward, terminated, False, info
+        obs = self.get_obs()
+
+        return obs, reward, terminated, False, info
 
     def render(self):
         if self.render_mode == "rgb_array":
