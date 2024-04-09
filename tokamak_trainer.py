@@ -99,7 +99,7 @@ case_0goals = DQN.system_parameters(
 )
 
 env = gym.make(env_to_use,
-               system_parameters=large_case_peaked,
+               system_parameters=case_5goals,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
@@ -121,7 +121,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def decay_function(ep, e_max, e_min, num_eps):
-    return DQN.exponential_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min, num_episodes=num_eps, max_epsilon_time=0, min_epsilon_time=100)
+    return DQN.exponential_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min, num_episodes=num_eps, max_epsilon_time=0, min_epsilon_time=0)
 
 
 #%%
@@ -141,17 +141,17 @@ except NameError:
     trained_dqn, dur, re, eps = DQN.train_model(env,
                                                 policy_net,
                                                 target_net,
-                                                # epsilon_decay_function=decay_function,
+                                                epsilon_decay_function=decay_function,
                                                 epsilon_min=0.05,
                                                 alpha=1e-3,
-                                                gamma=0.2,
+                                                gamma=0.5,
                                                 # reset_options={"type": "statetree"},
                                                 num_episodes=3000,
                                                 tau=0.005,
                                                 usePseudorewards=True,
                                                 plot_frequency=100,
-                                                max_steps=100,
-                                                buffer_size=60000,
+                                                max_steps=200,
+                                                buffer_size=40000,
                                                 # tree_prune_frequency=1e9,
                                                 # state_tree_capacity=100,
                                                 checkpoint_frequency=500,
@@ -164,14 +164,22 @@ except NameError:
 #%%
 
 
-s, a, steps = DQN.evaluate_model(dqn=policy_net,
-                                 num_episodes=10000,
-                                 env=env,
-                                 render=False)
+s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
+                                                  num_episodes=100,
+                                                  env=env,
+                                                  render=True)
 
 plt.figure(figsize=(10,7))
 plt.hist(x=steps, rwidth=0.95)
 plt.xlabel("Total env steps")
+
+#%%
+print(len(deadlock_traces))
+
+trace = deadlock_traces[1]
+
+for i in range(len(trace)):
+    env.render_frame(trace[i])
 
 
 # plt.figure(figsize=(10,7))

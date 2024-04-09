@@ -100,6 +100,7 @@ def template_inspect(env, state, action_no):
             state1 = new_state.copy()
             state1[f"goal{i} active"] = 0
             p_array.append(prob1)
+            state1 = clock_effect(env, state1, robot_no)  # at this point, goals have been inspected
             s_array.append(state1)
 
             # this goal does not exist
@@ -107,9 +108,10 @@ def template_inspect(env, state, action_no):
             state2 = new_state.copy()
             state2[f"goal{i} active"] = 1
             p_array.append(prob2)
+            state2 = clock_effect(env, state2, robot_no)  # at this point, goals have been inspected
             s_array.append(state2)
 
-    new_state = clock_effect(env, new_state, robot_no)  # at this point, goals have been inspected
+    state1 = clock_effect(env, state1, robot_no)  # at this point, goals have been inspected
 
     return p_array, s_array
 
@@ -132,10 +134,11 @@ def clock_effect(env, state, robot_no):
 
     new_state = state.copy()
     new_state[f"robot{robot_no} clock"] = 1
+    # print(f"clock: {robot_no}")
 
     for i in range(env.num_robots):
         if new_state[f"robot{i} clock"] == 0:
-            return new_state  # if any clocks are not ticked, return
+            return new_state.copy()  # if any clocks are not ticked, return
 
     # else if all clocks are ticked:
     for i in range(env.num_robots):
@@ -290,10 +293,10 @@ def b_model(env, state):
             blocked_actions[(i * env.num_actions)] = get_counter_cw_blocked(env, state, i)
             blocked_actions[(i * env.num_actions) + 1] = get_cw_blocked(env, state, i)
 
-            block_inspection = 1
+            block_inspection = True
             for k in range(env.num_goals):
                 if (state[f"goal{k} location"] == moving_robot_loc and state[f"goal{k} active"] == 1):
-                    block_inspection = 0  # unblock this engage action
+                    block_inspection = False  # unblock this engage action
                     break
             blocked_actions[(i * env.num_actions) + 2] = block_inspection
 

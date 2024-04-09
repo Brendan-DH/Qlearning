@@ -239,7 +239,7 @@ class TokamakEnv10(gym.Env):
             else:
                 self.most_recent_actions[robot_no] = self.action_labels[action]
                 print(self.most_recent_actions)
-            self.render_frame(self.state, info)
+            self.render_frame(self.state, True)
 
         return s_array[chosen_state], reward, terminated, False, info
 
@@ -247,7 +247,7 @@ class TokamakEnv10(gym.Env):
         if self.render_mode == "rgb_array":
             return self.render_frame()
 
-    def render_frame(self, state, info):
+    def render_frame(self, state, inEnv=False):
         # note: the -np.pi is to keep the segments consistent with the jorek interpreter
 
         if self.window is None:
@@ -339,14 +339,19 @@ class TokamakEnv10(gym.Env):
         # rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,0), (40, 40)))
         # canvas.blit(font.render("t=" + str(state["elapsed ticks"]), True, (0,0,0)), rect)
         # most recent actions
-        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
-        canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0,0,0)), rect)
+        if (inEnv):
+            rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
+            canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0,0,0)), rect)
 
-        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,80), (40, 40)))
-        canvas.blit(font.render("r1: " + str(self.most_recent_actions[1]), True, (0,0,0)), rect)
+            rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,80), (40, 40)))
+            canvas.blit(font.render("r1: " + str(self.most_recent_actions[1]), True, (0,0,0)), rect)
 
-        rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,120), (40, 40)))
-        canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0,0,0)), rect)
+            rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,120), (40, 40)))
+            canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0,0,0)), rect)
+
+        else:
+            rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
+            canvas.blit(font.render("(Trace replay)", True, (0,0,0)), rect)
 
         # The following line copies our drawings from `canvas` to the visible window
         self.window.blit(canvas, canvas.get_rect())

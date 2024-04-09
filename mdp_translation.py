@@ -7,6 +7,7 @@ Created on Wed Jan 17 13:29:40 2024
 """
 
 
+import system_logic.probabilstic_completion as mdpt
 import gymnasium as gym
 from queue import Queue
 import torch
@@ -350,33 +351,34 @@ def get_cw_blocked(env, state, robot_no):
 
 
 #%%
+
+
 if (__name__ == "__main__"):
     # define the initial state
+    env_size = 12
     starting_parameters = DQN.system_parameters(
-        size=12,
+        size=env_size,
         robot_status=[1,1,1],
         robot_locations=[1,5,6],
-        breakage_probability=0.0001,
-        goal_locations=[11,5,2,10,9,8],
-        goal_probabilities=[0.49, 0.9, 0.7, 0.7, 0.4, 0.7],
-        goal_instantiations=[0,1,1,1,0,0],
-        goal_resolutions=[0,1,1,1,0,1],
-        goal_checked=[1,1,1,1,1,1,0],
-        port_locations=[0,11],
-        elapsed=0,
+        goal_locations=[i for i in range(env_size)],
+        goal_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
+        goal_activations=[1 for i in range(env_size)],
+        elapsed_ticks=0,
     )
 
     # create the environment
-    env_to_use = "Tokamak-v8"
+    env_to_use = "Tokamak-v10"
     env = gym.make(env_to_use,
                    system_parameters=starting_parameters,
-                   training=True,
-                   render_mode=None)
+                   transition_model=mdpt.t_model,
+                   reward_model=mdpt.r_model,
+                   blocked_model=mdpt.b_model,
+                   training=True)
 
     # load the DQN
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    saved_weights_name = "saved_weights_182634"
+    saved_weights_name = "large_peaked_weights"
 
     n_actions = env.action_space.n
     state, info = env.reset()

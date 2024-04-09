@@ -145,19 +145,6 @@ class TokamakEnv11(gym.Env):
         # print("reset")
         super().reset(seed=seed)
         if(options):
-            if(options["type"] == "random"):
-                state = {}
-                random_r_locations = np.random.choice([i for i in range(self.size)], size=self.num_robots, replace=False)
-                for i in range(self.num_robots):
-                    state[f"robot{i} location"] = random_r_locations[i]
-                    state[f"robot{i} clock"] = np.random.randint(0,1)
-                for i in range(self.num_goals):
-                    state[f"goal{i} location"] = self.initial_state[f"goal{i} location"]
-                    state[f"goal{i} checked"] = np.random.randint(0,1)
-                    state[f"goal{i} instantiated"] = np.random.randint(0,1)
-                    state[f"goal{i} probability"] = self.initial_state[f"goal{i} probability"]
-                # state["elapsed ticks"] = np.random.randint(0,30)
-                self.state = state.copy()
             if(options["type"] == "state"):
                 # assert options["state"]
                 # print(options["state"])

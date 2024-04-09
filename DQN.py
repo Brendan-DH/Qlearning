@@ -181,15 +181,16 @@ def plot_status(episode_durations, rewards, epsilons):
     return fig
 
 
-def exponential_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_time, min_epsilon_time, decay_rate, num_episodes):
+def exponential_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_time, min_epsilon_time, num_episodes, decay_rate=None):
+
+    if(not decay_rate):
+        decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes - (max_epsilon_time + min_epsilon_time))  # ensures epsilon ~= epsilon_min at end
 
     if(episode < max_epsilon_time):
         # print("max ep")
         epsilon = epsilon_max
     elif(episode > num_episodes - min_epsilon_time):
-        # print("min ep")
-        decay_term = math.exp(-1. * (num_episodes - min_epsilon_time) * decay_rate)
-        epsilon = epsilon_min + (epsilon_max - epsilon_min) * decay_term + 0.025 * np.sin((episode - max_epsilon_time) * 2 * np.pi / 20)
+        epsilon = epsilon_min
     else:
         # print("decaying ep")
         decay_term = math.exp(-1. * (episode - max_epsilon_time) * decay_rate)
@@ -373,6 +374,9 @@ def train_model(
 
             # calculate action utilities and choose action
             action_utilities = policy_net.forward(stateT)
+            # get blocked actions
+            # blocked = env.blocked_model(env, state)
+            # action_utilities = [(action_utilities[i] if not blocked[i] else -1000 for i in range(len(action_utilities)) )]
             if(np.random.random() < epsilon):
                 sample = env.action_space.sample()
                 action = torch.tensor([[sample]], device=device, dtype=torch.long)
@@ -380,7 +384,7 @@ def train_model(
                 action = action_utilities.max(1)[1].view(1, 1)
 
             # apply action to environment
-            observation, reward, terminated, truncated, info = env.step(action)
+            state, reward, terminated, truncated, info = env.step(action)
 
             # calculate pseudoreward
             if(usePseudorewards):
@@ -399,7 +403,7 @@ def train_model(
             if terminated:
                 next_stateT = None
             else:
-                next_stateT = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
+                next_stateT = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
             # move transition to the replay memory
             memory.push(stateT, action, next_stateT, reward)
@@ -474,6 +478,7 @@ def train_model(
 
             # if done, process data and make plots
             if done:
+                # print([env.state[f"goal{i} active"] for i in range(12)])
                 if(plotting_on or checkpoints_on):
                     episode_durations.append(info["elapsed steps"])
                     rewards.append(ep_reward)
@@ -573,6 +578,7 @@ def evaluate_model(dqn,
     # goal_resolutions = []
     steps = []
     deadlock_counter = 0
+    deadlock_traces = []
 
     for i in range(num_episodes):
         if(reset_options):
@@ -607,6 +613,7 @@ def evaluate_model(dqn,
                 break
 
         if(not done):
+            deadlock_traces.append(states)
             deadlock_counter += 1
 
         steps.append(t)
@@ -637,8 +644,9 @@ def evaluate_model(dqn,
 
     print("Evaluation complete.")
     print(f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter==0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
+    print(f"Percentage converged: {100 - (deadlock_counter*100/num_episodes)}")
 
-    return states, actions, steps  # states, actions, ticks, steps
+    return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 
 
 def verify_model(policy_net, env):
