@@ -126,7 +126,7 @@ def plot_status(episode_durations, rewards, epsilons):
     bot_ax = mid_ax.twinx()
     upper_ax = mid_ax.twinx()
 
-    mid_ax.set_ylabel('Duration (ticks)')
+    mid_ax.set_ylabel('Duration (steps)')
     # mid_ax.set_yticks(np.linspace(0,
     #                               np.floor(max(episode_durations) / 5) * int(max(episode_durations)) + 6,
     #                               5))
@@ -315,13 +315,6 @@ def train_model(
 
     state, info = env.reset()  # reset to init
     # state tree reset optimisation
-    if(reset_options and reset_options["type"] == "statetree"):
-        prior_state = state
-        prior_utility = -1000
-        state_tree = np.array([hashdict(state) for i in range(state_tree_capacity)], dtype=hashdict)
-        state_tree_utilities = np.ones((state_tree_capacity)) * -1000
-        state_tree_priors = np.array([hashdict(state) for i in range(state_tree_capacity)], dtype=hashdict)
-        state_tree_prior_utilities = np.ones((state_tree_capacity)) * -1000
 
     # Initialise some hyperparameters
     # if no decay function is supplied, set it to a default exponential decay
@@ -351,17 +344,7 @@ def train_model(
         if(plotting_on or checkpoints_on):
             epsilons.append(epsilon)
 
-        # Initialize the environment and get its state
-        if reset_options:
-            if(reset_options["type"] == "statetree"):
-                if(np.random.random() > epsilon):
-                    state, info = env.reset()
-                else:
-                    reset_state = random.choice(state_tree)
-                    state, info = env.reset(options={"type" : "state", "state" : reset_state})
-            # plot_state_tree(state_tree, env)
-        else:
-            state, info = env.reset()
+        state, info = env.reset()
 
         # Initialise the first state
         if(usePseudorewards):
@@ -373,15 +356,20 @@ def train_model(
         for t in count():
 
             # calculate action utilities and choose action
-            action_utilities = policy_net.forward(stateT)
+            action_utilities = policy_net.forward(stateT)[0]
             # get blocked actions
-            # blocked = env.blocked_model(env, state)
-            # action_utilities = [(action_utilities[i] if not blocked[i] else -1000 for i in range(len(action_utilities)) )]
+            # print(action_utilities)
+            blocked = env.blocked_model(env, state)
+            masked_utilities = [action_utilities[i] if not blocked[i] else -1000 for i in range(len(action_utilities))]
+            # print(masked_utilities, type(masked_utilities))
+            action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device)
             if(np.random.random() < epsilon):
                 sample = env.action_space.sample()
                 action = torch.tensor([[sample]], device=device, dtype=torch.long)
             else:
+                # print(action_utilities)
                 action = action_utilities.max(1)[1].view(1, 1)
+                # print(action)
 
             # apply action to environment
             state, reward, terminated, truncated, info = env.step(action)
@@ -412,63 +400,6 @@ def train_model(
             # run optimiser
             optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
 
-            # deal with state tree resets: ####################################
-            if(reset_options and reset_options["type"] == "statetree" and t > 0):
-                # print(state)
-                hashedState = hashdict(env.state)  # note state is the old state here
-                av_utility = np.max(action_utilities.tolist())
-                # print(np.mean(state_tree_utilities))
-                if(hashedState not in state_tree):
-                    # print(f"{hashedState} not in tree")
-                    # doing it like this makes the very last state unlikely to be replaced
-                    start_point = random.randint(0, len(state_tree) - 11)
-                    for i in range(start_point, start_point + 10):
-                        if(state_tree_utilities[i] < av_utility):
-                            # print("replace", i)
-                            state_tree[i] = hashedState
-                            state_tree_utilities[i] = av_utility
-                            state_tree_priors[i] = hashdict(prior_state)
-                            state_tree_prior_utilities[i] = prior_utility
-                            break
-                else:
-                    # the random choice will be invoked when all states are init
-                    state_index = random.choice(np.argwhere(state_tree == hashedState))
-                    if (state_tree_prior_utilities[state_index] < prior_utility):
-                        state_tree_priors[state_index] = prior_state
-                        state_tree_prior_utilities[state_index] = prior_utility
-
-                # prune the tree every so often
-                # one could also do this continuously whilst checking the utility of prior states
-                if(t % tree_prune_frequency == 0 and t != 0):
-                    counter = 0
-                    # print("tree")
-                    # print(state_tree)
-                    for i in range(len(state_tree)):
-                        # print("prior")
-                        # print(state_tree_priors[i])
-                        if (state_tree_priors[i] not in state_tree):
-                            state_tree[i] = hashdict(env.initial_state)
-                            state_tree_utilities[i] = -1000
-                            state_tree_priors[i] = hashdict(env.initial_state)
-                            state_tree_prior_utilities[i] = -1000
-                            counter += 1
-                            # print("removal")
-                    # print(f"Prune ({t}, {counter} removals)")
-                    # surviving_indices = np.argwhere(state_tree != -1)
-                    # for i in range(len(state_tree)):
-                    #     if i not in surviving_indices:
-                    #         random_surviving_index = random.choice(surviving_indices).item()
-                    #         state_tree[i] = state_tree[random_surviving_index].copy()
-                    #         state_tree_utilities[i] = state_tree_utilities[random_surviving_index].copy()
-                    #         state_tree_priors[i] = state_tree_priors[random_surviving_index].copy()
-                    #         state_tree_prior_utilities[i] = state_tree_utilities[random_surviving_index].copy()
-                    # # print("new tree")
-                    # print(state_tree)
-                # set the new prior state for next loop
-                prior_state = hashdict(env.state)
-                prior_utility = av_utility
-            # #################################################################
-
             # Soft-update the target net
             target_net_state_dict = target_net.state_dict()
             policy_net_state_dict = policy_net.state_dict()
@@ -483,7 +414,6 @@ def train_model(
                     episode_durations.append(info["elapsed steps"])
                     rewards.append(ep_reward)
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
-                    # plot_state_tree(state_tree, env, False)
                     f = plot_status(episode_durations, rewards, epsilons)
                     plt.show()
                     plt.close(f)
@@ -588,24 +518,34 @@ def evaluate_model(dqn,
 
         states = [state]
         actions = []
-        state = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
+        stateT = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
         for t in count():
 
-            action_utilities = dqn.forward(state)
+            # action_utilities = dqn.forward(stateT)
+            # action = action_utilities.max(1)[1].view(1, 1)
+
+            action_utilities = dqn.forward(stateT)[0]
+            # get blocked actions
+            # print(action_utilities)
+            blocked = env.blocked_model(env, state)
+            masked_utilities = [action_utilities[i] if not blocked[i] else -1000 for i in range(len(action_utilities))]
+            # print(masked_utilities, type(masked_utilities))
+            action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device)
             action = action_utilities.max(1)[1].view(1, 1)
 
             # apply action to environment
-            observation, reward, terminated, truncated, info = env.step(action.item())
+            state, reward, terminated, truncated, info = env.step(action.item())
 
-            states.append(observation)
+            states.append(state)
             actions.append(action)
 
-            state = torch.tensor(list(observation.values()), dtype=torch.float32, device=device).unsqueeze(0)
+            stateT = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
             done = terminated
 
             if (done or truncated):
+                print("done")
                 # ticks.append(info["elapsed ticks"])
                 # goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):

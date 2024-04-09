@@ -13,9 +13,9 @@ import torch
 import DQN
 import os
 import numpy as np
-import system_logic.probabilstic_completion as mdpt
+import system_logic.probabilistic_completion_env12 as mdpt
 # from abc import ABC, abstractmethod
-env_to_use = "Tokamak-v10"
+env_to_use = "Tokamak-v12"
 env_size = 12
 
 large_case = DQN.system_parameters(
@@ -99,7 +99,7 @@ case_0goals = DQN.system_parameters(
 )
 
 env = gym.make(env_to_use,
-               system_parameters=case_5goals,
+               system_parameters=small_case2,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
@@ -116,7 +116,7 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# saved_weights_name = "/checkpoints/policy_weights_epoch1500"
+# saved_weights_name = "/checkpoints/policy_weights_epoch50"
 # scenario_id = 108186
 
 
@@ -146,15 +146,15 @@ except NameError:
                                                 alpha=1e-3,
                                                 gamma=0.5,
                                                 # reset_options={"type": "statetree"},
-                                                num_episodes=3000,
+                                                num_episodes=500,
                                                 tau=0.005,
                                                 usePseudorewards=True,
-                                                plot_frequency=100,
+                                                plot_frequency=50,
                                                 max_steps=200,
                                                 buffer_size=40000,
                                                 # tree_prune_frequency=1e9,
                                                 # state_tree_capacity=100,
-                                                checkpoint_frequency=500,
+                                                checkpoint_frequency=50,
                                                 batch_size=256)
 
     filename = f"saved_weights_{int(np.random.rand()*1e6)}"
@@ -165,7 +165,7 @@ except NameError:
 
 
 s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
-                                                  num_episodes=100,
+                                                  num_episodes=1000,
                                                   env=env,
                                                   render=True)
 
@@ -176,9 +176,10 @@ plt.xlabel("Total env steps")
 #%%
 print(len(deadlock_traces))
 
-trace = deadlock_traces[1]
-
+trace = deadlock_traces[0]
+print(len(trace))
 for i in range(len(trace)):
+    print(i)
     env.render_frame(trace[i])
 
 
