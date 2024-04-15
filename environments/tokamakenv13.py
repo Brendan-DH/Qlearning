@@ -12,7 +12,7 @@ from gymnasium import spaces
 import pygame
 
 
-class TokamakEnv12(gym.Env):
+class TokamakEnv13(gym.Env):
     metadata = {"render_modes": [], "render_fps": 4}
 
     # def set_parameters(size, num_active, num_goals, goal_locations):
@@ -28,7 +28,7 @@ class TokamakEnv12(gym.Env):
                  reward_model,
                  training=True,
                  render=False,
-                 render_ticks_only=False):
+                 render_ticks_only=True):
 
         # operational parameters
         state = {}
@@ -46,8 +46,12 @@ class TokamakEnv12(gym.Env):
             state[f"robot{i} clock"] = 0
         for i in range(len(system_parameters.goal_locations)):
             state[f"goal{i} location"] = system_parameters.goal_locations[i]
-            state[f"goal{i} probability"] = system_parameters.goal_probabilities[i]
-            state[f"goal{i} active"] = system_parameters.goal_activations[i]
+
+            state[f"goal{i} active"] = system_parameters.goal_activations[i]  # 1 = goal should be engaged
+
+            state[f"goal{i} checked"] = system_parameters.goal_checked[i]  # 1 = goal location has been visited
+            state[f"goal{i} discovery probability"] = system_parameters.goal_discovery_probabilities[i]  # p that goal is present
+            state[f"goal{i} completion probability"] = system_parameters.goal_completion_probabilities[i]  # p that goal is completed in 1 attempt
 
         # state["elapsed ticks"] = system_parameters.elapsed_ticks
 
@@ -76,11 +80,16 @@ class TokamakEnv12(gym.Env):
         obDict = {}
         for i in range(0,self.num_robots):
             obDict[f"robot{i} location"] = spaces.Discrete(self.size)
-            obDict[f"robot{i} clock"] = spaces.Discrete(2)  # true = cannot move
+            obDict[f"robot{i} clock"] = spaces.Discrete(2)
         for i in range(0,self.num_goals):
             obDict[f"goal{i} location"] = spaces.Discrete(self.size)
-            obDict[f"goal{i} probability"] = spaces.Box(low=0, high=1, shape=[1])  # continuous variable in [0,1]. sample() returns array though.
+
             obDict[f"goal{i} active"] = spaces.Discrete(2)
+
+            obDict[f"goal{i} checked"] = spaces.Discrete(2)
+            obDict[f"goal{i} discovery probability"] = spaces.Box(low=0, high=1, shape=[1])
+            obDict[f"goal{i} completion probability"] = spaces.Box(low=0, high=1, shape=[1])
+
         # obDict["elapsed ticks"] = spaces.Discrete(100)
 
         self.action_labels = [
@@ -128,7 +137,6 @@ class TokamakEnv12(gym.Env):
 
     def get_info(self):
         info = {}
-        info["elapsed ticks"] = self.elapsed_ticks  # CURRENTLY ALWAYS 0!
         info["elapsed steps"] = self.elapsed_steps
         info["pseudoreward"] = self.pseudoreward_function()
         return info
@@ -138,26 +146,7 @@ class TokamakEnv12(gym.Env):
     def reset(self, seed=None, options=None):
         # print("reset")
         super().reset(seed=seed)
-        if(options):
-            if(options["type"] == "random"):
-                state = {}
-                random_r_locations = np.random.choice([i for i in range(self.size)], size=self.num_robots, replace=False)
-                for i in range(self.num_robots):
-                    state[f"robot{i} location"] = random_r_locations[i]
-                    state[f"robot{i} clock"] = np.random.randint(0,1)
-                for i in range(self.num_goals):
-                    state[f"goal{i} location"] = self.initial_state[f"goal{i} location"]
-                    state[f"goal{i} checked"] = np.random.randint(0,1)
-                    state[f"goal{i} instantiated"] = np.random.randint(0,1)
-                    state[f"goal{i} probability"] = self.initial_state[f"goal{i} probability"]
-                # state["elapsed ticks"] = np.random.randint(0,30)
-                self.state = state.copy()
-            if(options["type"] == "state"):
-                # assert options["state"]
-                # print(options["state"])
-                self.state = options["state"].copy()
-        else:
-            self.state = self.initial_state.copy()
+        self.state = self.initial_state.copy()
         self.elapsed_steps = 0
         self.elapsed_ticks = 0
 
@@ -168,21 +157,19 @@ class TokamakEnv12(gym.Env):
 
         return self.get_obs(), info
 
-    def pseudoreward_function(self):
+    def pseudoreward_function(self):  # gets the minimum mod distance between any robot/goal in the current state
         tot = 0
-        # goal positions
         for i in range(self.num_robots):
             rob_pos = self.state[f"robot{i} location"]
-            min_mod_dist = self.size * 2
+            min_mod_dist = self.size * 2  # initialise to large variable
             for j in range(self.num_goals):
-                if self.state[f"goal{j} active"] == 0:  # this goal is already completed
-                    pass
+                if self.state[f"goal{j} checked"] == 1 and self.state[f"goal{j} active"] == 0:
+                    pass  # this goal is already done
                 else:
                     goal_pos = self.state[f"goal{j} location"]
-                    #calculate average distance of robot from each goal:
-                    naive_dist = abs(rob_pos - goal_pos)  # weight by the probability that it is actually there
+                    naive_dist = abs(rob_pos - goal_pos)  # non-mod distance
                     mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
-                    min_mod_dist = min(mod_dist, min_mod_dist)
+                    min_mod_dist = min(mod_dist, min_mod_dist)  # update the smaller of the two
             tot += min_mod_dist
         return -tot  # -ve sign so that it should be minimised
 
@@ -220,10 +207,10 @@ class TokamakEnv12(gym.Env):
         # assume the new state
         self.state = s_array[chosen_state].copy()
 
-        # set terminated (all goals checked and not instantiated)
+        # set terminated (all goals checked and inactive)
         terminated = True
         for i in range(self.num_goals):
-            if (self.state[f"goal{i} active"] == 1):
+            if (self.state[f"goal{i} active"] == 1 or self.state[f"goal{i} checked"] == 0):
                 terminated = False
                 break
 
@@ -300,14 +287,17 @@ class TokamakEnv12(gym.Env):
             pos = state[f"goal{i} location"]
             xpos = tokamak_centre[0] + tokamak_r * 3 / 4 * np.cos(angle * pos - np.pi)
             ypos = tokamak_centre[1] + tokamak_r * 3 / 4 * np.sin(angle * pos - np.pi)
-            if(state[f"goal{i} active"] == 1):
-                text = font.render(str(state[f"goal{i} probability"]), True, (255,255,255))
-                colour = (0,200,0)
+            if(state[f"goal{i} checked"] == 0):
+                text = font.render(str(state[f"goal{i} discovery probability"]), True, (255,255,255))
+                circ_colour = (200 * state[f"goal{i} discovery probability"],200 * (1 - state[f"goal{i} discovery probability"]),0)
+            elif(state[f"goal{i} active"] == 1):
+                text = font.render(str(state[f"goal{i} completion probability"]), True, (255,255,255))
+                circ_colour = (0,200,0)
             elif(state[f"goal{i} active"] == 0):
-                text = font.render(str(state[f"goal{i} probability"]), True, (255,255,255))
-                colour = (100,100,100)
+                text = font.render(str(state[f"goal{i} completion probability"]), True, (255,255,255))
+                circ_colour = (200,200,200)
 
-            circ = pygame.draw.circle(canvas, colour, (xpos, ypos), 30)  # maybe make these rects again
+            circ = pygame.draw.circle(canvas, circ_colour, (xpos, ypos), 30)  # maybe make these rects again
 
             text_width = text.get_rect().width
             text_height = text.get_rect().height

@@ -32,8 +32,10 @@ system_parameters = namedtuple("system_parameters",
                                 "robot_status",
                                 "robot_locations",
                                 "goal_locations",
-                                "goal_probabilities",
                                 "goal_activations",
+                                "goal_checked",
+                                "goal_completion_probabilities",
+                                "goal_discovery_probabilities",
                                 "elapsed_ticks"
                                 ))
 
@@ -102,8 +104,8 @@ class DeepQNetwork(nn.Module):
 
 def select_action(dqn, env, state, epsilon, forbidden_actions=[]):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    sample = random.random()
-    if sample > epsilon:
+    roll = random.random()
+    if roll > epsilon:
         with torch.no_grad():
             # t.max(1) will return the largest column value of each row.
             # second column on max result is index of where max element was
@@ -113,6 +115,9 @@ def select_action(dqn, env, state, epsilon, forbidden_actions=[]):
             return dqn(state).max(1)[1].view(1, 1)
     else:
         sample = env.action_space.sample()
+        print(sample)
+        while forbidden_actions[sample] == 1:
+            sample = env.action_space.sample()
         return torch.tensor([[sample]], device=device, dtype=torch.long)
 
 
@@ -144,9 +149,9 @@ def plot_status(episode_durations, rewards, epsilons):
 
     color1, color2, color3 = plt.cm.viridis([0, .5, .9])
 
-    epsilon_plot = bot_ax.plot(np.array(epsilons), color="orange", label="epsilon", zorder=0)
-    duration_plot = mid_ax.plot(np.array(episode_durations), color="royalblue", alpha=0.2, label="durations", zorder=5)
-    reward_plot = upper_ax.plot(np.array(rewards), color="mediumseagreen", alpha=0.5, label="rewards",zorder=10)
+    epsilon_plot = bot_ax.plot(epsilons, color="orange", label="epsilon", zorder=0)
+    duration_plot = mid_ax.plot(episode_durations, color="royalblue", alpha=0.2, label="durations", zorder=5)
+    reward_plot = upper_ax.plot(rewards, color="mediumseagreen", alpha=0.5, label="rewards",zorder=10)
 
     bot_ax.set_zorder(0)
     mid_ax.set_zorder(5)
@@ -264,9 +269,9 @@ def train_model(
     """
 
     # store values for plotting
-    epsilons = []
-    episode_durations = []
-    rewards = []
+    epsilons = np.empty(num_episodes)
+    episode_durations = np.empty(num_episodes)
+    rewards = np.empty(num_episodes)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     state_string = str(env.state).replace(',', ',\n\t\t\t')
 
@@ -342,7 +347,7 @@ def train_model(
         # calculate the new epsilon
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
         if(plotting_on or checkpoints_on):
-            epsilons.append(epsilon)
+            epsilons[i_episode] = epsilon
 
         state, info = env.reset()
 
@@ -365,6 +370,9 @@ def train_model(
             action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device)
             if(np.random.random() < epsilon):
                 sample = env.action_space.sample()
+                while blocked[sample] == 1:
+                    # print("blocked")
+                    sample = env.action_space.sample()
                 action = torch.tensor([[sample]], device=device, dtype=torch.long)
             else:
                 # print(action_utilities)
@@ -409,12 +417,13 @@ def train_model(
 
             # if done, process data and make plots
             if done:
+                # print("done")
                 # print([env.state[f"goal{i} active"] for i in range(12)])
                 if(plotting_on or checkpoints_on):
-                    episode_durations.append(info["elapsed steps"])
-                    rewards.append(ep_reward)
+                    episode_durations[i_episode] = info["elapsed steps"]
+                    rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
-                    f = plot_status(episode_durations, rewards, epsilons)
+                    f = plot_status(episode_durations[:i_episode], rewards[:i_episode], epsilons[:i_episode])
                     plt.show()
                     plt.close(f)
                 if (checkpoints_on and i_episode % checkpoint_frequency == 0 and i_episode > 0):
@@ -489,6 +498,7 @@ def plot_state_tree(state_tree, env, reset=False):
 def evaluate_model(dqn,
                    num_episodes,
                    env,
+                   max_steps,
                    reset_options=None,
                    render=False):
 
@@ -499,8 +509,6 @@ def evaluate_model(dqn,
         render = False
 
     env.set_rendering(render)
-
-    print(render, env.render)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Evaluation running on {device}.")
 
@@ -544,8 +552,7 @@ def evaluate_model(dqn,
 
             done = terminated
 
-            if (done or truncated):
-                print("done")
+            if (done or truncated or i > max_steps):
                 # ticks.append(info["elapsed ticks"])
                 # goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
@@ -553,7 +560,7 @@ def evaluate_model(dqn,
                 break
 
         if(not done):
-            deadlock_traces.append(states)
+            # deadlock_traces.append(states)
             deadlock_counter += 1
 
         steps.append(t)

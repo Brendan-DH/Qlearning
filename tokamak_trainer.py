@@ -13,97 +13,105 @@ import torch
 import DQN
 import os
 import numpy as np
-import system_logic.probabilistic_completion_env12 as mdpt
+import system_logic.hybrid_system as mdpt
 # from abc import ABC, abstractmethod
-env_to_use = "Tokamak-v12"
+env_to_use = "Tokamak-v13"
 env_size = 12
 
-large_case = DQN.system_parameters(
-    size=env_size,
-    robot_status=[1,1,1],
-    robot_locations=[1,2,3],
-    goal_locations=[i for i in range(env_size)],
-    goal_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
-    goal_activations=[1 for i in range(0, env_size)],
-    elapsed_ticks=0,
-)
+# large_case = DQN.system_parameters(
+#     size=env_size,
+#     robot_status=[1,1,1],
+#     robot_locations=[1,2,3],
+#     goal_locations=[i for i in range(env_size)],
+#     goal_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
+#     goal_activations=[1 for i in range(0, env_size)],
+#     elapsed_ticks=0,
+# )
 
 small_case1 = DQN.system_parameters(
     size=env_size,
     robot_status=[1,1,1],
     robot_locations=[1,2,3],
     goal_locations=[11, 5, 7],
-    goal_probabilities=[0.95, 0.95, 0.95],
-    goal_activations=[1,1,1],
+    goal_discovery_probabilities=[0.95, 0.95, 0.95],
+    goal_completion_probabilities=[0.95, 0.95, 0.95],
+    goal_checked=[0,0,0],
+    goal_activations=[0,0,0],
     elapsed_ticks=0,
 )
 
-small_case2 = DQN.system_parameters(
-    size=env_size,
-    robot_status=[1,1,1],
-    robot_locations=[1, 5, 6],
-    goal_locations=[11, 3, 5],
-    goal_probabilities=[0.95, 0.95, 0.95],
-    goal_activations=[1,1,1],
-    elapsed_ticks=0,
-)
+# small_case2 = DQN.system_parameters(
+#     size=env_size,
+#     robot_status=[1,1,1],
+#     robot_locations=[1, 5, 6],
+#     goal_locations=[11, 3, 5],
+#     goal_probabilities=[0.95, 0.95, 0.95],
+#     goal_activations=[1,1,1],
+#     elapsed_ticks=0,
+# )
 
 case_5goals = DQN.system_parameters(
     size=env_size,
     robot_status=[1,1,1],
     robot_locations=[1, 5, 6],
     goal_locations=[11, 3, 5, 4, 6],
-    goal_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7],
-    goal_activations=[1,1,1,1,1],
+    goal_discovery_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7],
+    goal_completion_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7],
+    goal_activations=[0,0,0,0,0],
+    goal_checked=[0,0,0,0,0],
     elapsed_ticks=0,
 )
 
-case_7goals = DQN.system_parameters(
-    size=env_size,
-    robot_status=[1,1,1],
-    robot_locations=[1, 5, 6],
-    goal_locations=[11, 3, 5, 4, 10, 9, 7],
-    goal_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
-    goal_activations=[1,1,1,1,1,1,1],
-    elapsed_ticks=0,
-)
+# case_7goals = DQN.system_parameters(
+#     size=env_size,
+#     robot_status=[1,1,1],
+#     robot_locations=[1, 5, 6],
+#     goal_locations=[11, 3, 5, 4, 10, 9, 7],
+#     goal_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+#     goal_activations=[1,1,1,1,1,1,1],
+#     elapsed_ticks=0,
+# )
 
-large_case_flat = DQN.system_parameters(
-    size=env_size,
-    robot_status=[1,1,1],
-    robot_locations=[1,5,6],
-    goal_locations=[i for i in range(env_size)],
-    goal_probabilities=[0.95 for i in range(env_size)],
-    goal_activations=[1 for i in range(env_size)],
-    elapsed_ticks=0,
-)
+# large_case_flat = DQN.system_parameters(
+#     size=env_size,
+#     robot_status=[1,1,1],
+#     robot_locations=[1,5,6],
+#     goal_locations=[i for i in range(env_size)],
+#     goal_probabilities=[0.95 for i in range(env_size)],
+#     goal_activations=[1 for i in range(env_size)],
+#     elapsed_ticks=0,
+# )
 
-large_case_peaked = DQN.system_parameters(
-    size=env_size,
-    robot_status=[1,1,1],
-    robot_locations=[1,5,6],
-    goal_locations=[i for i in range(env_size)],
-    goal_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
-    goal_activations=[1 for i in range(env_size)],
-    elapsed_ticks=0,
-)
+# large_case_peaked = DQN.system_parameters(
+#     size=env_size,
+#     robot_status=[1,1,1],
+#     robot_locations=[1,5,6],
+#     goal_locations=[i for i in range(env_size)],
+#     goal_completion_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
+#     goal_discovery_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
+#     goal_activations=[0 for i in range(env_size)],
+#     goal_checked=[0 for i in range(env_size)],
+#     elapsed_ticks=0,
+# )
 
-case_0goals = DQN.system_parameters(
-    size=env_size,
-    robot_status=[1,1,1],
-    robot_locations=[1,5,6],
-    goal_locations=[env_size + 1],  # will never be completed
-    goal_probabilities=[1],
-    goal_activations=[1 for i in range(env_size)],
-    elapsed_ticks=0,
-)
+# case_0goals = DQN.system_parameters(
+#     size=env_size,
+#     robot_status=[1,1,1],
+#     robot_locations=[1,5,6],
+#     goal_locations=[env_size + 1],  # will never be completed
+#     goal_probabilities=[1],
+#     goal_activations=[1 for i in range(env_size)],
+#     elapsed_ticks=0,
+# )
 
 env = gym.make(env_to_use,
-               system_parameters=small_case2,
+               system_parameters=small_case1,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
-               training=True)
+               training=True,
+               render=False,
+               render_ticks_only=True)
 
 nodes_per_layer = 128  # default 128
 
@@ -116,7 +124,7 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# saved_weights_name = "/checkpoints/policy_weights_epoch50"
+# saved_weights_name = "checkpoints/policy_weights_epoch50"
 # scenario_id = 108186
 
 
@@ -146,10 +154,10 @@ except NameError:
                                                 alpha=1e-3,
                                                 gamma=0.5,
                                                 # reset_options={"type": "statetree"},
-                                                num_episodes=500,
+                                                num_episodes=2000,
                                                 tau=0.005,
-                                                usePseudorewards=True,
-                                                plot_frequency=50,
+                                                usePseudorewards=False,
+                                                plot_frequency=10,
                                                 max_steps=200,
                                                 buffer_size=40000,
                                                 # tree_prune_frequency=1e9,
@@ -165,8 +173,9 @@ except NameError:
 
 
 s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
-                                                  num_episodes=1000,
+                                                  num_episodes=100,
                                                   env=env,
+                                                  max_steps=200,
                                                   render=True)
 
 plt.figure(figsize=(10,7))
