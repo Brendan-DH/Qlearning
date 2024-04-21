@@ -14,6 +14,7 @@ import DQN
 import os
 import numpy as np
 import system_logic.hybrid_system as mdpt
+from mdp_translation import GenerateDTMCFile
 # from abc import ABC, abstractmethod
 env_to_use = "Tokamak-v13"
 env_size = 12
@@ -53,7 +54,7 @@ small_case1 = DQN.system_parameters(
 case_5goals = DQN.system_parameters(
     size=env_size,
     robot_status=[1,1,1],
-    robot_locations=[1, 5, 6],
+    robot_locations=[1, 2, 7],
     goal_locations=[11, 3, 5, 4, 6],
     goal_discovery_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7],
     goal_completion_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7],
@@ -62,15 +63,17 @@ case_5goals = DQN.system_parameters(
     elapsed_ticks=0,
 )
 
-# case_7goals = DQN.system_parameters(
-#     size=env_size,
-#     robot_status=[1,1,1],
-#     robot_locations=[1, 5, 6],
-#     goal_locations=[11, 3, 5, 4, 10, 9, 7],
-#     goal_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
-#     goal_activations=[1,1,1,1,1,1,1],
-#     elapsed_ticks=0,
-# )
+case_7goals = DQN.system_parameters(
+    size=env_size,
+    robot_status=[1,1,1],
+    robot_locations=[1, 5, 6],
+    goal_locations=[11, 3, 5, 4, 10, 9, 7],
+    goal_discovery_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+    goal_completion_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+    goal_activations=[0 for i in range(7)],
+    goal_checked=[0 for i in range(7)],
+    elapsed_ticks=0,
+)
 
 # large_case_flat = DQN.system_parameters(
 #     size=env_size,
@@ -105,7 +108,7 @@ case_5goals = DQN.system_parameters(
 # )
 
 env = gym.make(env_to_use,
-               system_parameters=small_case1,
+               system_parameters=case_5goals,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
@@ -113,7 +116,7 @@ env = gym.make(env_to_use,
                render=False,
                render_ticks_only=True)
 
-nodes_per_layer = 128  # default 128
+nodes_per_layer = 128 * 2  # default 128
 
 state, info = env.reset()
 
@@ -124,7 +127,7 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# saved_weights_name = "checkpoints/policy_weights_epoch50"
+# saved_weights_name = "saved_weights_770884"
 # scenario_id = 108186
 
 
@@ -152,31 +155,31 @@ except NameError:
                                                 epsilon_decay_function=decay_function,
                                                 epsilon_min=0.05,
                                                 alpha=1e-3,
-                                                gamma=0.5,
-                                                # reset_options={"type": "statetree"},
-                                                num_episodes=2000,
+                                                gamma=0.3,
+                                                num_episodes=500,
                                                 tau=0.005,
-                                                usePseudorewards=False,
+                                                usePseudorewards=True,   # something wrong with these. investigate noisy rewards.
                                                 plot_frequency=10,
                                                 max_steps=200,
-                                                buffer_size=40000,
-                                                # tree_prune_frequency=1e9,
-                                                # state_tree_capacity=100,
+                                                buffer_size=50000,
                                                 checkpoint_frequency=50,
                                                 batch_size=256)
 
     filename = f"saved_weights_{int(np.random.rand()*1e6)}"
     print(f"Saving as {filename}")
     torch.save(trained_dqn.state_dict(), f"./outputs/{filename}")
+    print("Generate DTMC file...")
+    GenerateDTMCFile(os.getcwd() + "/outputs/" + filename, env)
 
 #%%
 
 
+print("\nEvaluation by trail...")
 s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
-                                                  num_episodes=100,
+                                                  num_episodes=10000,
                                                   env=env,
-                                                  max_steps=200,
-                                                  render=True)
+                                                  max_steps=100,
+                                                  render=False)
 
 plt.figure(figsize=(10,7))
 plt.hist(x=steps, rwidth=0.95)

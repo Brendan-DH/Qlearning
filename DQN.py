@@ -86,7 +86,8 @@ class DeepQNetwork(nn.Module):
         self.layer2 = nn.Linear(nodes_per_layer, nodes_per_layer)
         self.layer3 = nn.Linear(nodes_per_layer, nodes_per_layer)
         self.layer4 = nn.Linear(nodes_per_layer, nodes_per_layer)
-        self.layer5 = nn.Linear(nodes_per_layer, n_actions)
+        self.layer5 = nn.Linear(nodes_per_layer, nodes_per_layer)
+        self.layer6 = nn.Linear(nodes_per_layer, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
@@ -97,7 +98,8 @@ class DeepQNetwork(nn.Module):
             x = F.relu(self.layer2(x))
             x = F.relu(self.layer3(x))
             x = F.relu(self.layer4(x))
-            return self.layer5(x)
+            x = F.relu(self.layer5(x))
+            return self.layer6(x)
         except RuntimeError:
             print(x)
 
@@ -516,7 +518,7 @@ def evaluate_model(dqn,
     # goal_resolutions = []
     steps = []
     deadlock_counter = 0
-    deadlock_traces = []
+    deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
 
     for i in range(num_episodes):
         if(reset_options):
@@ -535,12 +537,11 @@ def evaluate_model(dqn,
 
             action_utilities = dqn.forward(stateT)[0]
             # get blocked actions
-            # print(action_utilities)
             blocked = env.blocked_model(env, state)
             masked_utilities = [action_utilities[i] if not blocked[i] else -1000 for i in range(len(action_utilities))]
-            # print(masked_utilities, type(masked_utilities))
             action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device)
             action = action_utilities.max(1)[1].view(1, 1)
+            # print(action_utilities)
 
             # apply action to environment
             state, reward, terminated, truncated, info = env.step(action.item())
@@ -552,7 +553,7 @@ def evaluate_model(dqn,
 
             done = terminated
 
-            if (done or truncated or i > max_steps):
+            if (done or truncated or t > max_steps):
                 # ticks.append(info["elapsed ticks"])
                 # goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
@@ -560,7 +561,7 @@ def evaluate_model(dqn,
                 break
 
         if(not done):
-            # deadlock_traces.append(states)
+            deadlock_traces.append(states)
             deadlock_counter += 1
 
         steps.append(t)

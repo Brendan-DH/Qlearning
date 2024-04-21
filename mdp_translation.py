@@ -7,8 +7,7 @@ Created on Wed Jan 17 13:29:40 2024
 """
 
 
-import system_logic.probabilstic_completion as mdpt
-import gymnasium as gym
+# import gymnasium as gym
 from queue import Queue
 import torch
 import DQN
@@ -18,180 +17,141 @@ from dtmc_checker import CheckDTMC
 import system_logic.hybrid_system as mdpt
 
 
+def GenerateDTMCFile(saved_weights_path, env, output_name="dtmc"):
 
-#%% 
+    #%%
 
-# define the initial state
-env_size = 12
+    # load the DQN
 
-starting_parameters = DQN.system_parameters(
-    size=env_size,
-    robot_status=[1,1,1],
-    robot_locations=[1,2,3],
-    goal_locations=[11, 5, 7],
-    goal_discovery_probabilities=[0.95, 0.95, 0.95],
-    goal_completion_probabilities=[0.95, 0.95, 0.95],
-    goal_checked=[0,0,0],
-    goal_activations=[0,0,0],
-    elapsed_ticks=0,
-)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# create the environment
-env_to_use = "Tokamak-v13"
-env = gym.make(env_to_use,
-               system_parameters=starting_parameters,
-               transition_model=mdpt.t_model,
-               reward_model=mdpt.r_model,
-               blocked_model=mdpt.b_model,
-               training=True)
+    saved_weights_name = "saved_weights_715739"
 
-# load the DQN
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    n_actions = env.action_space.n
+    state, info = env.reset()
+    initial_state = state.copy()
+    n_observations = len(state)
 
-saved_weights_name = "large_peaked_weights"
+    try:
+        assert saved_weights_name
+        loaded_weights = torch.load(saved_weights_path)
+        nodes_per_layer = len(loaded_weights["layer1.weight"])  # assuming they all have the same width
+        print(f"Loading policy from '{saved_weights_path}'")
+    except NameError:
+        print(f"Weights file {saved_weights_path} not found")
 
-n_actions = env.action_space.n
-state, info = env.reset()
-initial_state = state.copy()
-n_observations = len(state)
+    policy_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer).to(device)
+    policy_net.load_state_dict(loaded_weights)
 
-policy_net = DQN.DeepQNetwork(n_observations, n_actions).to(device)
-try:
-    assert saved_weights_name
-    print(f"Loading policy from '/outputs/{saved_weights_name}'")
-    policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + saved_weights_name))
-except NameError:
-    print("No saved weights defined, starting from scratch")
+    #%%
 
-#%%
+    """Create the explicit DTMC representation"""
 
-new_id = 0  # an unencountered state will get this id, after which it will be incremented
+    new_id = 0  # an unencountered state will get this id, after which it will be incremented
 
-states_id_dict = {str(initial_state) : 0}
-labels_set = set(["0 init\n"])
+    states_id_dict = {str(initial_state) : 0}  # dictionary of state dicts to id
+    labels_set = set(["0 init\n"])  # set of state labels ([id] [label] )
 
-exploration_queue = Queue()
+    exploration_queue = Queue()
 
-new_id += 1
-transitions_array = []
-states_array = []  # array of state dicts
-labels_array = []  # array of label strings "[state number] [label name]"
-rewards_array = []
+    new_id += 1
+    transitions_array = []
+    states_array = []  # array of state dicts
+    # labels_array = []  # array of label strings "[state number] [label name]"
+    rewards_array = []
 
-# ask the DQN what action should be taken here
-init_state, info = env.reset()
-exploration_queue.put(init_state)
-states_array.append(init_state)
+    # ask the DQN what action should be taken here
+    init_state, info = env.reset()
+    exploration_queue.put(init_state)
+    states_array.append(init_state)
 
-while(not exploration_queue.empty()):
+    while(not exploration_queue.empty()):
 
-    state = exploration_queue.get().copy()
-    state_tensor = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
+        state = exploration_queue.get().copy()
+        stateT = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
-    action = policy_net.forward(state_tensor).max(1)[1].view(1, 1).item()
+        action_utilities = policy_net.forward(stateT)[0]
 
-    # based on the action chosen, apply the correct effect function
-    # yes, this is very messy and restricts the functionality to the same action space
-    # (i.e. number of robots). could possibly be made dynamic later.
-    if(action == 0):
-        result = r0_ccw(env, state)
-    elif(action == 1):
-        result = r0_cw(env,state)
-    elif(action == 2):
-        result = r0_inspect(env, state)
-    elif(action == 3):
-        result = r1_ccw(env, state)
-    elif(action == 4):
-        result = r1_cw(env,state)
-    elif(action == 5):
-        result = r1_inspect(env, state)
-    elif(action == 6):
-        result = r2_ccw(env, state)
-    elif(action == 7):
-        result = r2_cw(env,state)
-    elif(action == 8):
-        result = r2_inspect(env, state)
+        blocked = env.blocked_model(env, state)
+        masked_utilities = [action_utilities[i] if not blocked[i] else -1000 for i in range(len(action_utilities))]
+        action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device)
+        action = action_utilities.max(1)[1].view(1, 1)
 
-    # check if all goals are done, and if so mark this state as a 'done' state
-    all_done = True
-    for i in range(env.num_goals):
-        # iterate over goals in state
-        if(state[f"goal{i} checked"] and not state[f"goal{i} instantiated"]):
-            pass
-        else:
-            all_done = False
-            break
+        # get the result of the action from the transition model
+        result = mdpt.t_model(env, state, action)
+        # print(result)
 
-    # handle clock tick rewards
-    clock_value = 0  # how many robots have ticked
-    for i in range(env.num_active):
-        clock_value += state[f"robot{i} clock"]
+        # label end states
+        all_done = mdpt.state_is_final(env, state)
+        if (all_done):
+            labels_set.add(f"{states_id_dict[str(state)]} done\n")  # label end states
+            # end states loop to themselves (formality):
+            # transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(state)]} 1")
 
-    # handle end states
-    if (all_done):
-        labels_set.add(f"{states_id_dict[str(state)]} done\n")
-        # end states loop to themselves (formality):
-        # transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(state)]} 1")
+        # iterate over result states:
+        for i in range(len(result[0])):
 
-    # iterate over result states:
-    result_list = list(result.items())
-    for i in range(len(result_list)):
+            # add states to states dictionary with IDs if needed
+            prob = result[0][i]
+            result_state = result[1][i]
+            # env.render_frame(result_state)
 
-        # add states to states dictionary with IDs if needed
-        prob = result_list[i][0]
-        result_state = result_list[i][1]
-        if (str(result_state) not in list(states_id_dict.keys())):  # a newly discovered state
-            states_id_dict[str(result_state)] = new_id
-            states_array.append(result_state)
-            exploration_queue.put(result_state)
-            new_id += 1
+            # register newly discovered states
+            if (str(result_state) not in list(states_id_dict.keys())):
+                states_id_dict[str(result_state)] = new_id
+                states_array.append(result_state)
+                exploration_queue.put(result_state)
+                new_id += 1
 
-        # assign clock tick rewards
-        if (clock_value == env.num_active - 1):
-            new_clock_value = 0
-            for i in range(env.num_active):
-                new_clock_value += result_state[f"robot{i} clock"]
-            if(new_clock_value == 0):
+            # assign awards to clock ticks
+            # all s' will lead to a clock tick if robots-1 clocks are ticked in s
+            if (np.sum([state[f"robot{i} clock"] for i in range(env.num_robots)]) == env.num_robots - 1):
                 rewards_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(result_state)]} 1")
 
-        # write the transitions into the file/array
-        transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(result_state)]} {prob}")
+            # write the transitions into the file/array
+            transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(result_state)]} {prob}")
 
-f = open(os.getcwd() + "/outputs/dtmc.tra", "w")
-f.write("dtmc\n")
-for i in range(len(transitions_array)):
-    f.write(transitions_array[i] + "\n")
-f.close()
+    #%%
 
-f = open(os.getcwd() + "/outputs/dtmc.lab", "w")
-f.write("""
-#DECLARATION
-init done
-#END
-""")
-labels_list = list(labels_set)
-labels_list.sort(key=lambda x: int(x.split()[0]))  # label file must list states in numerical order
-for i in range(len(labels_list)):
-    f.write(labels_list[i])
-f.close()
+    """Write the DTMC file"""
+    print(f"Writing file to {os.getcwd()}/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
 
-f = open(os.getcwd() + "/outputs/dtmc.transrew", "w")
-for i in range(len(rewards_array)):
-    f.write(rewards_array[i] + "\n")
-f.close()
+    f = open(os.getcwd() + f"/outputs/{output_name}.tra", "w")  # create DTMC file .tra
+    f.write("dtmc\n")
+    for i in range(len(transitions_array)):
+        f.write(transitions_array[i] + "\n")
+    f.close()
 
-p_problem_states, unacknowledged_states = CheckDTMC(os.getcwd() + "/outputs/dtmc.tra")
+    f = open(os.getcwd() + f"/outputs/{output_name}.lab", "w")  # create labels file .lab
+    f.write("""
+    #DECLARATION
+    init done
+    #END
+    """)
+    labels_list = list(labels_set)
+    labels_list.sort(key=lambda x: int(x.split()[0]))  # label file must list states in numerical order
+    for i in range(len(labels_list)):
+        f.write(labels_list[i])
+    f.close()
 
-if (len(p_problem_states) == 0):
-    print("Success: all probabilities sum to 1")
-else:
-    print("Error! Some outgoing probabilities do not sum to 1\nstate | total p")
-    for i in range(len(p_problem_states)):
-        print(f"{p_problem_states[i][0]} | {p_problem_states[i][1]}")
+    f = open(os.getcwd() + f"/outputs/{output_name}.transrew", "w")  # rewards file .transrew
+    for i in range(len(rewards_array)):
+        f.write(rewards_array[i] + "\n")
+    f.close()
 
-if(len(unacknowledged_states) == 0):
-    print("Success: all states included in transition structure")
-else:
-    print("Error! Some encountered states have no outgoing transitions!\nStates:")
-    for i in range(len(unacknowledged_states)):
-        print(unacknowledged_states[i])
+    # check DTMC for invalid states
+    p_problem_states, unacknowledged_states = CheckDTMC(os.getcwd() + f"/outputs/{output_name}.tra")
+
+    if (len(p_problem_states) == 0):
+        print("Success: all probabilities sum to 1")
+    else:
+        print("Error! Some outgoing probabilities do not sum to 1\nstate | total p")
+        for i in range(len(p_problem_states)):
+            print(f"{p_problem_states[i][0]} | {p_problem_states[i][1]}")
+
+    if(len(unacknowledged_states) == 0):
+        print("Success: all states included in transition structure")
+    else:
+        print("Error! Some encountered states have no outgoing transitions!\nStates:")
+        for i in range(len(unacknowledged_states)):
+            print(unacknowledged_states[i])

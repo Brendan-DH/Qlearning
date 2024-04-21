@@ -158,20 +158,22 @@ class TokamakEnv13(gym.Env):
         return self.get_obs(), info
 
     def pseudoreward_function(self):  # gets the minimum mod distance between any robot/goal in the current state
-        tot = 0
+        tot = 0  # sum of sum mod dists for each robot
         for i in range(self.num_robots):
             rob_pos = self.state[f"robot{i} location"]
-            min_mod_dist = self.size * 2  # initialise to large variable
+            # mod_dist = 0  # sum mod dist between robot and active goals
+            min_mod_dist = self.size * 2  # initialise to large value
             for j in range(self.num_goals):
                 if self.state[f"goal{j} checked"] == 1 and self.state[f"goal{j} active"] == 0:
-                    pass  # this goal is already done
+                    pass  # this ensures that completing a goal doesn't lead to a decrease in phi
                 else:
                     goal_pos = self.state[f"goal{j} location"]
                     naive_dist = abs(rob_pos - goal_pos)  # non-mod distance
                     mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
                     min_mod_dist = min(mod_dist, min_mod_dist)  # update the smaller of the two
             tot += min_mod_dist
-        return -tot  # -ve sign so that it should be minimised
+        completed_bonus = np.sum([self.size if self.state[f"goal{j} checked"] == 1 and self.state[f"goal{j} active"] == 0 else 0 for i in range(self.num_goals)])
+        return -tot + completed_bonus  # -ve sign so that it should be minimised
 
     def transition_model(self, state, action_no):
         raise NotImplementedError("The transistion model of this environment is not defined.")
@@ -240,6 +242,8 @@ class TokamakEnv13(gym.Env):
 
     def render_frame(self, state, inEnv=False):
         # note: the -np.pi is to keep the segments consistent with the jorek interpreter
+
+        # print(self.blocked_model(self, state))
 
         if(self.render_ticks_only):
             for i in range(self.num_robots):

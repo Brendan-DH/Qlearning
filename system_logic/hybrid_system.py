@@ -186,24 +186,29 @@ def discovery_effect(env, state, robot_no):
     # if there is a goal here, get the index (i.e. which goal it is)
     goal_index = -1
     for i in range(env.num_goals):
-        loc = state[f"goal{i} location"]
-        if loc == new_state[f"robot{robot_no} location"]:
-            goal_index = i
-            break
+        for j in range(env.num_robots):
+            gloc = new_state[f"goal{i} location"]
+            rloc = new_state[f"robot{robot_no} location"]
+            if (gloc == rloc):
+                goal_index = i
+                break
 
     if (goal_index == -1):  # no goals here; return the original state dict
+        # print("case1")
         p_array = [1]
         s_array = [new_state]
         return p_array, s_array
 
     # if there is a goal here, has it already been checked?
     if (state[f"goal{goal_index} checked"] == 1):
+        # print("case2")
         p_array = [1]
         s_array = [new_state]
         return p_array, s_array
 
     # if a goal needs to be revealed:
     else:
+        # print("case3")
         # this goal is now checked
         new_state[f"goal{goal_index} checked"] = 1
 
@@ -364,3 +369,13 @@ def get_cw_blocked(env, state, robot_no):
             return True
 
     return False
+
+
+def state_is_final(env,state):
+
+    for i in range(env.num_goals):
+        # iterate over goals in state
+        if(state[f"goal{i} checked"] == 0 or (state[f"goal{i} checked"] == 1 and state[f"goal{i} active"] == 1)):
+            return False
+
+    return True
