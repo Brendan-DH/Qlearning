@@ -6,8 +6,6 @@ Created on Wed Nov  8 17:43:45 2023
 @author: brendandevlin-hill
 """
 
-
-import gymnasium as gym
 import math
 import random
 import matplotlib.pyplot as plt
@@ -15,7 +13,6 @@ from collections import namedtuple, deque
 from itertools import count
 import numpy as np
 
-from torch.optim.lr_scheduler import LambdaLR
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -26,6 +23,10 @@ import sys
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
+
+PriorityTransition = namedtuple('PriorityTransition',
+                                ('state', 'action', 'next_state', 'reward', 'priority'))
+
 
 system_parameters = namedtuple("system_parameters",
                                ("size",
@@ -73,6 +74,34 @@ class ReplayMemory(object):
 
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
+
+    def __len__(self):
+        return len(self.memory)
+
+
+class PriorityMemory(object):
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.warning = False
+        self.memory = deque([], maxlen=capacity)
+        self.max_priority = 1
+
+    def push(self, *args):
+        """Save a transition"""
+        # when a new transition is saved, it should have max priority:
+        self.memory.append(PriorityTransition(*args, self.max_priority))
+        if(len(self) == self.capacity and self.warning is False):
+            print("REPLAY AT CAPACITY: " + str(len(self)))
+            self.warning = True
+
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
+
+    def updatePriorities(self, index, new_priority):
+        tr = self.memory[index]
+        self.memory[index] = PriorityTransition(tr.state, tr.action, tr.next_state, tr.reward, new_priority)
+        self.max_priority = max(self.max_priority, new_priority)
 
     def __len__(self):
         return len(self.memory)
@@ -312,7 +341,8 @@ def train_model(
 
     # Initialisation of NN apparatus
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
-    memory = ReplayMemory(buffer_size)
+    # memory = ReplayMemory(buffer_size)
+    memory = PriorityMemory(buffer_size)
     torch.set_grad_enabled(True)
     plotting_on = plot_frequency < num_episodes and plot_frequency != 0
     checkpoints_on = checkpoint_frequency < num_episodes and checkpoint_frequency != 0
@@ -408,7 +438,8 @@ def train_model(
             stateT = next_stateT
 
             # run optimiser
-            optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
+            # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
+            optimise_model_with_importance_sampling(policy_net, target_net, memory, optimiser, gamma, batch_size)
 
             # Soft-update the target net
             target_net_state_dict = target_net.state_dict()
@@ -436,6 +467,88 @@ def train_model(
 
     print(f"Training complete in {int(time.time()-start_time)} seconds.")
     return policy_net, episode_durations, rewards, epsilons
+
+
+def optimise_model_with_importance_sampling(policy_dqn,
+                                            target_dqn,
+                                            replay_memory,
+                                            optimiser,
+                                            gamma,
+                                            batch_size,
+                                            priority_coefficient=0.5,
+                                            weighting_coefficient=0.5):
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    criterion = nn.SmoothL1Loss()  # maybe I should actually use Huber?
+
+    if len(replay_memory) < batch_size:
+        return
+
+    # transitions = replay_memory.sample(batch_size)
+
+    # construct the batch of transitions, store their indices and weights
+    transitions = np.empty(batch_size, dtype=PriorityTransition)
+    # print(np.shape(transitions))
+    transition_indices = np.empty(batch_size, dtype=int)
+    weights = torch.tensor(np.empty(batch_size), dtype=float)
+    replay_counter = 0
+    while replay_counter < batch_size:
+        random_index = np.random.randint(0,len(replay_memory.memory))
+        transition = replay_memory.memory[random_index]  # completely random transition. paper recommends linear segment approach
+        # to_sum = [tr.priority**priority_coefficient for tr in replay_memory.memory]
+        # print("to_sum", to_sum)
+        denominator = np.sum([tr.priority**priority_coefficient for tr in replay_memory.memory])
+        sample_probability = transition.priority**priority_coefficient / denominator  # get P(j)
+        if (np.random.random() < sample_probability):  # roll to see if it makes it:
+
+            weight = ((batch_size * sample_probability) ** -weighting_coefficient) * (1 / replay_memory.max_priority)  # get w_j
+            weights[replay_counter] = weight
+            transitions[replay_counter] = transition
+            # print(transitions[replay_counter])
+            transition_indices[replay_counter] = random_index
+            replay_counter += 1
+
+    batch = PriorityTransition(*zip(*transitions))
+
+    # boolean mask of which states are final (i.e. termination occurs in this state)
+    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
+                                            batch.next_state)), device=device, dtype=torch.bool)
+
+    # collection of non-final s
+    non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
+    state_batch = torch.cat(batch.state)
+    action_batch = torch.cat(batch.action)
+    reward_batch = torch.cat(batch.reward)
+
+    # the qvalues of actions in this state. the .gather gets the qvalue corresponding to the
+    # indices in 'action_batch'
+    try:
+        state_action_values = policy_dqn(state_batch).gather(1, action_batch)
+    except AttributeError:
+        print("caught")
+
+    # q values of action in the next state
+    next_state_values = torch.zeros(batch_size, device=device)
+    with torch.no_grad():
+        next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0]
+    # Compute the expected Q values
+    expected_state_action_values = (next_state_values * gamma) + reward_batch
+
+    # Compute loss. Times by weight of transition
+    criterion = nn.SmoothL1Loss(reduction="none")
+    loss_vector = criterion(state_action_values, expected_state_action_values.unsqueeze(1)) * weights
+    loss = torch.mean(loss_vector)
+
+    # optimise the model
+    optimiser.zero_grad()
+    loss.backward()
+    torch.nn.utils.clip_grad_value_(policy_dqn.parameters(), 100)  # stops the gradients from becoming too large
+    optimiser.step()
+
+    # now update the priorities of the transitions that were used
+    for i in range(len(transition_indices)):
+        index = transition_indices[i]
+        replay_memory.updatePriorities(index, torch.mean(loss_vector[i]).item())
 
 
 def optimise_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batch_size):

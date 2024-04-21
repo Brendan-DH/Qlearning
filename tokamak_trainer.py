@@ -158,12 +158,12 @@ except NameError:
                                                 gamma=0.3,
                                                 num_episodes=500,
                                                 tau=0.005,
-                                                usePseudorewards=True,   # something wrong with these. investigate noisy rewards.
-                                                plot_frequency=10,
-                                                max_steps=200,
-                                                buffer_size=50000,
+                                                usePseudorewards=False,   # something wrong with these. investigate noisy rewards.
+                                                plot_frequency=1,
+                                                max_steps=50,
+                                                buffer_size=5000,
                                                 checkpoint_frequency=50,
-                                                batch_size=256)
+                                                batch_size=64)
 
     filename = f"saved_weights_{int(np.random.rand()*1e6)}"
     print(f"Saving as {filename}")
