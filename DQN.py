@@ -27,6 +27,8 @@ Transition = namedtuple('Transition',
 PriorityTransition = namedtuple('PriorityTransition',
                                 ('state', 'action', 'next_state', 'reward', 'priority'))
 
+DeltaTransition = namedtuple('DeltaTransition',
+                             ('state', 'action', 'next_state', 'reward', 'delta'))
 
 system_parameters = namedtuple("system_parameters",
                                ("size",
@@ -74,34 +76,6 @@ class ReplayMemory(object):
 
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
-
-    def __len__(self):
-        return len(self.memory)
-
-
-class PriorityMemory(object):
-
-    def __init__(self, capacity):
-        self.capacity = capacity
-        self.warning = False
-        self.memory = deque([], maxlen=capacity)
-        self.max_priority = 1
-
-    def push(self, *args):
-        """Save a transition"""
-        # when a new transition is saved, it should have max priority:
-        self.memory.append(PriorityTransition(*args, self.max_priority))
-        if(len(self) == self.capacity and self.warning is False):
-            print("REPLAY AT CAPACITY: " + str(len(self)))
-            self.warning = True
-
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
-
-    def updatePriorities(self, index, new_priority):
-        tr = self.memory[index]
-        self.memory[index] = PriorityTransition(tr.state, tr.action, tr.next_state, tr.reward, new_priority)
-        self.max_priority = max(self.max_priority, new_priority)
 
     def __len__(self):
         return len(self.memory)
@@ -268,8 +242,9 @@ def train_model(
         state_tree_capacity=200,        # capacity of the state tree
         tree_prune_frequency=10,        # number of episodes between pruning the state tree
         plot_frequency=10,              # number of episodes between status plots (0=disabled)
-        checkpoint_frequency=0,          # number of episodes between saving weights (0=disabled)
-        # save_plot_data=False            # whether to save the plotting data to a file
+        checkpoint_frequency=0,         # number of episodes between saving weights (0=disabled)
+        memory_sort_frequency=100       # number of episodes between sorting the replay memory
+        # save_plot_data=False          # whether to save the plotting data to a file
 ):
     """
     For training a DQN on a gymnasium environment.
@@ -294,6 +269,7 @@ def train_model(
         tree_prune_frequency=10,        # number of episodes between pruning the state tree
         plot_frequency=10,              # number of episodes between status plots (0=disabled)
         checkpoint_frequency=0          # number of episodes between saving weights (0=disabled)
+        memory_sort_frequency=100       # number of episodes between sorting the replay memory
 
     Outputs:
         (None)
@@ -331,6 +307,7 @@ def train_model(
             max_steps = {"as per env" if not max_steps else max_steps}
             batch_size = {batch_size}
             buffer_size = {buffer_size}
+            memory_sort_frequency = {memory_sort_frequency}
 
             ----
 
@@ -375,6 +352,14 @@ def train_model(
 
         if((i_episode % int(num_episodes / 10)) == 0):
             print(f"{i_episode}/{num_episodes} complete...")
+
+        if(i_episode % int(memory_sort_frequency) == 0):
+            memory.sort(batch_size, 0.6)
+            # try:
+            #     print("sorting")
+            #     memory.sort(batch_size, 0.6)
+            # except AttributeError:
+            #     pass  # not using priority memory
 
         # calculate the new epsilon
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
@@ -469,6 +454,75 @@ def train_model(
     return policy_net, episode_durations, rewards, epsilons
 
 
+class PriorityMemory(object):
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.warning = False
+        self.memory = deque([], maxlen=capacity)
+        self.max_priority = 1
+        self.bounds = []
+
+    def push(self, *args):
+        """Save a transition"""
+        # when a new transition is saved, it should have max priority:
+        self.memory.appendleft(DeltaTransition(*args, self.max_priority))  # append at the high-prio part
+        if(len(self) == self.capacity and self.warning is False):
+            print("REPLAY AT CAPACITY: " + str(len(self)))
+            self.warning = True
+
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
+
+    def sort(self, batch_size, priority_coefficient):
+        # sort the transitions according to priority, i.e. according to delta
+        # higher rank = lower priority, so higher rank should be lower |delta|
+        # i.e. lower rank should be higher delta, as such:
+        if(len(self.memory) < self.capacity):
+            return
+        items = [self.memory.pop() for i in range(len(self.memory))]
+        # print(items)
+        items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
+        self.memory = deque([items], maxlen=self.capacity)
+
+        self.max_priority = 1
+
+        # the divisor in the P equation
+        self.prob_divisor = 1 / np.sum([((1 / (i + 1))**priority_coefficient) for i in range(len(items))])
+
+        # re-calculate the bounds
+        # do this very explicitly for now
+        bounds = np.zeros(batch_size, dtype=int)
+        start = 0
+        for i in range(len(bounds)):  # iterate over segments
+            prob_in_segment = 0
+            for j in range(start, start + self.capacity):  # the (inclusive) start is the (exclusive) end of the previous bound
+                # print(j)
+                priority = 1 / (j + 1)  # wary of div by 0
+                prob_in_segment += (priority**priority_coefficient) * self.prob_divisor
+                # print(prob_in_segment)
+                if(prob_in_segment >= (1 / batch_size)):
+                    # conservative boundaries (j rather than j+1); this means the boundaries contain less than 1/batch_size the probability
+                    # this ensures that the boundaries won't overflow the size of the memory
+                    bounds[i] = j  # assign the END of this segment (exclusive)
+                    start = j
+                    break  # move on to the next boundary
+
+        # assign the uppermost boundry as the end of the memory
+        # this is a bit of an approximation but the last segment is full of only the least important transitions anyway
+        bounds[-1] = self.capacity
+
+        print("bounds", bounds)
+        self.bounds = bounds
+
+    def updatePriorities(self, index, delta):
+        tr = self.memory[index]
+        self.memory[index] = DeltaTransition(tr.state, tr.action, tr.next_state, tr.reward, delta)
+
+    def __len__(self):
+        return len(self.memory)
+
+
 def optimise_model_with_importance_sampling(policy_dqn,
                                             target_dqn,
                                             replay_memory,
@@ -481,34 +535,36 @@ def optimise_model_with_importance_sampling(policy_dqn,
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     criterion = nn.SmoothL1Loss()  # maybe I should actually use Huber?
 
-    if len(replay_memory) < batch_size:
+    if len(replay_memory.memory) < replay_memory.capacity:
+        return
+    if len(replay_memory.bounds) == 0:
         return
 
-    # transitions = replay_memory.sample(batch_size)
-
-    # construct the batch of transitions, store their indices and weights
-    transitions = np.empty(batch_size, dtype=PriorityTransition)
-    # print(np.shape(transitions))
+    # get the batch of transitions. sample one transition from each of k linear segments
+    lower = 0
+    transitions = np.empty(batch_size, dtype=DeltaTransition)
     transition_indices = np.empty(batch_size, dtype=int)
     weights = torch.tensor(np.empty(batch_size), dtype=float)
-    replay_counter = 0
-    while replay_counter < batch_size:
-        random_index = np.random.randint(0,len(replay_memory.memory))
-        transition = replay_memory.memory[random_index]  # completely random transition. paper recommends linear segment approach
-        # to_sum = [tr.priority**priority_coefficient for tr in replay_memory.memory]
-        # print("to_sum", to_sum)
-        denominator = np.sum([tr.priority**priority_coefficient for tr in replay_memory.memory])
-        sample_probability = transition.priority**priority_coefficient / denominator  # get P(j)
-        if (np.random.random() < sample_probability):  # roll to see if it makes it:
 
-            weight = ((batch_size * sample_probability) ** -weighting_coefficient) * (1 / replay_memory.max_priority)  # get w_j
-            weights[replay_counter] = weight
-            transitions[replay_counter] = transition
-            # print(transitions[replay_counter])
-            transition_indices[replay_counter] = random_index
-            replay_counter += 1
+    # print(replay_memory.bounds)
+    for i in range(batch_size):
+        upper = replay_memory.bounds[i]
+        tr_index = random.randint(lower, upper - 1)  # get a random index that falls in the segment
+        print(tr_index)
+        transition_indices[i] = tr_index  # must be stored to update the tr delta later
 
-    batch = PriorityTransition(*zip(*transitions))
+        transitions[i] = replay_memory.memory[tr_index]
+        print(transitions[i])
+
+        tr_priority = 1 / (tr_index + 1)
+        P_tr = (tr_priority**priority_coefficient) * replay_memory.prob_divisor
+        weight = ((batch_size * P_tr) ** -weighting_coefficient) * (1 / replay_memory.max_priority)
+        weights[i] = weight
+
+        lower = upper
+
+    # print(transitions)
+    batch = DeltaTransition(*zip(*transitions))
 
     # boolean mask of which states are final (i.e. termination occurs in this state)
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
@@ -546,7 +602,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     optimiser.step()
 
     # now update the priorities of the transitions that were used
-    for i in range(len(transition_indices)):
+    for i in range(len(transition_indices)):  # would it be more efficient to store just delta_i? might require fewer calculations
         index = transition_indices[i]
         replay_memory.updatePriorities(index, torch.mean(loss_vector[i]).item())
 
@@ -629,7 +685,7 @@ def evaluate_model(dqn,
 
     # ticks = []
     # goal_resolutions = []
-    steps = []
+    steps = np.empty(num_episodes)
     deadlock_counter = 0
     deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
 
@@ -677,7 +733,7 @@ def evaluate_model(dqn,
             deadlock_traces.append(states)
             deadlock_counter += 1
 
-        steps.append(t)
+        steps[i] = t
 
     # ticks = np.array(ticks)
     # plt.figure(figsize=(10,10))

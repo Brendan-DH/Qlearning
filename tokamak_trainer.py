@@ -108,7 +108,7 @@ case_7goals = DQN.system_parameters(
 # )
 
 env = gym.make(env_to_use,
-               system_parameters=case_5goals,
+               system_parameters=case_7goals,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
@@ -159,8 +159,9 @@ except NameError:
                                                 num_episodes=500,
                                                 tau=0.005,
                                                 usePseudorewards=False,   # something wrong with these. investigate noisy rewards.
-                                                plot_frequency=1,
-                                                max_steps=50,
+                                                plot_frequency=10,
+                                                memory_sort_frequency=1,
+                                                max_steps=200,
                                                 buffer_size=5000,
                                                 checkpoint_frequency=50,
                                                 batch_size=64)
