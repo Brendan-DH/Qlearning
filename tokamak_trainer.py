@@ -15,6 +15,8 @@ import os
 import numpy as np
 import system_logic.hybrid_system as mdpt
 from mdp_translation import GenerateDTMCFile
+import subprocess
+
 # from abc import ABC, abstractmethod
 env_to_use = "Tokamak-v13"
 env_size = 12
@@ -85,17 +87,29 @@ case_7goals = DQN.system_parameters(
 #     elapsed_ticks=0,
 # )
 
-# large_case_peaked = DQN.system_parameters(
-#     size=env_size,
-#     robot_status=[1,1,1],
-#     robot_locations=[1,5,6],
-#     goal_locations=[i for i in range(env_size)],
-#     goal_completion_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
-#     goal_discovery_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
-#     goal_activations=[0 for i in range(env_size)],
-#     goal_checked=[0 for i in range(env_size)],
-#     elapsed_ticks=0,
-# )
+large_case_peaked = DQN.system_parameters(
+    size=env_size,
+    robot_status=[1,1,1],
+    robot_locations=[1,5,6],
+    goal_locations=[i for i in range(env_size)],
+    goal_completion_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
+    goal_discovery_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
+    goal_activations=[0 for i in range(env_size)],
+    goal_checked=[0 for i in range(env_size)],
+    elapsed_ticks=0,
+)
+
+rects_id19_case_peaked = DQN.system_parameters(
+    size=env_size,
+    robot_status=[1,1,1],
+    robot_locations=[1,5,6],
+    goal_locations=[i for i in range(env_size)],
+    goal_completion_probabilities=[0.6323834,0.32501727,0.30504792,0.1,0.51242514,0.76339031,0.85989944,0.89268024,0.89840738,0.89732351,0.87692726,0.76291351],
+    goal_discovery_probabilities=[0.95 for i in range(env_size)],
+    goal_activations=[0 for i in range(env_size)],
+    goal_checked=[0 for i in range(env_size)],
+    elapsed_ticks=0,
+)
 
 # case_0goals = DQN.system_parameters(
 #     size=env_size,
@@ -108,7 +122,7 @@ case_7goals = DQN.system_parameters(
 # )
 
 env = gym.make(env_to_use,
-               system_parameters=case_7goals,
+               system_parameters=rects_id19_case_peaked,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
@@ -127,7 +141,7 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# saved_weights_name = "saved_weights_770884"
+# saved_weights_name = "policy_weights_epoch300"
 # scenario_id = 108186
 
 
@@ -155,45 +169,60 @@ except NameError:
                                                 epsilon_decay_function=decay_function,
                                                 epsilon_min=0.05,
                                                 alpha=1e-3,
-                                                gamma=0.3,
+                                                gamma=0.5,
                                                 num_episodes=500,
                                                 tau=0.005,
                                                 usePseudorewards=False,   # something wrong with these. investigate noisy rewards.
                                                 plot_frequency=10,
-                                                memory_sort_frequency=1,
+                                                memory_sort_frequency=25,
                                                 max_steps=200,
-                                                buffer_size=5000,
+                                                buffer_size=50000,
                                                 checkpoint_frequency=50,
-                                                batch_size=64)
+                                                batch_size=128 * 2)
 
-    filename = f"saved_weights_{int(np.random.rand()*1e6)}"
-    print(f"Saving as {filename}")
-    torch.save(trained_dqn.state_dict(), f"./outputs/{filename}")
-    print("Generate DTMC file...")
-    GenerateDTMCFile(os.getcwd() + "/outputs/" + filename, env)
+    random_identifier = int(np.random.rand() * 1e6)
+    saved_weights_name = f"saved_weights_{random_identifier}"
+    print(f"Saving as {saved_weights_name}")
+    torch.save(trained_dqn.state_dict(), f"./outputs/{saved_weights_name}")
+
 
 #%%
 
 
 print("\nEvaluation by trail...")
 s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
-                                                  num_episodes=10000,
+                                                  num_episodes=1000,
                                                   env=env,
-                                                  max_steps=100,
+                                                  max_steps=300,
                                                   render=False)
 
 plt.figure(figsize=(10,7))
 plt.hist(x=steps, rwidth=0.95)
 plt.xlabel("Total env steps")
 
+print("Generate DTMC file...")
+GenerateDTMCFile(os.getcwd() + "/outputs/" + saved_weights_name, env, f"dtmc_of_{saved_weights_name}")
+
+verification_property = "Rmax=?[F \"done\"]"
+
+subprocess.run(["storm",
+                "--explicit",
+                f"outputs/dtmc_of_{saved_weights_name}.tra",
+                f"outputs/dtmc_of_{saved_weights_name}.lab",
+                "--transrew",
+                f"outputs/dtmc_of_{saved_weights_name}.transrew",
+                "--prop",
+                verification_property])
+
 #%%
 print(len(deadlock_traces))
 
-trace = deadlock_traces[0]
-print(len(trace))
-for i in range(len(trace)):
-    print(i)
-    env.render_frame(trace[i])
+for i in range(len(deadlock_traces)):
+    trace = deadlock_traces[i]
+    print(len(trace))
+    for j in range(len(trace)):
+        print(trace[j]["robot0 clock"])
+        env.render_frame(trace[j])
 
 
 # plt.figure(figsize=(10,7))

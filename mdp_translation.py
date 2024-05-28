@@ -56,14 +56,14 @@ def GenerateDTMCFile(saved_weights_path, env, output_name="dtmc"):
 
     new_id += 1
     transitions_array = []
-    states_array = []  # array of state dicts
+    # states_array = []  # array of state dicts
     # labels_array = []  # array of label strings "[state number] [label name]"
     rewards_array = []
 
     # ask the DQN what action should be taken here
     init_state, info = env.reset()
     exploration_queue.put(init_state)
-    states_array.append(init_state)
+    # states_array.append(init_state)
 
     while(not exploration_queue.empty()):
 
@@ -73,7 +73,7 @@ def GenerateDTMCFile(saved_weights_path, env, output_name="dtmc"):
         action_utilities = policy_net.forward(stateT)[0]
 
         blocked = env.blocked_model(env, state)
-        masked_utilities = [action_utilities[i] if not blocked[i] else -1000 for i in range(len(action_utilities))]
+        masked_utilities = [action_utilities[i] if not blocked[i] else -np.inf for i in range(len(action_utilities))]
         action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device)
         action = action_utilities.max(1)[1].view(1, 1)
 
@@ -86,26 +86,29 @@ def GenerateDTMCFile(saved_weights_path, env, output_name="dtmc"):
         if (all_done):
             labels_set.add(f"{states_id_dict[str(state)]} done\n")  # label end states
             # end states loop to themselves (formality):
-            # transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(state)]} 1")
+            transitions_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(state)]} 1")
+            continue  # continue as we don't care about other transitions from end states
 
         # iterate over result states:
         for i in range(len(result[0])):
 
-            # add states to states dictionary with IDs if needed
             prob = result[0][i]
             result_state = result[1][i]
-            # env.render_frame(result_state)
+
+            # print(prob)
 
             # register newly discovered states
             if (str(result_state) not in list(states_id_dict.keys())):
                 states_id_dict[str(result_state)] = new_id
-                states_array.append(result_state)
+                # states_array.append(result_state)
                 exploration_queue.put(result_state)
                 new_id += 1
 
             # assign awards to clock ticks
-            # all s' will lead to a clock tick if robots-1 clocks are ticked in s
-            if (np.sum([state[f"robot{i} clock"] for i in range(env.num_robots)]) == env.num_robots - 1):
+            # all s' will lead to a clock tick if robots-1 clocks are ticked in s (provided blocked actions are impossible)
+            # print("a",np.sum([state[f"robot{i} clock"] for i in range(env.num_robots)]) == env.num_robots - 1)
+            # print("b",np.sum([result_state[f"robot{i} clock"] for i in range(env.num_robots)]) == 0, "\n")
+            if (np.sum([result_state[f"robot{i} clock"] for i in range(env.num_robots)]) == 0):
                 rewards_array.append(f"{states_id_dict[str(state)]} {states_id_dict[str(result_state)]} 1")
 
             # write the transitions into the file/array

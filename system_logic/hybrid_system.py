@@ -290,7 +290,7 @@ def r_model(env, s, action, sprime):
         reward += 100
         # print(f"100 attempted")
 
-    # # rewards for completing goals
+    # rewards for completing goals
     for i in range(env.num_goals):
         # check if any goals have been accomplished
         if(s[f"goal{i} active"] == 1 and sprime[f"goal{i} active"] == 0):
@@ -371,7 +371,7 @@ def get_cw_blocked(env, state, robot_no):
     return False
 
 
-def state_is_final(env,state):
+def state_is_final(env, state):
 
     for i in range(env.num_goals):
         # iterate over goals in state

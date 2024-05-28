@@ -243,7 +243,9 @@ def train_model(
         tree_prune_frequency=10,        # number of episodes between pruning the state tree
         plot_frequency=10,              # number of episodes between status plots (0=disabled)
         checkpoint_frequency=0,         # number of episodes between saving weights (0=disabled)
-        memory_sort_frequency=100       # number of episodes between sorting the replay memory
+        memory_sort_frequency=100,      # number of episodes between sorting the replay memory
+        priority_coefficient=0.5,       # alpha in the sampling probability equation, higher prioritises importance more
+        weighting_coefficient=0.7       # beta in the transition weighting equation, higher ameliorates sampling bias more
         # save_plot_data=False          # whether to save the plotting data to a file
 ):
     """
@@ -268,8 +270,10 @@ def train_model(
         state_tree_capacity = 200,      # capacity of the state tree
         tree_prune_frequency=10,        # number of episodes between pruning the state tree
         plot_frequency=10,              # number of episodes between status plots (0=disabled)
-        checkpoint_frequency=0          # number of episodes between saving weights (0=disabled)
-        memory_sort_frequency=100       # number of episodes between sorting the replay memory
+        checkpoint_frequency=0,         # number of episodes between saving weights (0=disabled)
+        memory_sort_frequency=100,      # number of episodes between sorting the replay memory
+        priority_coefficient=0.5,       # alpha in the sampling probability equation, higher prioritises importance more
+        weighting_coefficient=0.7       # beta in the transition weighting equation, higher ameliorates sampling bias more
 
     Outputs:
         (None)
@@ -308,6 +312,8 @@ def train_model(
             batch_size = {batch_size}
             buffer_size = {buffer_size}
             memory_sort_frequency = {memory_sort_frequency}
+            priority_coefficient = {priority_coefficient}
+            weighting_coefficient = {weighting_coefficient}
 
             ----
 
@@ -324,7 +330,7 @@ def train_model(
     plotting_on = plot_frequency < num_episodes and plot_frequency != 0
     checkpoints_on = checkpoint_frequency < num_episodes and checkpoint_frequency != 0
     if(checkpoints_on):
-        file = open(os.getcwd() + "/outputs/checkpoints/diagnostics", "w")
+        file = open(os.getcwd() + "/outputs/diagnostics", "w")
         file.write("# no data yet...")
 
     state, info = env.reset()  # reset to init
@@ -354,7 +360,7 @@ def train_model(
             print(f"{i_episode}/{num_episodes} complete...")
 
         if(i_episode % int(memory_sort_frequency) == 0):
-            memory.sort(batch_size, 0.6)
+            memory.sort(batch_size, priority_coefficient)
             # try:
             #     print("sorting")
             #     memory.sort(batch_size, 0.6)
@@ -424,7 +430,14 @@ def train_model(
 
             # run optimiser
             # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
-            optimise_model_with_importance_sampling(policy_net, target_net, memory, optimiser, gamma, batch_size)
+            optimise_model_with_importance_sampling(policy_net,
+                                                    target_net,
+                                                    memory,
+                                                    optimiser,
+                                                    gamma,
+                                                    batch_size,
+                                                    priority_coefficient,
+                                                    weighting_coefficient)
 
             # Soft-update the target net
             target_net_state_dict = target_net.state_dict()
@@ -446,8 +459,8 @@ def train_model(
                     plt.close(f)
                 if (checkpoints_on and i_episode % checkpoint_frequency == 0 and i_episode > 0):
                     # write durations, rewards and epsilons to file
-                    np.savetxt(os.getcwd() + "/outputs/checkpoints/diagnostics", np.vstack((episode_durations,rewards,epsilons)).transpose())
-                    torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/checkpoints/policy_weights_epoch{i_episode}")
+                    np.savetxt(os.getcwd() + "/outputs/diagnostics", np.vstack((episode_durations,rewards,epsilons)).transpose())
+                    torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/policy_weights_epoch{i_episode}")
                 break
 
     print(f"Training complete in {int(time.time()-start_time)} seconds.")
@@ -478,12 +491,14 @@ class PriorityMemory(object):
         # sort the transitions according to priority, i.e. according to delta
         # higher rank = lower priority, so higher rank should be lower |delta|
         # i.e. lower rank should be higher delta, as such:
-        if(len(self.memory) < self.capacity):
+
+        if(len(self.memory) < batch_size):
             return
+
         items = [self.memory.pop() for i in range(len(self.memory))]
         # print(items)
         items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
-        self.memory = deque([items], maxlen=self.capacity)
+        self.memory = deque(items, maxlen=self.capacity)
 
         self.max_priority = 1
 
@@ -504,15 +519,15 @@ class PriorityMemory(object):
                 if(prob_in_segment >= (1 / batch_size)):
                     # conservative boundaries (j rather than j+1); this means the boundaries contain less than 1/batch_size the probability
                     # this ensures that the boundaries won't overflow the size of the memory
-                    bounds[i] = j  # assign the END of this segment (exclusive)
-                    start = j
+                    # however, also ensure one tr per segment as empty segments will break early optimisations
+                    bounds[i] = j if j > start else j + 1  # assign the END of this segment (exclusive)
+                    start = j if j > start else j + 1
                     break  # move on to the next boundary
 
         # assign the uppermost boundry as the end of the memory
         # this is a bit of an approximation but the last segment is full of only the least important transitions anyway
-        bounds[-1] = self.capacity
+        bounds[-1] = len(self.memory)
 
-        print("bounds", bounds)
         self.bounds = bounds
 
     def updatePriorities(self, index, delta):
@@ -529,15 +544,13 @@ def optimise_model_with_importance_sampling(policy_dqn,
                                             optimiser,
                                             gamma,
                                             batch_size,
-                                            priority_coefficient=0.5,
-                                            weighting_coefficient=0.5):
+                                            priority_coefficient,
+                                            weighting_coefficient):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     criterion = nn.SmoothL1Loss()  # maybe I should actually use Huber?
 
-    if len(replay_memory.memory) < replay_memory.capacity:
-        return
-    if len(replay_memory.bounds) == 0:
+    if len(replay_memory.memory) < batch_size or len(replay_memory.bounds) == 0:
         return
 
     # get the batch of transitions. sample one transition from each of k linear segments
@@ -546,15 +559,12 @@ def optimise_model_with_importance_sampling(policy_dqn,
     transition_indices = np.empty(batch_size, dtype=int)
     weights = torch.tensor(np.empty(batch_size), dtype=float)
 
-    # print(replay_memory.bounds)
     for i in range(batch_size):
         upper = replay_memory.bounds[i]
         tr_index = random.randint(lower, upper - 1)  # get a random index that falls in the segment
-        print(tr_index)
         transition_indices[i] = tr_index  # must be stored to update the tr delta later
 
         transitions[i] = replay_memory.memory[tr_index]
-        print(transitions[i])
 
         tr_priority = 1 / (tr_index + 1)
         P_tr = (tr_priority**priority_coefficient) * replay_memory.prob_divisor
