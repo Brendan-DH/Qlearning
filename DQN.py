@@ -559,6 +559,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     transition_indices = np.empty(batch_size, dtype=int)
     weights = torch.tensor(np.empty(batch_size), dtype=float)
 
+    # loop over the k linear segments
     for i in range(batch_size):
         upper = replay_memory.bounds[i]
         tr_index = random.randint(lower, upper - 1)  # get a random index that falls in the segment
