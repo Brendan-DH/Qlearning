@@ -29,32 +29,12 @@ env.reset(options=env_options)
 
 ## Setting up the tokamak gymnasium environment
 
-The directory `/environments` contains various versions of the tokamak environment (`tokamakenv[version].py`). This environment must be registered to the local installation of gymnasium before they can be used in `tokamak_DQN.py`.
+The repo contains a script `intitialise` which performs most of the set up.  Calling this will:
 
-To register the environments:
-
-1. Navigate to your gymnasium installation (e.g. `/home/[user]/anaconda3/lib/python3.8/site-packages/gymnasium`).
-2. In `/envs`, create a symlink to the `/environments` directory, providing descriptive name for the link.
-3. Open `__init__.py` in `/env`. Add the following fragment, again using your chosen version number. Choose `max_episode_steps` as needed.
-    
-    ```python
-    register(
-     id='Tokamak-v4',
-     entry_point='gymnasium.envs.tokamak:TokamakEnv4',
-     max_episode_steps=500,
-    )
-    ```
-
-Having added the above snippets, gymnasium should now be able to make the "Tokamak-v4" environment from within `tokamak_DQN.py` or wherever else you need it.
-
-### To register a new environment:
-
-1. Place the new environment file inside `/environments` and update the `__init__.py` there with a line like:
-```
-from gymnasium.envs.tokamak.tokamakenv5 import TokamakEnv5
-```
-2. Open the `__init__.py` inside `/gymnasium/envs` and add register the environment (see step 3 above).
-
+- load the correct python3.8 module (this should be commented out if not using `module`),
+- create a python3.8 virtual environment,
+- load the requirements.txt of this environment,
+- register the relevant environment wtih gymnasium (the environment number should be changed to whatever is required).
 
 
 

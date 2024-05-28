@@ -1,0 +1,12 @@
+#! /bin/bash
+
+#module load Python/3.8.6-GCCcore-10.2.0
+#python3.8 -m pip install -r requirements.txt
+echo "
+register(
+    id="TokamakEnv13",
+    entry_point="gymnasium.envs.tokamak.tokamakenv13:TokamakEnv13",
+    max_episode_steps=1000,
+)">> gymnasium/envs/__init__.py
+
+
