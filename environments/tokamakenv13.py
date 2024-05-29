@@ -83,16 +83,12 @@ class TokamakEnv13(gym.Env):
             obDict[f"robot{i} clock"] = spaces.Discrete(2)
         for i in range(0,self.num_goals):
             obDict[f"goal{i} location"] = spaces.Discrete(self.size)
-
             obDict[f"goal{i} active"] = spaces.Discrete(2)
-
             obDict[f"goal{i} checked"] = spaces.Discrete(2)
             obDict[f"goal{i} discovery probability"] = spaces.Box(low=0, high=1, shape=[1])
             obDict[f"goal{i} completion probability"] = spaces.Box(low=0, high=1, shape=[1])
 
-        # obDict["elapsed ticks"] = spaces.Discrete(100)
-
-        self.action_labels = [
+        self.action_labels = [ # this is used mostly for pygame rendering
             "r0 ccw",
             "r0 cw",
             "r0 engage",

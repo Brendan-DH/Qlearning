@@ -8,6 +8,7 @@ Created on Wed Nov  8 17:43:45 2023
 
 import math
 import random
+import matplotlib as matplotlib
 import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
@@ -21,6 +22,7 @@ import time
 import os
 import sys
 
+
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -32,7 +34,6 @@ DeltaTransition = namedtuple('DeltaTransition',
 
 system_parameters = namedtuple("system_parameters",
                                ("size",
-                                "robot_status",
                                 "robot_locations",
                                 "goal_locations",
                                 "goal_activations",
@@ -351,7 +352,7 @@ def train_model(
     if not max_steps:
         max_steps = np.inf  # remember: ultimately defined by the gym environment
 
-    # Loop over training epsiodes
+    # Loop over training episodes
     start_time = time.time()
     for i_episode in range(num_episodes):
 
@@ -360,11 +361,6 @@ def train_model(
 
         if (i_episode % int(memory_sort_frequency) == 0):
             memory.sort(batch_size, priority_coefficient)
-            # try:
-            #     print("sorting")
-            #     memory.sort(batch_size, 0.6)
-            # except AttributeError:
-            #     pass  # not using priority memory
 
         # calculate the new epsilon
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
@@ -454,14 +450,13 @@ def train_model(
                     rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
                     f = plot_status(episode_durations[:i_episode], rewards[:i_episode], epsilons[:i_episode])
-                    f.savefig("/outputs/plt_output.svg")
-                    # plt.show(block=False)
-                    # plt.close(f)
+                    f.savefig(os.getcwd() + f"/outputs/plots/plt_epoch{i_episode}.svg")
+                    plt.close(f)
                 if (checkpoints_on and i_episode % checkpoint_frequency == 0 and i_episode > 0):
                     # write durations, rewards and epsilons to file
                     np.savetxt(os.getcwd() + "/outputs/diagnostics",
                                np.vstack((episode_durations, rewards, epsilons)).transpose())
-                    torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/policy_weights_epoch{i_episode}")
+                    torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/checkpoints/policy_weights_epoch{i_episode}")
                 break
 
     print(f"Training complete in {int(time.time() - start_time)} seconds.")

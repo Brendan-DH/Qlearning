@@ -17,6 +17,9 @@ import system_logic.hybrid_system as mdpt
 from mdp_translation import GenerateDTMCFile
 import subprocess
 
+# use a non-display backend
+matplotlib.use('Agg')
+
 # from abc import ABC, abstractmethod
 env_to_use = "Tokamak-v13"
 env_size = 12
@@ -33,13 +36,12 @@ env_size = 12
 
 small_case1 = DQN.system_parameters(
     size=env_size,
-    robot_status=[1,1,1],
-    robot_locations=[1,2,3],
+    robot_locations=[1, 2, 3],
     goal_locations=[11, 5, 7],
     goal_discovery_probabilities=[0.95, 0.95, 0.95],
     goal_completion_probabilities=[0.95, 0.95, 0.95],
-    goal_checked=[0,0,0],
-    goal_activations=[0,0,0],
+    goal_checked=[0, 0, 0],
+    goal_activations=[0, 0, 0],
     elapsed_ticks=0,
 )
 
@@ -55,19 +57,17 @@ small_case1 = DQN.system_parameters(
 
 case_5goals = DQN.system_parameters(
     size=env_size,
-    robot_status=[1,1,1],
     robot_locations=[1, 2, 7],
     goal_locations=[11, 3, 5, 4, 6],
     goal_discovery_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7],
     goal_completion_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7],
-    goal_activations=[0,0,0,0,0],
-    goal_checked=[0,0,0,0,0],
+    goal_activations=[0, 0, 0, 0, 0],
+    goal_checked=[0, 0, 0, 0, 0],
     elapsed_ticks=0,
 )
 
 case_7goals = DQN.system_parameters(
     size=env_size,
-    robot_status=[1,1,1],
     robot_locations=[1, 5, 6],
     goal_locations=[11, 3, 5, 4, 10, 9, 7],
     goal_discovery_probabilities=[0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
@@ -89,8 +89,7 @@ case_7goals = DQN.system_parameters(
 
 large_case_peaked = DQN.system_parameters(
     size=env_size,
-    robot_status=[1,1,1],
-    robot_locations=[1,5,6],
+    robot_locations=[1, 5, 6],
     goal_locations=[i for i in range(env_size)],
     goal_completion_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
     goal_discovery_probabilities=[0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
@@ -101,10 +100,10 @@ large_case_peaked = DQN.system_parameters(
 
 rects_id19_case_peaked = DQN.system_parameters(
     size=env_size,
-    robot_status=[1,1,1],
-    robot_locations=[1,5,6],
+    robot_locations=[1, 5, 6],
     goal_locations=[i for i in range(env_size)],
-    goal_completion_probabilities=[0.6323834,0.32501727,0.30504792,0.1,0.51242514,0.76339031,0.85989944,0.89268024,0.89840738,0.89732351,0.87692726,0.76291351],
+    goal_completion_probabilities=[0.6323834, 0.32501727, 0.30504792, 0.1, 0.51242514, 0.76339031, 0.85989944,
+                                   0.89268024, 0.89840738, 0.89732351, 0.87692726, 0.76291351],
     goal_discovery_probabilities=[0.95 for i in range(env_size)],
     goal_activations=[0 for i in range(env_size)],
     goal_checked=[0 for i in range(env_size)],
@@ -141,12 +140,16 @@ plt.ion()
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# run_id = int(np.random.rand() * 100000)
+# print("Run id: ", run_id)
+
 # saved_weights_name = "policy_weights_epoch300"
 # scenario_id = 108186
 
 
 def decay_function(ep, e_max, e_min, num_eps):
-    return DQN.exponential_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min, num_episodes=num_eps, max_epsilon_time=0, min_epsilon_time=0)
+    return DQN.exponential_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min, num_episodes=num_eps,
+                                         max_epsilon_time=0, min_epsilon_time=0)
 
 
 #%%
@@ -172,7 +175,7 @@ except NameError:
                                                 gamma=0.5,
                                                 num_episodes=500,
                                                 tau=0.005,
-                                                usePseudorewards=False,   # something wrong with these. investigate noisy rewards.
+                                                usePseudorewards=False, # something wrong with these. investigate noisy rewards.
                                                 plot_frequency=10,
                                                 memory_sort_frequency=25,
                                                 max_steps=200,
@@ -185,7 +188,6 @@ except NameError:
     print(f"Saving as {saved_weights_name}")
     torch.save(trained_dqn.state_dict(), f"./outputs/{saved_weights_name}")
 
-
 #%%
 
 
@@ -196,7 +198,7 @@ s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
                                                   max_steps=300,
                                                   render=False)
 
-plt.figure(figsize=(10,7))
+plt.figure(figsize=(10, 7))
 plt.hist(x=steps, rwidth=0.95)
 plt.xlabel("Total env steps")
 
@@ -223,7 +225,6 @@ for i in range(len(deadlock_traces)):
     for j in range(len(trace)):
         print(trace[j]["robot0 clock"])
         env.render_frame(trace[j])
-
 
 # plt.figure(figsize=(10,7))
 # plt.hist(x=ticks, rwidth=0.95)
