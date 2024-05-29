@@ -450,7 +450,9 @@ def train_model(
                     rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
                     f = plot_status(episode_durations[:i_episode], rewards[:i_episode], epsilons[:i_episode])
-                    f.savefig(os.getcwd() + f"/outputs/plots/plt_epoch{i_episode}.svg")
+                    file_dir = os.getcwd() + f"/outputs/plots/plt_epoch{i_episode}.svg"
+                    print(f"Saving plot {i_episode} at {file_dir}")
+                    f.savefig(file_dir)
                     plt.close(f)
                 if (checkpoints_on and i_episode % checkpoint_frequency == 0 and i_episode > 0):
                     # write durations, rewards and epsilons to file

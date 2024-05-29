@@ -160,7 +160,7 @@ n_observations = len(state)
 policy_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer).to(device)
 try:
     assert saved_weights_name
-    print(f"Loading from '/outputs/{saved_weights_name}'")
+    print(f"Loading from '/outputs/{saved_weights_name}")
     policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + saved_weights_name))
 except NameError:
     print("No saved weights defined, starting from scratch")
