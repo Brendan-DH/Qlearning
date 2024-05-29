@@ -9,11 +9,11 @@
 #SBATCH --account=cs-trustw-2024        # Project account to use
 #SBATCH --mail-type=END,FAIL            # Mail events (NONE, BEGIN, END, FAIL, ALL)
 #SBATCH --mail-user=badh500@york.ac.uk   # Where to send mail
-#SBATCH --output=%x-%j.log              # Standard output log
-#SBATCH --error=%x-%j.err               # Standard error log
+#SBATCH --output=job.log              # Standard output log
+#SBATCH --error=job.err               # Standard error log
 
 # Abort if any command fails
-set -e
+# set -e
 
 # Purge any previously loaded modules
 module purge

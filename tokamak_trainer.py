@@ -121,7 +121,7 @@ rects_id19_case_peaked = DQN.system_parameters(
 # )
 
 env = gym.make(env_to_use,
-               system_parameters=rects_id19_case_peaked,
+               system_parameters=case_5goals,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
@@ -176,7 +176,7 @@ except NameError:
                                                 num_episodes=500,
                                                 tau=0.005,
                                                 usePseudorewards=False,   # something wrong with these. investigate noisy rewards.
-                                                plot_frequency=1,
+                                                plot_frequency=20,
                                                 memory_sort_frequency=25,
                                                 max_steps=200,
                                                 buffer_size=50000,
