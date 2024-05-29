@@ -2,6 +2,7 @@ agent.txt
 /outputs
 /environments/__pycache__
 __pycache__/
+__pycache__/*
 **/__pycache__/
 /.venv
 /.idea
