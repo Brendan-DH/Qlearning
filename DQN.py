@@ -70,7 +70,7 @@ class ReplayMemory(object):
     def push(self, *args):
         """Save a transition"""
         self.memory.append(Transition(*args))
-        if(len(self) == self.capacity and self.warning is False):
+        if (len(self) == self.capacity and self.warning is False):
             print("REPLAY AT CAPACITY: " + str(len(self)))
             self.warning = True
 
@@ -128,9 +128,7 @@ def select_action(dqn, env, state, epsilon, forbidden_actions=[]):
 
 def plot_status(episode_durations, rewards, epsilons):
 
-    fig = plt.figure()
-
-    fig, mid_ax = plt.subplots(figsize=(10,10), layout="constrained")
+    fig, mid_ax = plt.subplots(figsize=(10, 10), layout="constrained")
     mid_ax.grid(False)
 
     bot_ax = mid_ax.twinx()
@@ -141,8 +139,8 @@ def plot_status(episode_durations, rewards, epsilons):
     #                               np.floor(max(episode_durations) / 5) * int(max(episode_durations)) + 6,
     #                               5))
     bot_ax.set_ylabel("Epsilon")
-    bot_ax.set_ylim(0,1)
-    bot_ax.set_yticks(np.linspace(0,1,21))
+    bot_ax.set_ylim(0, 1)
+    bot_ax.set_yticks(np.linspace(0, 1, 21))
 
     upper_ax.set_ylabel("Reward")
     mid_ax.set_xlabel('Episode')
@@ -156,7 +154,7 @@ def plot_status(episode_durations, rewards, epsilons):
 
     epsilon_plot = bot_ax.plot(epsilons, color="orange", label="epsilon", zorder=0)
     duration_plot = mid_ax.plot(episode_durations, color="royalblue", alpha=0.2, label="durations", zorder=5)
-    reward_plot = upper_ax.plot(rewards, color="mediumseagreen", alpha=0.5, label="rewards",zorder=10)
+    reward_plot = upper_ax.plot(rewards, color="mediumseagreen", alpha=0.5, label="rewards", zorder=10)
 
     bot_ax.set_zorder(0)
     mid_ax.set_zorder(5)
@@ -168,7 +166,8 @@ def plot_status(episode_durations, rewards, epsilons):
 
         duration_means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
         duration_means = torch.cat((torch.zeros(99), duration_means))
-        duration_av_plot = mid_ax.plot(duration_means.numpy(), color="indianred", label="average dur. ", lw=3, zorder=20)
+        duration_av_plot = mid_ax.plot(duration_means.numpy(), color="indianred", label="average dur. ", lw=3,
+                                       zorder=20)
         mid_ax.axhline(duration_means.numpy()[-1], color="indianred", alpha=1, ls="--", zorder=40)
         mid_ax.text(0, duration_means.numpy()[-1], "avg dur.: {:.2f}".format(duration_means.numpy()[-1]), zorder=60)
 
@@ -191,15 +190,16 @@ def plot_status(episode_durations, rewards, epsilons):
     return fig
 
 
-def exponential_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_time, min_epsilon_time, num_episodes, decay_rate=None):
+def exponential_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_time, min_epsilon_time, num_episodes,
+                              decay_rate=None):
+    if (not decay_rate):
+        decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (
+                    num_episodes - (max_epsilon_time + min_epsilon_time))  # ensures epsilon ~= epsilon_min at end
 
-    if(not decay_rate):
-        decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes - (max_epsilon_time + min_epsilon_time))  # ensures epsilon ~= epsilon_min at end
-
-    if(episode < max_epsilon_time):
+    if (episode < max_epsilon_time):
         # print("max ep")
         epsilon = epsilon_max
-    elif(episode > num_episodes - min_epsilon_time):
+    elif (episode > num_episodes - min_epsilon_time):
         epsilon = epsilon_min
     else:
         # print("decaying ep")
@@ -210,12 +210,11 @@ def exponential_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_tim
 
 
 def linear_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_time, min_epsilon_time, num_episodes):
-
     gradient = (epsilon_min - epsilon_max) / (num_episodes - max_epsilon_time - min_epsilon_time)
 
-    if(episode < max_epsilon_time):
+    if (episode < max_epsilon_time):
         epsilon = epsilon_max
-    elif(episode > num_episodes - min_epsilon_time):
+    elif (episode > num_episodes - min_epsilon_time):
         epsilon = epsilon_min
     else:
         epsilon = epsilon_max + (gradient * (episode - max_epsilon_time))
@@ -224,28 +223,28 @@ def linear_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_time, mi
 
 
 def train_model(
-        env,                            # gymnasium environment
-        policy_net,                     # policy network to be trained
-        target_net,                     # target network to be soft updated
-        reset_options=None,             # options passed when resetting env
-        num_episodes=1000,              # number of episodes for training
-        gamma=0.6,                      # discount factor
-        epsilon_max=0.95,               # max exploration rate
-        epsilon_min=0.05,               # min exploration rate
-        epsilon_decay_function=None,    # will be exponential if not set.
-        alpha=1e-3,                     # learning rate for policy DeepQNetwork
-        tau=0.005,                      # soft update rate for ap DeepQNetwork
-        usePseudorewards=True,          # whether to calculate and use pseudorewards
-        max_steps=None,                 # max steps per episode
-        batch_size=128,                 # batch size of the replay memory
-        buffer_size=10000,              # total size of replay memory buffer
-        state_tree_capacity=200,        # capacity of the state tree
-        tree_prune_frequency=10,        # number of episodes between pruning the state tree
-        plot_frequency=10,              # number of episodes between status plots (0=disabled)
-        checkpoint_frequency=0,         # number of episodes between saving weights (0=disabled)
-        memory_sort_frequency=100,      # number of episodes between sorting the replay memory
-        priority_coefficient=0.5,       # alpha in the sampling probability equation, higher prioritises importance more
-        weighting_coefficient=0.7       # beta in the transition weighting equation, higher ameliorates sampling bias more
+        env,  # gymnasium environment
+        policy_net,  # policy network to be trained
+        target_net,  # target network to be soft updated
+        reset_options=None,  # options passed when resetting env
+        num_episodes=1000,  # number of episodes for training
+        gamma=0.6,  # discount factor
+        epsilon_max=0.95,  # max exploration rate
+        epsilon_min=0.05,  # min exploration rate
+        epsilon_decay_function=None,  # will be exponential if not set.
+        alpha=1e-3,  # learning rate for policy DeepQNetwork
+        tau=0.005,  # soft update rate for ap DeepQNetwork
+        usePseudorewards=True,  # whether to calculate and use pseudorewards
+        max_steps=None,  # max steps per episode
+        batch_size=128,  # batch size of the replay memory
+        buffer_size=10000,  # total size of replay memory buffer
+        state_tree_capacity=200,  # capacity of the state tree
+        tree_prune_frequency=10,  # number of episodes between pruning the state tree
+        plot_frequency=10,  # number of episodes between status plots (0=disabled)
+        checkpoint_frequency=0,  # number of episodes between saving weights (0=disabled)
+        memory_sort_frequency=100,  # number of episodes between sorting the replay memory
+        priority_coefficient=0.5,  # alpha in the sampling probability equation, higher prioritises importance more
+        weighting_coefficient=0.7  # beta in the transition weighting equation, higher ameliorates sampling bias more
         # save_plot_data=False          # whether to save the plotting data to a file
 ):
     """
@@ -329,7 +328,7 @@ def train_model(
     torch.set_grad_enabled(True)
     plotting_on = plot_frequency < num_episodes and plot_frequency != 0
     checkpoints_on = checkpoint_frequency < num_episodes and checkpoint_frequency != 0
-    if(checkpoints_on):
+    if (checkpoints_on):
         file = open(os.getcwd() + "/outputs/diagnostics", "w")
         file.write("# no data yet...")
 
@@ -356,10 +355,10 @@ def train_model(
     start_time = time.time()
     for i_episode in range(num_episodes):
 
-        if((i_episode % int(num_episodes / 10)) == 0):
+        if ((i_episode % int(num_episodes / 10)) == 0):
             print(f"{i_episode}/{num_episodes} complete...")
 
-        if(i_episode % int(memory_sort_frequency) == 0):
+        if (i_episode % int(memory_sort_frequency) == 0):
             memory.sort(batch_size, priority_coefficient)
             # try:
             #     print("sorting")
@@ -369,13 +368,13 @@ def train_model(
 
         # calculate the new epsilon
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
-        if(plotting_on or checkpoints_on):
+        if (plotting_on or checkpoints_on):
             epsilons[i_episode] = epsilon
 
         state, info = env.reset()
 
         # Initialise the first state
-        if(usePseudorewards):
+        if (usePseudorewards):
             phi_sprime = info["pseudoreward"]  # phi_sprime is the pseudoreward of the new state
         stateT = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
         ep_reward = 0
@@ -391,7 +390,7 @@ def train_model(
             masked_utilities = [action_utilities[i] if not blocked[i] else -1000 for i in range(len(action_utilities))]
             # print(masked_utilities, type(masked_utilities))
             action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device)
-            if(np.random.random() < epsilon):
+            if (np.random.random() < epsilon):
                 sample = env.action_space.sample()
                 while blocked[sample] == 1:
                     # print("blocked")
@@ -406,7 +405,7 @@ def train_model(
             state, reward, terminated, truncated, info = env.step(action)
 
             # calculate pseudoreward
-            if(usePseudorewards):
+            if (usePseudorewards):
                 phi = phi_sprime
                 phi_sprime = info["pseudoreward"]
                 pseudoreward = (gamma * phi_sprime - phi)
@@ -450,20 +449,22 @@ def train_model(
             if done:
                 # print("done")
                 # print([env.state[f"goal{i} active"] for i in range(12)])
-                if(plotting_on or checkpoints_on):
+                if (plotting_on or checkpoints_on):
                     episode_durations[i_episode] = info["elapsed steps"]
                     rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
                     f = plot_status(episode_durations[:i_episode], rewards[:i_episode], epsilons[:i_episode])
-                    plt.show()
-                    plt.close(f)
+                    f.savefig("/outputs/plt_output.svg")
+                    # plt.show(block=False)
+                    # plt.close(f)
                 if (checkpoints_on and i_episode % checkpoint_frequency == 0 and i_episode > 0):
                     # write durations, rewards and epsilons to file
-                    np.savetxt(os.getcwd() + "/outputs/diagnostics", np.vstack((episode_durations,rewards,epsilons)).transpose())
+                    np.savetxt(os.getcwd() + "/outputs/diagnostics",
+                               np.vstack((episode_durations, rewards, epsilons)).transpose())
                     torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/policy_weights_epoch{i_episode}")
                 break
 
-    print(f"Training complete in {int(time.time()-start_time)} seconds.")
+    print(f"Training complete in {int(time.time() - start_time)} seconds.")
     return policy_net, episode_durations, rewards, epsilons
 
 
@@ -480,7 +481,7 @@ class PriorityMemory(object):
         """Save a transition"""
         # when a new transition is saved, it should have max priority:
         self.memory.appendleft(DeltaTransition(*args, self.max_priority))  # append at the high-prio part
-        if(len(self) == self.capacity and self.warning is False):
+        if (len(self) == self.capacity and self.warning is False):
             print("REPLAY AT CAPACITY: " + str(len(self)))
             self.warning = True
 
@@ -492,7 +493,7 @@ class PriorityMemory(object):
         # higher rank = lower priority, so higher rank should be lower |delta|
         # i.e. lower rank should be higher delta, as such:
 
-        if(len(self.memory) < batch_size):
+        if (len(self.memory) < batch_size):
             return
 
         items = [self.memory.pop() for i in range(len(self.memory))]
@@ -503,7 +504,7 @@ class PriorityMemory(object):
         self.max_priority = 1
 
         # the divisor in the P equation
-        self.prob_divisor = 1 / np.sum([((1 / (i + 1))**priority_coefficient) for i in range(len(items))])
+        self.prob_divisor = 1 / np.sum([((1 / (i + 1)) ** priority_coefficient) for i in range(len(items))])
 
         # re-calculate the bounds
         # do this very explicitly for now
@@ -511,12 +512,13 @@ class PriorityMemory(object):
         start = 0
         for i in range(len(bounds)):  # iterate over segments
             prob_in_segment = 0
-            for j in range(start, start + self.capacity):  # the (inclusive) start is the (exclusive) end of the previous bound
+            for j in range(start,
+                           start + self.capacity):  # the (inclusive) start is the (exclusive) end of the previous bound
                 # print(j)
                 priority = 1 / (j + 1)  # wary of div by 0
-                prob_in_segment += (priority**priority_coefficient) * self.prob_divisor
+                prob_in_segment += (priority ** priority_coefficient) * self.prob_divisor
                 # print(prob_in_segment)
-                if(prob_in_segment >= (1 / batch_size)):
+                if (prob_in_segment >= (1 / batch_size)):
                     # conservative boundaries (j rather than j+1); this means the boundaries contain less than 1/batch_size the probability
                     # this ensures that the boundaries won't overflow the size of the memory
                     # however, also ensure one tr per segment as empty segments will break early optimisations
@@ -546,7 +548,6 @@ def optimise_model_with_importance_sampling(policy_dqn,
                                             batch_size,
                                             priority_coefficient,
                                             weighting_coefficient):
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     criterion = nn.SmoothL1Loss()  # maybe I should actually use Huber?
 
@@ -568,7 +569,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
         transitions[i] = replay_memory.memory[tr_index]
 
         tr_priority = 1 / (tr_index + 1)
-        P_tr = (tr_priority**priority_coefficient) * replay_memory.prob_divisor
+        P_tr = (tr_priority ** priority_coefficient) * replay_memory.prob_divisor
         weight = ((batch_size * P_tr) ** -weighting_coefficient) * (1 / replay_memory.max_priority)
         weights[i] = weight
 
@@ -613,13 +614,13 @@ def optimise_model_with_importance_sampling(policy_dqn,
     optimiser.step()
 
     # now update the priorities of the transitions that were used
-    for i in range(len(transition_indices)):  # would it be more efficient to store just delta_i? might require fewer calculations
+    for i in range(
+            len(transition_indices)):  # would it be more efficient to store just delta_i? might require fewer calculations
         index = transition_indices[i]
         replay_memory.updatePriorities(index, torch.mean(loss_vector[i]).item())
 
 
 def optimise_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batch_size):
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if len(replay_memory) < batch_size:
@@ -666,10 +667,10 @@ def optimise_model(policy_dqn, target_dqn, replay_memory, optimiser, gamma, batc
 
 
 def plot_state_tree(state_tree, env, reset=False):
-    plt.figure(figsize=(10,10))
+    plt.figure(figsize=(10, 10))
     plt.scatter([state["x"] for state in state_tree], [state["y"] for state in state_tree])
     plt.plot([env.goal[0]], [env.goal[1]], marker="x", color="orange", markersize=10)
-    if(reset):
+    if (reset):
         plt.plot([env.state["x"]], [env.state["y"]], marker="$O$", color="magenta", markersize=20)
     else:
         plt.plot([env.state["x"]], [env.state["y"]], marker="x", color="red", markersize=10)
@@ -683,7 +684,6 @@ def evaluate_model(dqn,
                    max_steps,
                    reset_options=None,
                    render=False):
-
     print("Evaluating...")
 
     if ("win" in sys.platform and render):
@@ -701,7 +701,7 @@ def evaluate_model(dqn,
     deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
 
     for i in range(num_episodes):
-        if(reset_options):
+        if (reset_options):
             state, info = env.reset(options=reset_options.copy())
         else:
             state, info = env.reset()
@@ -740,7 +740,7 @@ def evaluate_model(dqn,
                     print(f"{i}/{num_episodes} episodes complete")
                 break
 
-        if(not done):
+        if (not done):
             deadlock_traces.append(states)
             deadlock_counter += 1
 
@@ -771,8 +771,9 @@ def evaluate_model(dqn,
     # plt.show()
 
     print("Evaluation complete.")
-    print(f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter==0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
-    print(f"Percentage converged: {100 - (deadlock_counter*100/num_episodes)}")
+    print(
+        f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter == 0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
+    print(f"Percentage converged: {100 - (deadlock_counter * 100 / num_episodes)}")
 
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 
