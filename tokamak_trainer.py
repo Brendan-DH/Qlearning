@@ -175,13 +175,8 @@ except NameError:
                                                 gamma=0.5,
                                                 num_episodes=500,
                                                 tau=0.005,
-<<<<<<< Updated upstream
-                                                usePseudorewards=False, # something wrong with these. investigate noisy rewards.
-                                                plot_frequency=10,
-=======
                                                 usePseudorewards=False,   # something wrong with these. investigate noisy rewards.
                                                 plot_frequency=1,
->>>>>>> Stashed changes
                                                 memory_sort_frequency=25,
                                                 max_steps=200,
                                                 buffer_size=50000,
