@@ -34,7 +34,7 @@ The repo contains a script `intitialise` which performs most of the set up.  Cal
 - load the correct python3.8 module (this should be commented out if not using `module`),
 - create a python3.8 virtual environment,
 - load the requirements.txt of this environment,
-- register the relevant environment wtih gymnasium (the environment number should be changed to whatever is required).
-
+- register the relevant environment wtih gymnasium (the environment number should be changed to whatever is required)
+- generate the directory structure for the outputs
 
 

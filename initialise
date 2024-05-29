@@ -12,12 +12,18 @@ python3.8 -m pip install -r requirements.txt
 cd gymnasium/envs
 ln -s ../../../../../../environments tokamak
 cd ../../
-echo "
-register(
-    id='Tokamak-v13',
-    entry_point='gymnasium.envs.tokamak.tokamakenv13:TokamakEnv13',
-    max_episode_steps=1000,
-)">> gymnasium/envs/__init__.py
+
+if grep -q "Tokamak-v13" gymnasium/envs/__init__.py
+then
+    echo "Environment already registered"  
+else
+    echo "    
+    register(
+        id='Tokamak-v13',
+        entry_point='gymnasium.envs.tokamak.tokamakenv13:TokamakEnv13',
+        max_episode_steps=1000,
+    )">> gymnasium/envs/__init__.py
+fi
 
 # create outputs directory
 mkdir outputs
