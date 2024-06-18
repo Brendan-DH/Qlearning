@@ -138,8 +138,8 @@ is_ipython = 'inline' in matplotlib.get_backend()
 plt.ion()
 
 # if GPU is to be used
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+print("Running on: " + "cuda" if torch.cuda.is_available() else "cpu")
 # run_id = int(np.random.rand() * 100000)
 # print("Run id: ", run_id)
 

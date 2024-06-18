@@ -6,6 +6,13 @@ module load Python/3.8.6-GCCcore-10.2.0
 # set up venv
 python3.8 -m venv .venv
 source ./.venv/bin/activate
+
+if test -f .initialised; then
+
+echo "Already initialised. Remove '.initialised' to force re-initialisation."
+
+else
+
 python3.8 -m pip install -r requirements.txt
 
 # configure gym environments
@@ -29,3 +36,7 @@ fi
 mkdir outputs
 mkdir outputs/plots
 mkdir outputs/checkpoints
+
+fi
+
+touch .initialised
