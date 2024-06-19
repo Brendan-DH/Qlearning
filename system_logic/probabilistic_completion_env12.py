@@ -45,8 +45,7 @@ def template_move(env, state, action_no):
 
     # the effect function for moving robot 1 ccw
     new_state = state.copy()
-    robot_no = int(np.floor(action_no / env.num_actions))
-    current_location = new_state[f"robot{robot_no} location"]
+robot_no = int(torch.floor_divide(action_no, env.num_actions).item())    current_location = new_state[f"robot{robot_no} location"]
     rel_action = action_no % env.num_actions
 
     # deterministic part of the result:
@@ -86,8 +85,7 @@ def template_inspect(env, state, action_no):
 
     """
 
-    robot_no = int(np.floor(action_no / env.num_actions))
-
+robot_no = int(torch.floor_divide(action_no, env.num_actions).item())
     new_state = state.copy()
 
     for i in range(env.num_goals):
@@ -121,8 +119,7 @@ def template_wait(env, state, action_no):
     Allows a robot to wait a tick.
     """
 
-    robot_no = int(np.floor(action_no / env.num_actions))
-    new_state = state.copy()
+robot_no = int(torch.floor_divide(action_no, env.num_actions).item())    new_state = state.copy()
 
     new_state = clock_effect(env, state, robot_no)
 
@@ -173,14 +170,12 @@ def t_model(env, state, action_no):
     # (i.e. number of robots). could possibly be made dynamic later.
 
     if(env.blocked_model(env, state)[action_no] == 1):
-        robot_no = int(np.floor(action_no / env.num_actions))
-        new_state = clock_effect(env, state, robot_no)
+    robot_no = int(torch.floor_divide(action_no, env.num_actions).item())        new_state = clock_effect(env, state, robot_no)
         p = [1]
         s = [new_state]
         return p, s
 
-    robot_no = int(np.floor(action_no / env.num_actions))
-    rel_action = action_no % env.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
+robot_no = int(torch.floor_divide(action_no, env.num_actions).item())    rel_action = action_no % env.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
     # use the appropriate function to get the probability and state array for each possible action type:
     if(rel_action == 0 or rel_action == 1):

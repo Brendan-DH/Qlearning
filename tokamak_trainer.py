@@ -16,9 +16,11 @@ import numpy as np
 import system_logic.hybrid_system as mdpt
 from mdp_translation import GenerateDTMCFile
 import subprocess
+import sys
 
-# use a non-display backend
+# use a non-display backend. no, i don't know what this means.
 matplotlib.use('Agg')
+sys.stdout.flush()
 
 # from abc import ABC, abstractmethod
 env_to_use = "Tokamak-v13"
@@ -139,7 +141,7 @@ plt.ion()
 
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
-print("Running on: " + "cuda" if torch.cuda.is_available() else "cpu")
+print("Running on: " + ("cuda" if torch.cuda.is_available() else "cpu"))
 # run_id = int(np.random.rand() * 100000)
 # print("Run id: ", run_id)
 

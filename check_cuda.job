@@ -23,5 +23,8 @@ module purge
 source initialise
 
 # Commands to run
-python -m check_cuda
+
+nvidia-smi > nvidia_smi.out
+
+python -u -m check_cuda > cuda_status.out
 

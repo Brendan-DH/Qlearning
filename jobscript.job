@@ -7,11 +7,11 @@
 ##SBATCH --cpus-per-task=8               # Number of CPU cores per MPI task
 #SBATCH --nodes=1			# number of nodes
 #SBATCH --gres=gpu:1                    # gpus per requested per node
-#SBATCH --mem=1G                        # Total memory to request
+#SBATCH --mem=16G                        # Total memory to request
 #SBATCH --account=cs-trustw-2024        # Project account to use
 #SBATCH --mail-type=END,FAIL            # Mail events (NONE, BEGIN, END, FAIL, ALL)
 #SBATCH --mail-user=badh500@york.ac.uk   # Where to send mail
-#SBATCH --output=job.log              # Standard output log
+#SBATCH --output=job.out             # Standard output log
 #SBATCH --error=job.err               # Standard error log
 
 # Abort if any command fails
@@ -22,7 +22,8 @@ module purge
 
 # run the initialisation script
 source initialise
+#source .venv/bin/activate
 
 # Commands to run
-python -m tokamak_trainer.py > trainer_output.out
+python -u -m tokamak_trainer.py > trainer_output.out
 
