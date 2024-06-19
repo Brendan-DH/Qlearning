@@ -15,12 +15,15 @@ else
 python3.8 -m venv .venv
 python3.8 -m pip install -r requirements.txt
 
-# configure gym environments
-cd gymnasium/envs
-ln -s ../../../../../../environments tokamak
-cd ../../
+ROOTDIR="$PWD"
 
-if grep -q "Tokamak-v13" gymnasium/envs/__init__.py
+# configure gym environments
+ln -s .venv/lib/python3.8/site-packages/gymnasium gymnasium
+cd $PWD/gymnasium/envs
+ln -s $ROOTDIR/environments tokamak
+cd $ROOTDIR
+
+if grep -q "Tokamak-v13" $ROOTDIR/gymnasium/envs/__init__.py
 then
     echo "Environment already registered"  
 else
@@ -29,13 +32,13 @@ register(
 id='Tokamak-v13',
 entry_point='gymnasium.envs.tokamak.tokamakenv13:TokamakEnv13',
 max_episode_steps=1000,
-)">> gymnasium/envs/__init__.py
+)">> $ROOTDIR/gymnasium/envs/__init__.py
 fi
 
 # create outputs directory
-mkdir outputs
-mkdir outputs/plots
-mkdir outputs/checkpoints
+mkdir $ROOTDIR/outputs
+mkdir $ROOTDIR/outputs/plots
+mkdir $ROOTDIR/outputs/checkpoints
 
 fi
 

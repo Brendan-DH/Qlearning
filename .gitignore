@@ -11,5 +11,5 @@ mpc.py
 /old
 *.err
 *.log
-.initialise
+.initialised
 *.out
