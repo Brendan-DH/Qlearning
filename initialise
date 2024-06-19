@@ -3,7 +3,7 @@
 
 # load modules
 module purge
-module load Python/3.8.6-GCCcore-10.2.0
+module load Python/3.11.3-GCCcore-12.3.0 
 module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
 if test -f .initialised; then
@@ -12,13 +12,14 @@ echo "Already initialised. Remove '.initialised' to force re-initialisation."
 
 else
 
-python3.8 -m venv .venv
-python3.8 -m pip install -r requirements.txt
+python3.11 -m venv .venv
+source .venv/bin/activate
+python3.11 -m pip install gymnasium #-r requirements.txt
 
 ROOTDIR="$PWD"
 
 # configure gym environments
-ln -s .venv/lib/python3.8/site-packages/gymnasium gymnasium
+ln -s .venv/lib/python3.11/site-packages/gymnasium gymnasium
 cd $PWD/gymnasium/envs
 ln -s $ROOTDIR/environments tokamak
 cd $ROOTDIR
