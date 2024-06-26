@@ -105,7 +105,7 @@ class DeepQNetwork(nn.Module):
             x = F.relu(self.layer5(x))
             return self.layer6(x)
         except RuntimeError:
-            print(x)
+            raise Exception(f"Error occured with DeepQNetwork.forward with the following tensor:\n{x}")
 
 
 def select_action(dqn, env, state, epsilon, forbidden_actions=[]):
@@ -450,7 +450,7 @@ def train_model(
                     rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
                     f = plot_status(episode_durations[:i_episode], rewards[:i_episode], epsilons[:i_episode])
-                    file_dir = os.getcwd() + f"/outputs/plots/plt_epoch{i_episode}.svg"
+                    file_dir = os.getcwd() + f"/outputs/plots/plt_epoch{i_episode}.png"
                     print(f"Saving plot {i_episode} at {file_dir}")
                     f.savefig(file_dir)
                     plt.close(f)

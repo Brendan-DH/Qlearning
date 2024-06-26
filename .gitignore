@@ -13,3 +13,4 @@ mpc.py
 *.log
 .initialised
 *.out
+.vscode/*
