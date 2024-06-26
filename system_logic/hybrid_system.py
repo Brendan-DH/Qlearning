@@ -280,24 +280,22 @@ def r_model(env, s, action, sprime):
 
     rel_action = action % env.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
+    # reward for checking a goal by moving onto its position
     if(rel_action < 2):
         for i in range(env.num_goals):
             if(s[f"goal{i} checked"] != sprime[f"goal{i} checked"]):
-                reward += 100
-                # print(f"{i} : 100 checked")
+                reward += 100 
 
-    if(rel_action == 2):
-        # print("reward for engaging", 100)
-        reward += 100
-        # print(f"100 attempted")
+    # reward for attempting to complete a goal
+    #if(rel_action == 2):
+    #    reward += 100
 
     # rewards for completing goals
     for i in range(env.num_goals):
         # check if any goals have been accomplished
         if(s[f"goal{i} active"] == 1 and sprime[f"goal{i} active"] == 0):
-            # print("reward for completion", 1000)
             reward += 1000
-            # print(f"{i} : 1000 completed")
+
 
     return reward
 

@@ -26,7 +26,7 @@ sys.stdout.flush()
 env_to_use = "Tokamak-v13"
 saved_weights_name = "" #"saved_weights_999862"
 env = gym.make(env_to_use,
-               system_parameters=scenarios.large_case_peaked,
+               system_parameters=scenarios.small_case1,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
@@ -69,7 +69,7 @@ else:
                                                 epsilon_min=0.05,
                                                 alpha=1e-3,
                                                 gamma=0.5,
-                                                num_episodes=1000,
+                                                num_episodes=300,
                                                 tau=0.005,
                                                 # something wrong with these. investigate noisy rewards.
                                                 usePseudorewards=False,
