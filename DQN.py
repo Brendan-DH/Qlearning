@@ -555,7 +555,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     lower = 0
     transitions = np.empty(batch_size, dtype=DeltaTransition)
     transition_indices = np.empty(batch_size, dtype=int)
-    weights = torch.tensor(np.empty(batch_size), dtype=float)
+    weights = torch.tensor(np.empty(batch_size), dtype=float, device=device)
 
     # loop over the k linear segments
     for i in range(batch_size):
