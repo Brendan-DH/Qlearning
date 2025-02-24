@@ -26,7 +26,7 @@ sys.stdout.flush()
 env_to_use = "Tokamak-v13"
 saved_weights_name = "" #"saved_weights_999862"
 env = gym.make(env_to_use,
-               system_parameters=scenarios.small_case1,
+               system_parameters=scenarios.seg20_case,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
