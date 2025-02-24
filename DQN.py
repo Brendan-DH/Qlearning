@@ -22,7 +22,6 @@ import time
 import os
 import sys
 
-
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -61,25 +60,25 @@ class hashdict(dict):
         return hash(frozenset(self))
 
 
-class ReplayMemory(object):
-
-    def __init__(self, capacity):
-        self.capacity = capacity
-        self.warning = False
-        self.memory = deque([], maxlen=capacity)
-
-    def push(self, *args):
-        """Save a transition"""
-        self.memory.append(Transition(*args))
-        if (len(self) == self.capacity and self.warning is False):
-            print("REPLAY AT CAPACITY: " + str(len(self)))
-            self.warning = True
-
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
-
-    def __len__(self):
-        return len(self.memory)
+# class ReplayMemory(object):
+#
+#     def __init__(self, capacity):
+#         self.capacity = capacity
+#         self.warning = False
+#         self.memory = deque([], maxlen=capacity)
+#
+#     def push(self, *args):
+#         """Save a transition"""
+#         self.memory.append(Transition(*args))
+#         if (len(self) == self.capacity and self.warning is False):
+#             print("REPLAY AT CAPACITY: " + str(len(self)))
+#             self.warning = True
+#
+#     def sample(self, batch_size):
+#         return random.sample(self.memory, batch_size)
+#
+#     def __len__(self):
+#         return len(self.memory)
 
 
 class DeepQNetwork(nn.Module):
@@ -128,7 +127,6 @@ def select_action(dqn, env, state, epsilon, forbidden_actions=[]):
 
 
 def plot_status(episode_durations, rewards, epsilons):
-
     fig, mid_ax = plt.subplots(figsize=(10, 10), layout="constrained")
     mid_ax.grid(False)
 
@@ -195,7 +193,7 @@ def exponential_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_tim
                               decay_rate=None):
     if (not decay_rate):
         decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (
-                    num_episodes - (max_epsilon_time + min_epsilon_time))  # ensures epsilon ~= epsilon_min at end
+                num_episodes - (max_epsilon_time + min_epsilon_time))  # ensures epsilon ~= epsilon_min at end
 
     if (episode < max_epsilon_time):
         # print("max ep")
@@ -324,7 +322,6 @@ def train_model(
 
     # Initialisation of NN apparatus
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
-    # memory = ReplayMemory(buffer_size)
     memory = PriorityMemory(buffer_size)
     torch.set_grad_enabled(True)
     plotting_on = plot_frequency < num_episodes and plot_frequency != 0
@@ -470,15 +467,20 @@ class PriorityMemory(object):
     def __init__(self, capacity):
         self.capacity = capacity
         self.warning = False
-        self.memory = deque([], maxlen=capacity)
+        self.memory = deque([], maxlen=capacity)  # this could be a tensor
         self.max_priority = 1
         self.bounds = []
+
+    # things that I would have to implement if i were to make the memory a tensor:
+    # appendleft
+    # sorting
+    # the deltatransition object in a tensor-friendly format
 
     def push(self, *args):
         """Save a transition"""
         # when a new transition is saved, it should have max priority:
-        self.memory.appendleft(DeltaTransition(*args, self.max_priority))  # append at the high-prio part
-        if (len(self) == self.capacity and self.warning is False):
+        self.memory.appendleft(DeltaTransition(*args, self.max_priority))  # append at the high-prio part.
+        if len(self) == self.capacity and self.warning is False:
             print("REPLAY AT CAPACITY: " + str(len(self)))
             self.warning = True
 
@@ -493,7 +495,7 @@ class PriorityMemory(object):
         if (len(self.memory) < batch_size):
             return
 
-        items = [self.memory.pop() for i in range(len(self.memory))]
+        items = [self.memory.pop() for i in range(len(self.memory))]  # pop everything?
         # print(items)
         items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
         self.memory = deque(items, maxlen=self.capacity)
@@ -554,7 +556,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     # get the batch of transitions. sample one transition from each of k linear segments
     lower = 0
     transitions = np.empty(batch_size, dtype=DeltaTransition)
-    transition_indices = np.empty(batch_size, dtype=int)
+    transition_indices = torch.tensor(np.empty(batch_size, dtype=int), device=device)
     weights = torch.tensor(np.empty(batch_size), dtype=float, device=device)
 
     # loop over the k linear segments
@@ -580,10 +582,10 @@ def optimise_model_with_importance_sampling(policy_dqn,
                                             batch.next_state)), device=device, dtype=torch.bool)
 
     # collection of non-final s
-    non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
-    state_batch = torch.cat(batch.state)
-    action_batch = torch.cat(batch.action)
-    reward_batch = torch.cat(batch.reward)
+    non_final_next_states = torch.cat([s for s in batch.next_state if s is not None]).to(device)  # tensor
+    state_batch = torch.cat(batch.state).to(device)  # tensor
+    action_batch = torch.cat(batch.action).to(device)  # tensor
+    reward_batch = torch.cat(batch.reward).to(device)  # tensor
 
     # the qvalues of actions in this state. the .gather gets the qvalue corresponding to the
     # indices in 'action_batch'

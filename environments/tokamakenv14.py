@@ -11,8 +11,13 @@ import gymnasium as gym
 from gymnasium import spaces
 import pygame
 
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
 
-class TokamakEnv13(gym.Env):
+
+class TokamakEnv14(gym.Env):
     metadata = {"render_modes": [], "render_fps": 4}
 
     # def set_parameters(size, num_active, num_goals, goal_locations):
