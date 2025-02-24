@@ -13,7 +13,7 @@ import torch
 import DQN
 import os
 import numpy as np
-import system_logic.hybrid_system as mdpt
+import system_logic.hybrid_system_tensor_logic as mdpt
 from mdp_translation import GenerateDTMCFile
 import subprocess
 import sys
@@ -23,10 +23,10 @@ import scenarios
 matplotlib.use('Agg')
 sys.stdout.flush()
 
-env_to_use = "Tokamak-v13"
+env_to_use = "Tokamak-v14"
 saved_weights_name = "" #"saved_weights_999862"
 env = gym.make(env_to_use,
-               system_parameters=scenarios.seg20_case,
+               system_parameters=scenarios.small_case1,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,

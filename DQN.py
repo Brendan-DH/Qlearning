@@ -564,7 +564,6 @@ def optimise_model_with_importance_sampling(policy_dqn,
         upper = replay_memory.bounds[i]
         tr_index = random.randint(lower, upper - 1)  # get a random index that falls in the segment
         transition_indices[i] = tr_index  # must be stored to update the tr delta later
-
         transitions[i] = replay_memory.memory[tr_index]
 
         tr_priority = 1 / (tr_index + 1)
@@ -613,8 +612,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     optimiser.step()
 
     # now update the priorities of the transitions that were used
-    for i in range(
-            len(transition_indices)):  # would it be more efficient to store just delta_i? might require fewer calculations
+    for i in range(len(transition_indices)):  # would it be more efficient to store just delta_i? might require fewer calculations
         index = transition_indices[i]
         replay_memory.updatePriorities(index, torch.mean(loss_vector[i]).item())
 

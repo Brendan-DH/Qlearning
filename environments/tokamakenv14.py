@@ -16,6 +16,36 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+import torch
+
+
+class TensorSpace(gym.Space):
+    def __init__(self, shape, dtype=np.int64):
+        """
+        Custom observation space for PyTorch tensors.
+
+        Args:
+            shape (tuple): Shape of the tensor.
+            dtype (torch.dtype): Data type of the tensor.
+        """
+        # Initialize the parent class with shape and dtype
+        super().__init__(shape, dtype)
+
+        # Store the shape and dtype as instance attributes
+        self._shape = shape
+        self._dtype = dtype
+
+    def sample(self):
+        """Generate a random tensor."""
+        return torch.rand(self._shape, dtype=self._dtype)
+
+    def contains(self, x):
+        """Check if `x` is a valid tensor in this space."""
+        return isinstance(x, torch.Tensor) and x.shape == self._shape and x.dtype == self._dtype
+
+    def __repr__(self):
+        return f"TensorSpace(shape={self._shape}, dtype={self._dtype})"
+
 
 class TokamakEnv14(gym.Env):
     metadata = {"render_modes": [], "render_fps": 4}
@@ -52,16 +82,13 @@ class TokamakEnv14(gym.Env):
             state[f"robot{i} clock"] = 0
         for i in range(len(system_parameters.goal_locations)):
             state[f"goal{i} location"] = system_parameters.goal_locations[i]
-
             state[f"goal{i} active"] = system_parameters.goal_activations[i]  # 1 = goal should be engaged
-
             state[f"goal{i} checked"] = system_parameters.goal_checked[i]  # 1 = goal location has been visited
             state[f"goal{i} discovery probability"] = system_parameters.goal_discovery_probabilities[i]  # p that goal is present
             state[f"goal{i} completion probability"] = system_parameters.goal_completion_probabilities[i]  # p that goal is completed in 1 attempt
 
         # state["elapsed ticks"] = system_parameters.elapsed_ticks
 
-        self.state = state.copy()
         self.initial_state = state.copy()
 
         # non-operational (static/inherited) parameters
@@ -70,6 +97,9 @@ class TokamakEnv14(gym.Env):
         self.start_locations = np.array(system_parameters.robot_locations.copy())
         self.num_goals = len(system_parameters.goal_locations)
         self.num_robots = len(system_parameters.robot_locations)
+
+        self.state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters)
+        self.initial_state_tensor = self.construct_state_tensor_from_dict(state)  # now we have a tensor containing the state
 
         # Transition = namedtuple('Transition', (f"robot{self.num_robots}clock"))
         # a = Transition("test")
@@ -83,18 +113,20 @@ class TokamakEnv14(gym.Env):
         # self.render_mode = render_mode
 
         # observations are an exact copy of 'state'
-        obDict = {}
-        for i in range(0,self.num_robots):
-            obDict[f"robot{i} location"] = spaces.Discrete(self.size)
-            obDict[f"robot{i} clock"] = spaces.Discrete(2)
-        for i in range(0,self.num_goals):
-            obDict[f"goal{i} location"] = spaces.Discrete(self.size)
-            obDict[f"goal{i} active"] = spaces.Discrete(2)
-            obDict[f"goal{i} checked"] = spaces.Discrete(2)
-            obDict[f"goal{i} discovery probability"] = spaces.Box(low=0, high=1, shape=[1])
-            obDict[f"goal{i} completion probability"] = spaces.Box(low=0, high=1, shape=[1])
+        # observations should also be tensors
 
-        self.action_labels = [ # this is used mostly for pygame rendering
+        # obDict = {}
+        # for i in range(0, self.num_robots):
+        #     obDict[f"robot{i} location"] = spaces.Discrete(self.size)
+        #     obDict[f"robot{i} clock"] = spaces.Discrete(2)
+        # for i in range(0, self.num_goals):
+        #     obDict[f"goal{i} location"] = spaces.Discrete(self.size)
+        #     obDict[f"goal{i} active"] = spaces.Discrete(2)
+        #     obDict[f"goal{i} checked"] = spaces.Discrete(2)
+        #     obDict[f"goal{i} discovery probability"] = spaces.Box(low=0, high=1, shape=[1])
+        #     obDict[f"goal{i} completion probability"] = spaces.Box(low=0, high=1, shape=[1])
+
+        self.action_labels = [  # this is used mostly for pygame rendering
             "r0 ccw",
             "r0 cw",
             "r0 engage",
@@ -109,7 +141,7 @@ class TokamakEnv14(gym.Env):
             "r2 wait",
         ]
 
-        self.observation_space = spaces.Dict(obDict)
+        self.observation_space = TensorSpace(shape=(self.num_robots * 2 + self.num_goals * 5,), dtype=np.int64)
 
         # actions that the robots can carry out
         # move clockwise/anticlockwise, engage
@@ -119,6 +151,65 @@ class TokamakEnv14(gym.Env):
         self.window = None
         self.clock = None
         self.reset()
+
+    def interpret_state_tensor(self, state_tensor):
+
+        # function to take the state tensor and translate it into a state dict
+
+        state_dict = {}
+
+        for i in range(self.num_robots):
+            index = i * 2
+            state_dict[f"robot{i} location"] = state_tensor[index]
+            state_dict[f"robot{i} clock"] = state_tensor[index + 1]
+
+        for i in range(self.num_robots, self.num_goals + self.num_robots):
+            index = self.num_robots * 2 + i * 5
+            state_dict[f"goal{i} location"] = state_tensor[index]
+            state_dict[f"goal{i} active"] = state_tensor[index + 1]
+            state_dict[f"goal{i} checked"] = state_tensor[index + 2]
+            state_dict[f"goal{i} discovery probability"] = state_tensor[index + 3]
+            state_dict[f"goal{i} completion probability"] = state_tensor[index + 4]
+
+        return state_dict
+
+    def construct_state_tensor_from_system_parameters(self, system_parameters):
+
+        tensor_length = self.num_robots * 2 + self.num_goals * 5
+        state_tensor = torch.tensor(np.empty(shape=tensor_length), device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+        for i in range(len(system_parameters.robot_locations)):
+            index = i * 2
+            state_tensor[index] = system_parameters.robot_locations[i]
+            state_tensor[index + 1] = 0
+        for i in range(len(system_parameters.goal_locations)):
+            index = self.num_robots * 2 + i * 5
+            state_tensor[index] = system_parameters.goal_locations[i]
+            state_tensor[index + 1] = system_parameters.goal_activations[i]  # 1 = goal should be engaged
+            state_tensor[index + 2] = system_parameters.goal_checked[i]  # 1 = goal location has been visited
+            state_tensor[index + 3] = system_parameters.goal_discovery_probabilities[i]  # p that goal is present
+            state_tensor[index + 4] = system_parameters.goal_completion_probabilities[i]  # p that goal is completed in 1 attempt
+
+        return state_tensor
+
+    def construct_state_tensor_from_dict(self, state_dict):
+
+        tensor_length = self.num_robots * 2 + self.num_goals * 5
+        state_tensor = torch.tensor(np.empty(shape=tensor_length), device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+        for i in range(self.num_robots):
+            index = i * 2
+            state_tensor[index] = state_dict[f"robot{i} location"]
+            state_tensor[index + 1] = state_dict[f"robot{i} clock"]
+        for i in range(self.num_goals):
+            index = self.num_robots * 2 + i * 5
+            state_tensor[index] = state_dict[f"goal{i} location"]
+            state_tensor[index + 1] = state_dict[f"goal{i} active"]
+            state_tensor[index + 2] = state_dict[f"goal{i} checked"]
+            state_tensor[index + 3] = state_dict[f"goal{i} discovery probability"]
+            state_tensor[index + 4] = state_dict[f"goal{i} completion probability"]
+
+        return state_tensor
 
     def get_parameters(self):
         # parameters = {
@@ -135,7 +226,8 @@ class TokamakEnv14(gym.Env):
         raise NotImplementedError()
 
     def get_obs(self):
-        return self.state.copy()
+        # return self.state_tensor.detach().clone()
+        return {}
 
     def get_info(self):
         info = {}
@@ -149,6 +241,8 @@ class TokamakEnv14(gym.Env):
         # print("reset")
         super().reset(seed=seed)
         self.state = self.initial_state.copy()
+        self.state_tensor = self.initial_state_tensor.detach().clone()
+
         self.elapsed_steps = 0
         self.elapsed_ticks = 0
 
@@ -157,7 +251,7 @@ class TokamakEnv14(gym.Env):
         if self.render:
             self.render_frame(self.state, info)
 
-        return self.get_obs(), info
+        return self.state_tensor, info
 
     def pseudoreward_function(self):  # gets the minimum mod distance between any robot/goal in the current state
         tot = 0  # sum of sum mod dists for each robot
@@ -187,10 +281,9 @@ class TokamakEnv14(gym.Env):
 
         self.elapsed_steps += 1
 
-        old_state = self.get_obs()
+        old_state = self.state_tensor
 
-        p_array, s_array = self.transition_model(self, old_state, action)
-        #implement r_array/reward
+        p_array, s_array = self.transition_model(self, old_state, action)  # probabilities and states
 
         # roll dice to detemine resultant state from possibilities
         roll = np.random.random()
@@ -202,7 +295,7 @@ class TokamakEnv14(gym.Env):
             if (roll < t):
                 chosen_state = i
                 break
-        if(chosen_state < 0):
+        if (chosen_state < 0):
             raise ValueError("Something has gone wrong with choosing the state")
 
         # get the reward for this transition based on the reward model
@@ -210,31 +303,19 @@ class TokamakEnv14(gym.Env):
 
         # assume the new state
         self.state = s_array[chosen_state].copy()
+        self.state_tensor = self.construct_state_tensor_from_dict(s_array[chosen_state])  # have to replace this with tensor logic in transition model
 
         # set terminated (all goals checked and inactive)
         terminated = True
+        goal_start_tensor_index = self.num_robots * 2
         for i in range(self.num_goals):
-            if (self.state[f"goal{i} active"] == 1 or self.state[f"goal{i} checked"] == 0):
+            if (self.state_tensor[goal_start_tensor_index + i + 1] == 1 or self.state_tensor[goal_start_tensor_index + i + 2] == 0):
                 terminated = False
                 break
 
-        if(s_array[chosen_state] not in self.runstates):
-            self.statetree.append(s_array[chosen_state])
-
-        if(terminated):
-            for state in self.runstates:
-                self.statetree.append(state)
+        # I don't think the state tree is actually used anymore - it was here, I have deleted it.
 
         info = self.get_info()
-
-        if self.render:
-            # checking if the robot performed a wait action
-            robot_no = int(np.floor(action / self.num_actions))
-            if(self.blocked_model(self, old_state)[action]):
-                self.most_recent_actions[robot_no] = "wait"
-            else:
-                self.most_recent_actions[robot_no] = self.action_labels[action]
-            self.render_frame(self.state, True)
 
         return s_array[chosen_state], reward, terminated, False, info
 
@@ -247,7 +328,7 @@ class TokamakEnv14(gym.Env):
 
         # print(self.blocked_model(self, state))
 
-        if(self.render_ticks_only):
+        if (self.render_ticks_only):
             for i in range(self.num_robots):
                 if (state[f"robot{i} clock"] == 1):
                     return
@@ -272,16 +353,16 @@ class TokamakEnv14(gym.Env):
         angle = 2 * np.pi / self.size
         tokamak_r = self.window_size / 2 - 40
         for i in range(self.size):
-            pygame.draw.circle(canvas, (144,144,144), (tokamak_centre[0], tokamak_centre[1]),tokamak_r, width=1)
+            pygame.draw.circle(canvas, (144, 144, 144), (tokamak_centre[0], tokamak_centre[1]), tokamak_r, width=1)
             # offset the angle so that other objects are displayed between lines rather than on top
             xpos = tokamak_centre[0] + tokamak_r * np.cos((i - 0.5) * angle - np.pi)
             ypos = tokamak_centre[1] + tokamak_r * np.sin((i - 0.5) * angle - np.pi)
             pygame.draw.line(canvas,
-                             (144,144,144),
+                             (144, 144, 144),
                              (tokamak_centre[0], tokamak_centre[1]),
                              (xpos, ypos))
 
-            text = font.render(str(i), True, (0,0,0))
+            text = font.render(str(i), True, (0, 0, 0))
             text_width = text.get_rect().width
             text_height = text.get_rect().height
             xpos = tokamak_centre[0] + (tokamak_r * 1.05) * np.cos((i) * angle - np.pi)
@@ -293,15 +374,15 @@ class TokamakEnv14(gym.Env):
             pos = state[f"goal{i} location"]
             xpos = tokamak_centre[0] + tokamak_r * 3 / 4 * np.cos(angle * pos - np.pi)
             ypos = tokamak_centre[1] + tokamak_r * 3 / 4 * np.sin(angle * pos - np.pi)
-            if(state[f"goal{i} checked"] == 0):
-                text = font.render(str(state[f"goal{i} discovery probability"]), True, (255,255,255))
-                circ_colour = (200 * state[f"goal{i} discovery probability"],200 * (1 - state[f"goal{i} discovery probability"]),0)
-            elif(state[f"goal{i} active"] == 1):
-                text = font.render(str(state[f"goal{i} completion probability"]), True, (255,255,255))
-                circ_colour = (0,200,0)
-            elif(state[f"goal{i} active"] == 0):
-                text = font.render(str(state[f"goal{i} completion probability"]), True, (255,255,255))
-                circ_colour = (200,200,200)
+            if (state[f"goal{i} checked"] == 0):
+                text = font.render(str(state[f"goal{i} discovery probability"]), True, (255, 255, 255))
+                circ_colour = (200 * state[f"goal{i} discovery probability"], 200 * (1 - state[f"goal{i} discovery probability"]), 0)
+            elif (state[f"goal{i} active"] == 1):
+                text = font.render(str(state[f"goal{i} completion probability"]), True, (255, 255, 255))
+                circ_colour = (0, 200, 0)
+            elif (state[f"goal{i} active"] == 0):
+                text = font.render(str(state[f"goal{i} completion probability"]), True, (255, 255, 255))
+                circ_colour = (200, 200, 200)
 
             circ = pygame.draw.circle(canvas, circ_colour, (xpos, ypos), 30)  # maybe make these rects again
 
@@ -314,18 +395,18 @@ class TokamakEnv14(gym.Env):
             pos = state[f"robot{i} location"]
             xpos = tokamak_centre[0] + tokamak_r / 2 * np.cos(angle * pos - np.pi)
             ypos = tokamak_centre[1] + tokamak_r / 2 * np.sin(angle * pos - np.pi)
-            circ = pygame.draw.circle(canvas, (0,0,255), (xpos, ypos), 20)
-            if(state[f"robot{i} clock"]):
-                text = font.render(str(i) + "'", True, (255,255,255))
+            circ = pygame.draw.circle(canvas, (0, 0, 255), (xpos, ypos), 20)
+            if (state[f"robot{i} clock"]):
+                text = font.render(str(i) + "'", True, (255, 255, 255))
             else:
-                text = font.render(str(i), True, (255,255,255))
+                text = font.render(str(i), True, (255, 255, 255))
 
             text_width = text.get_rect().width
             text_height = text.get_rect().height
             canvas.blit(source=text, dest=(circ.centerx - text_width / 2, circ.centery - text_height / 2))
 
-        circ = pygame.draw.circle(canvas, (255,255,255), tokamak_centre, 60)
-        circ = pygame.draw.circle(canvas, (144,144,144), tokamak_centre, 60, width=1)
+        circ = pygame.draw.circle(canvas, (255, 255, 255), tokamak_centre, 60)
+        circ = pygame.draw.circle(canvas, (144, 144, 144), tokamak_centre, 60, width=1)
 
         # print(f"""
         #       epoch: {state["elapsed"]}
@@ -345,18 +426,18 @@ class TokamakEnv14(gym.Env):
         # canvas.blit(font.render("t=" + str(state["elapsed ticks"]), True, (0,0,0)), rect)
         # most recent actions
         if (inEnv):
-            rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
-            canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0,0,0)), rect)
+            rect = pygame.draw.rect(canvas, (255, 255, 255), pygame.Rect((self.window_size, 40), (40, 40)))
+            canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0, 0, 0)), rect)
 
-            rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,80), (40, 40)))
-            canvas.blit(font.render("r1: " + str(self.most_recent_actions[1]), True, (0,0,0)), rect)
+            rect = pygame.draw.rect(canvas, (255, 255, 255), pygame.Rect((self.window_size, 80), (40, 40)))
+            canvas.blit(font.render("r1: " + str(self.most_recent_actions[1]), True, (0, 0, 0)), rect)
 
-            rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,120), (40, 40)))
-            canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0,0,0)), rect)
+            rect = pygame.draw.rect(canvas, (255, 255, 255), pygame.Rect((self.window_size, 120), (40, 40)))
+            canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0, 0, 0)), rect)
 
         else:
-            rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,40), (40, 40)))
-            canvas.blit(font.render("(Trace replay)", True, (0,0,0)), rect)
+            rect = pygame.draw.rect(canvas, (255, 255, 255), pygame.Rect((self.window_size, 40), (40, 40)))
+            canvas.blit(font.render("(Trace replay)", True, (0, 0, 0)), rect)
 
         # The following line copies our drawings from `canvas` to the visible window
         self.window.blit(canvas, canvas.get_rect())

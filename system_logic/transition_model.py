@@ -20,7 +20,7 @@ from DQN import hashdict
 #%%
 
 """
-This block defines abstractaction functions that can be used to define the
+This block defines abstraction functions that can be used to define the
 physical actions of the system
 """
 
@@ -40,7 +40,7 @@ def template_move(env, state, action_no):
 
     # the effect function for moving robot 1 ccw
     new_state = state.copy()
-robot_no = int(torch.floor_divide(action_no, env.num_actions).item())    current_location = new_state[f"robot{robot_no} location"]
+    robot_no = int(torch.floor_divide(action_no, env.num_actions).item())    current_location = new_state[f"robot{robot_no} location"]
     rel_action = action_no % env.num_actions
 
     # deterministic part of the result:

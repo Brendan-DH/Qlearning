@@ -188,7 +188,7 @@ def discovery_effect(env, state, robot_no):
     for i in range(env.num_goals):
         for j in range(env.num_robots):
             gloc = new_state[f"goal{i} location"]
-            rloc = new_state[f"robot{robot_no} location"]
+            rloc = new_state[f"robot{robot_no} location"]  # this is wrong! j is used nowhere!
             if (gloc == rloc):
                 goal_index = i
                 break
