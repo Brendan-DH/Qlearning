@@ -11,7 +11,6 @@ small_case1 = DQN.system_parameters(
     elapsed_ticks=0,
 )
 
-
 case_5goals = DQN.system_parameters(
     size=12,
     robot_locations=[1, 2, 7],
@@ -34,7 +33,6 @@ case_7goals = DQN.system_parameters(
     elapsed_ticks=0,
 )
 
-
 large_case_peaked = DQN.system_parameters(
     size=12,
     robot_locations=[1, 5, 6],
@@ -45,6 +43,17 @@ large_case_peaked = DQN.system_parameters(
         0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95],
     goal_activations=[0 for i in range(12)],
     goal_checked=[0 for i in range(12)],
+    elapsed_ticks=0,
+)
+
+seg20_case = DQN.system_parameters(
+    size=20,
+    robot_locations=[1, 5, 6],
+    goal_locations=[i for i in range(20)],
+    goal_completion_probabilities=[0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95],
+    goal_discovery_probabilities=[0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.7, 0.7, 0.3, 0.2, 0.7, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95],
+    goal_activations=[0 for i in range(20)],
+    goal_checked=[0 for i in range(20)],
     elapsed_ticks=0,
 )
 

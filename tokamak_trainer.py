@@ -103,7 +103,7 @@ GenerateDTMCFile(os.getcwd() + "/outputs/" + saved_weights_name,
 
 # this makes slurm think that the job was nice :) (a lie)
 # don't know if actually needed
-sys.exit(os.EX_OK)
+# sys.exit(os.EX_OK)
 
 verification_property = "Rmax=?[F \"done\"]"
 
@@ -127,9 +127,9 @@ for i in range(len(deadlock_traces)):
         env.render_frame(trace[j])
 
 
-plt.figure(figsize=(10, 7))
-plt.hist(x=ticks, rwidth=0.95)
-
-plt.xlabel("Total env ticks")
-
-print(ticks)
+# plt.figure(figsize=(10, 7))
+# plt.hist(x=ticks, rwidth=0.95)
+#
+# plt.xlabel("Total env ticks")
+#
+# print(ticks)
