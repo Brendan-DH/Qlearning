@@ -564,6 +564,9 @@ def optimise_model_with_importance_sampling(policy_dqn,
 
     # print("Attempting to optimise...")
 
+    target_dqn.to(optimiser_device)
+    policy_dqn.to(optimiser_device)
+
     if len(replay_memory.memory) < batch_size or len(replay_memory.bounds) == 0:
         # print(f"memory not yet ready {len(replay_memory.memory)}/{batch_size} | {len(replay_memory.bounds)}")
         return
@@ -612,7 +615,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     # print("Getting q of actions in the next state ")
     next_state_values = torch.zeros(batch_size, device=optimiser_device)
     with torch.no_grad():
-        next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0]
+        next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0] # why use the target dqn, not the policy?
     # Compute the expected Q values
     expected_state_action_values = (next_state_values * gamma) + reward_batch
 
@@ -635,6 +638,11 @@ def optimise_model_with_importance_sampling(policy_dqn,
         replay_memory.updatePriorities(index, torch.mean(loss_vector[i]).item())
 
     # print(f"Finished optimisation.")
+
+    # move the nns back. note: is it somehow possible to keep the dqns to optimise on the GPU only? do I need to move around the target_dqn?
+    target_dqn.to(torch.device("cpu"))
+    policy_dqn.to(torch.device("cpu"))
+
 
 def evaluate_model(dqn,
                    num_episodes,
@@ -670,6 +678,9 @@ def evaluate_model(dqn,
 
         for t in count():
 
+            if(render):
+                env.render_frame(states[-1])
+
             # action_utilities = dqn.forward(stateT)
             # action = action_utilities.max(1)[1].view(1, 1)
 
@@ -702,30 +713,30 @@ def evaluate_model(dqn,
 
         steps[i] = t
 
-    if (not torch.cuda.is_available()):
-        ticks = np.array(ticks)
-        plt.figure(figsize=(10,10))
-        ticks_start = 0
-        # process 'ticks' into sub-arrays based on the unique entries in goal_resolutions
-        unique_res = np.unique(goal_resolutions)
-        for unique in unique_res:
-            unique_ticks = ticks[goal_resolutions == unique]  # groups episodes with this unique number of tasks
-            # plot the ticks. assign a range on x for each group based on the size of the group and where the last group ended.
-            plt.plot(np.array(range(len(unique_ticks))) + ticks_start,
-                     unique_ticks,
-                     ls="",
-                     marker="o",
-                     label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_ticks)))
-            ticks_start = len(unique_ticks) + ticks_start + num_episodes / 20
-
-        plt.legend()
-        plt.hlines(np.mean(ticks), 0, len(ticks) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
-        plt.text(0,np.mean(ticks), f"avg: {np.mean(ticks)}")
-        plt.xticks([])
-        plt.ylabel("Duration / ticks")
-        plt.xlabel("Episode, sorted by number goals encountered")
-        plt.title("Evaluation durations")
-        plt.show()
+    # if (not torch.cuda.is_available()):
+    #     ticks = np.array(ticks)
+    #     plt.figure(figsize=(10,10))
+    #     ticks_start = 0
+    #     # process 'ticks' into sub-arrays based on the unique entries in goal_resolutions
+    #     unique_res = np.unique(goal_resolutions)
+    #     for unique in unique_res:
+    #         unique_ticks = ticks[goal_resolutions == unique]  # groups episodes with this unique number of tasks
+    #         # plot the ticks. assign a range on x for each group based on the size of the group and where the last group ended.
+    #         plt.plot(np.array(range(len(unique_ticks))) + ticks_start,
+    #                  unique_ticks,
+    #                  ls="",
+    #                  marker="o",
+    #                  label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_ticks)))
+    #         ticks_start = len(unique_ticks) + ticks_start + num_episodes / 20
+    #
+    #     plt.legend()
+    #     plt.hlines(np.mean(ticks), 0, len(ticks) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
+    #     plt.text(0,np.mean(ticks), f"avg: {np.mean(ticks)}")
+    #     plt.xticks([])
+    #     plt.ylabel("Duration / ticks")
+    #     plt.xlabel("Episode, sorted by number goals encountered")
+    #     plt.title("Evaluation durations")
+    #     plt.show()
 
     print("Evaluation complete.")
     print(

@@ -23,8 +23,14 @@ import scenarios
 matplotlib.use('Agg')
 sys.stdout.flush()
 
+render = os.environ.get("RENDER_TOKAMAK", "0") == "1"
+if (render):
+    print("RENDERING IS TURNED ON")
+else:
+    print("RENDERING IS TURNED OFF")
+
 env_to_use = "Tokamak-v14"
-saved_weights_name = "" #"saved_weights_999862"
+saved_weights_name = "" #"saved_weights_799198"
 env = gym.make(env_to_use,
                system_parameters=scenarios.case_5goals,
                transition_model=mdpt.t_model,
@@ -36,31 +42,23 @@ env = gym.make(env_to_use,
 
 nodes_per_layer = 128 * 2  # default 128
 
-state_tensor, info = env.reset()
-
 # set up matplotlib
 is_ipython = 'inline' in matplotlib.get_backend()
 plt.ion()
-
-# if GPU is to be used
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Running on '{device}'")
 
 n_actions = env.action_space.n
 state_tensor, info = env.reset()
 n_observations = len(state_tensor)
 print("State is of length", n_observations)
 
-policy_net = DQN.DeepQNetwork(
-    n_observations, n_actions, nodes_per_layer).to(device)
+policy_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer)
 if (saved_weights_name != ""):
     print(f"Loading from '/outputs/{saved_weights_name}")
     policy_net.load_state_dict(torch.load(
         os.getcwd() + "/outputs/" + saved_weights_name))
 else:
     print("No saved weights defined, starting from scratch")
-    target_net = DQN.DeepQNetwork(
-        n_observations, n_actions, nodes_per_layer).to(device)
+    target_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer)
     target_net.load_state_dict(policy_net.state_dict())
     trained_dqn, dur, re, eps = DQN.train_model(env,
                                                 policy_net,
@@ -91,7 +89,7 @@ s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
                                                   num_episodes=200,
                                                   env=env,
                                                   max_steps=300,
-                                                  render=False)
+                                                  render=render)
 
 plt.figure(figsize=(10, 7))
 plt.hist(x=steps, rwidth=0.95)
@@ -118,16 +116,16 @@ subprocess.run(["storm",
                 verification_property])
 
 # %%
-print(len(deadlock_traces))
-
-
-
-for i in range(len(deadlock_traces)):
-    trace = deadlock_traces[i]
-    print(len(trace))
-    for j in range(len(trace)):
-        print(trace[j]["robot0 clock"])
-        env.render_frame(trace[j])
+# print(len(deadlock_traces))
+#
+#
+#
+# for i in range(len(deadlock_traces)):
+#     trace = deadlock_traces[i]
+#     print(len(trace))
+#     for j in range(len(trace)):
+#         print(trace[j]["robot0 clock"])
+#         env.render_frame(trace[j])
 
 
 # plt.figure(figsize=(10, 7))
