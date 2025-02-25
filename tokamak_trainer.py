@@ -120,6 +120,8 @@ subprocess.run(["storm",
 # %%
 print(len(deadlock_traces))
 
+
+
 for i in range(len(deadlock_traces)):
     trace = deadlock_traces[i]
     print(len(trace))

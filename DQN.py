@@ -649,51 +649,49 @@ def evaluate_model(dqn,
         render = False
 
     env.set_rendering(render)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     print(f"Evaluation running on {device}.")
 
-    # ticks = []
-    # goal_resolutions = []
+    if (not torch.cuda.is_available()) : ticks = []
+    if (not torch.cuda.is_available()) : goal_resolutions = []
     steps = np.empty(num_episodes)
     deadlock_counter = 0
     deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
 
     for i in range(num_episodes):
         if (reset_options):
-            state, info = env.reset(options=reset_options.copy())
+            state_tensor, info = env.reset(options=reset_options.copy())
         else:
-            state, info = env.reset()
+            state_tensor, info = env.reset()
 
-        states = [state]
+        states = [env.interpret_state_tensor(state_tensor)]
         actions = []
-        stateT = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
+        state_tensor = state_tensor
 
         for t in count():
 
             # action_utilities = dqn.forward(stateT)
             # action = action_utilities.max(1)[1].view(1, 1)
 
-            action_utilities = dqn.forward(stateT)[0]
-            # get blocked actions
-            blocked = env.blocked_model(env, state)
-            masked_utilities = [action_utilities[i] if not blocked[i] else -1000 for i in range(len(action_utilities))]
-            action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device)
-            action = action_utilities.max(1)[1].view(1, 1)
-            # print(action_utilities)
+            # calculate action utilities and choose action
+            action_utilities = dqn.forward(state_tensor.unsqueeze(0))[0]  # why is this indexed?
+            blocked = env.blocked_model(env, state_tensor)
+            action_utilities = torch.where(blocked, -1000, action_utilities)
+            action = torch.argmax(action_utilities).item()
 
             # apply action to environment
-            state, reward, terminated, truncated, info = env.step(action.item())
+            new_state_tensor, reward, terminated, truncated, info = env.step(action)
 
-            states.append(state)
+            states.append(env.interpret_state_tensor(new_state_tensor))
             actions.append(action)
 
-            stateT = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
+            state_tensor = new_state_tensor
 
             done = terminated
 
             if (done or truncated or t > max_steps):
-                # ticks.append(info["elapsed ticks"])
-                # goal_resolutions.append(np.sum(info["goal_resolutions"]))
+                if (not torch.cuda.is_available()) : ticks.append(info["elapsed ticks"])
+                if (not torch.cuda.is_available()) : goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
                     print(f"{i}/{num_episodes} episodes complete")
                 break
@@ -704,29 +702,30 @@ def evaluate_model(dqn,
 
         steps[i] = t
 
-    # ticks = np.array(ticks)
-    # plt.figure(figsize=(10,10))
-    # ticks_start = 0
-    # # process 'ticks' into sub-arrays based on the unique entries in goal_resolutions
-    # unique_res = np.unique(goal_resolutions)
-    # for unique in unique_res:
-    #     unique_ticks = ticks[goal_resolutions == unique]  # groups episodes with this unique number of tasks
-    #     # plot the ticks. assign a range on x for each group based on the size of the group and where the last group ended.
-    #     plt.plot(np.array(range(len(unique_ticks))) + ticks_start,
-    #              unique_ticks,
-    #              ls="",
-    #              marker="o",
-    #              label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_ticks)))
-    #     ticks_start = len(unique_ticks) + ticks_start + num_episodes / 20
+    if (not torch.cuda.is_available()):
+        ticks = np.array(ticks)
+        plt.figure(figsize=(10,10))
+        ticks_start = 0
+        # process 'ticks' into sub-arrays based on the unique entries in goal_resolutions
+        unique_res = np.unique(goal_resolutions)
+        for unique in unique_res:
+            unique_ticks = ticks[goal_resolutions == unique]  # groups episodes with this unique number of tasks
+            # plot the ticks. assign a range on x for each group based on the size of the group and where the last group ended.
+            plt.plot(np.array(range(len(unique_ticks))) + ticks_start,
+                     unique_ticks,
+                     ls="",
+                     marker="o",
+                     label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_ticks)))
+            ticks_start = len(unique_ticks) + ticks_start + num_episodes / 20
 
-    # plt.legend()
-    # plt.hlines(np.mean(ticks), 0, len(ticks) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
-    # plt.text(0,np.mean(ticks), f"avg: {np.mean(ticks)}")
-    # plt.xticks([])
-    # plt.ylabel("Duration / ticks")
-    # plt.xlabel("Episode, sorted by number goals encountered")
-    # plt.title("Evaluation durations")
-    # plt.show()
+        plt.legend()
+        plt.hlines(np.mean(ticks), 0, len(ticks) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
+        plt.text(0,np.mean(ticks), f"avg: {np.mean(ticks)}")
+        plt.xticks([])
+        plt.ylabel("Duration / ticks")
+        plt.xlabel("Episode, sorted by number goals encountered")
+        plt.title("Evaluation durations")
+        plt.show()
 
     print("Evaluation complete.")
     print(

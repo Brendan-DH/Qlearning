@@ -24,14 +24,14 @@ cd $PWD/gymnasium/envs
 ln -s $ROOTDIR/environments tokamak
 cd $ROOTDIR
 
-if grep -q "Tokamak-v13" $ROOTDIR/gymnasium/envs/__init__.py
+if grep -q "Tokamak-v14" $ROOTDIR/gymnasium/envs/__init__.py
 then
     echo "Environment already registered"  
 else
 echo "    
 register(
-id='Tokamak-v13',
-entry_point='gymnasium.envs.tokamak.tokamakenv13:TokamakEnv13',
+id='Tokamak-v14',
+entry_point='gymnasium.envs.tokamak.tokamakenv14:TokamakEnv14',
 max_episode_steps=1000,
 )">> $ROOTDIR/gymnasium/envs/__init__.py
 fi
