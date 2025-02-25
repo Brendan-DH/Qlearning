@@ -333,10 +333,13 @@ def train_model(
     state, info = env.reset()  # reset to init
     # state tree reset optimisation
 
+    gamma_tensor = torch.tensor(gamma, device=optimiser_device)
+
     # Initialise some hyperparameters
     # if no decay function is supplied, set it to a default exponential decay
     if epsilon_decay_function is None:
         decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes)  # ensures epsilon ~= epsilon_min at end
+
 
         def epsilon_decay_function(ep, e_max, e_min, num_eps):
             return exponential_epsilon_decay(episode=ep,
@@ -438,7 +441,7 @@ def train_model(
                                                     memory,
                                                     optimiser,
                                                     optimiser_device,
-                                                    gamma,
+                                                    gamma_tensor,
                                                     batch_size,
                                                     priority_coefficient,
                                                     weighting_coefficient)
@@ -558,7 +561,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
                                             replay_memory,
                                             optimiser,
                                             optimiser_device,
-                                            gamma,
+                                            gamma_tensor,
                                             batch_size,
                                             priority_coefficient,
                                             weighting_coefficient):
@@ -599,7 +602,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     # print(transitions)
     batch = DeltaTransition(*zip(*transitions))
     weights.to(optimiser_device)
-    
+
     # boolean mask of which states are final (i.e. termination occurs in this state)
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=torch.device("cpu"), dtype=torch.bool)
 
@@ -621,13 +624,14 @@ def optimise_model_with_importance_sampling(policy_dqn,
     # print("Getting q of actions in the next state ")
     next_state_values = torch.zeros(batch_size, device=optimiser_device)
     with torch.no_grad():
-        next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0] # why use the target dqn, not the policy?
+        next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0] # why use the target dqn, not the policy? what is no_grad?
     # Compute the expected Q values
-    expected_state_action_values = (next_state_values * gamma) + reward_batch
+    expected_state_action_values = (next_state_values * gamma_tensor) + reward_batch
 
     # Compute loss. Times by weight of transition
     # print("Computing loss")
     criterion = nn.SmoothL1Loss(reduction="none")
+    print(state_action_values.device, expected_state_action_values.unsqueeze(1).device, weights.device)
     loss_vector = criterion(state_action_values, expected_state_action_values.unsqueeze(1)) * weights
     loss = torch.mean(loss_vector)
 
