@@ -92,6 +92,9 @@ class DeepQNetwork(nn.Module):
         if x.dtype != torch.float32:
             print("Had to convert the dtype. Original was: ", x.dtype)
             x = x.float()
+        if x.device != next(self.parameters()).device:
+            print(f"Had to move input device. Original was: {x.device}, now {next(self.parameters()).device})")
+            x = x.to(next(self.parameters()).device)
         try:
             x = F.relu(self.layer1(x))
             x = F.relu(self.layer2(x))
