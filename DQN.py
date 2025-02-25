@@ -59,6 +59,19 @@ class hashdict(dict):
     def __hash__(self):
         return hash(frozenset(self))
 
+def optimiser_to(optim, device):
+    for param in optim.state.values():
+        # Not sure there are any global tensors in the state dict
+        if isinstance(param, torch.Tensor):
+            param.data = param.data.to(device)
+            if param._grad is not None:
+                param._grad.data = param._grad.data.to(device)
+        elif isinstance(param, dict):
+            for subparam in param.values():
+                if isinstance(subparam, torch.Tensor):
+                    subparam.data = subparam.data.to(device)
+                    if subparam._grad is not None:
+                        subparam._grad.data = subparam._grad.data.to(device)
 
 class DeepQNetwork(nn.Module):
 
@@ -264,12 +277,12 @@ def train_model(
     epsilons = np.empty(num_episodes)
     episode_durations = np.empty(num_episodes)
     rewards = np.empty(num_episodes)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     state_string = str(env.state).replace(',', ',\n\t\t\t')
 
     print(f"""
             Commensing training.
-            Device: {device}
+            Optimisation Device: {optimiser_device}
             Environment: {env.unwrapped.spec.id}
             ----
 
@@ -305,6 +318,8 @@ def train_model(
 
     # Initialisation of NN apparatus
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
+    optimiser_to(optimiser, optimiser_device)
+
     memory = PriorityMemory(buffer_size)
     torch.set_grad_enabled(True)
     plotting_on = plot_frequency < num_episodes and plot_frequency != 0
@@ -336,6 +351,7 @@ def train_model(
     start_time = time.time()
     for i_episode in range(num_episodes):
         print(f"Training episode {i_episode}/{num_episodes}")
+        optimisation_time = 0
 
         if ((i_episode % int(num_episodes / 10)) == 0):
             print(f"{i_episode}/{num_episodes} complete...")
@@ -357,27 +373,28 @@ def train_model(
         ep_reward = 0
 
         # Navigate the environment
+
         for t in count():
 
             # print(f"Step {t}")
 
             # calculate action utilities and choose action
             action_utilities = policy_net.forward(state_tensor.unsqueeze(0))[0]  # why is this indexed?
+            # print(action_utilities, "device: ", action_utilities.device)
             # get blocked actions
             blocked = env.blocked_model(env, state_tensor)
-            masked_utilities = [action_utilities[i] if not blocked[i] else -1000 for i in range(len(action_utilities))]
+            action_utilities = torch.where(blocked, -1000, action_utilities)
             # print(masked_utilities, type(masked_utilities))
-            action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device) # shouldn't need this cast here
+            # action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device) # shouldn't need this cast here
             if (np.random.random() < epsilon):
                 sample = env.action_space.sample()
                 while blocked[sample] == 1:
                     # print("blocked")
                     sample = env.action_space.sample()
-                action = torch.tensor([[sample]], device=device, dtype=torch.long )  # this will be expensive
+                action = sample #torch.tensor([[sample]], device=device, dtype=torch.long)  # this will be expensive
             else:
-                # print(action_utilities)
-                action = action_utilities.max(1)[1].view(1, 1)
-                # print(action)
+                # action = action_utilities.max(1)[1].view(1, 1)
+                action = torch.argmax(action_utilities).item()
 
             # apply action to environment
             state_tensor, reward, terminated, truncated, info = env.step(action)
@@ -395,8 +412,8 @@ def train_model(
                 pseudoreward = 0
 
             # calculate reward
-            reward = torch.tensor([reward + pseudoreward], device=device, dtype=torch.float32)
-            ep_reward += reward.item()
+            reward = reward + pseudoreward #torch.tensor([reward + pseudoreward], device=device, dtype=torch.float32)
+            ep_reward += reward
 
             # work out if the run is over
             done = terminated or truncated or (t > max_steps)
@@ -411,21 +428,23 @@ def train_model(
 
             # run optimiser
             # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
+            timer_start = time.time()
+
             optimise_model_with_importance_sampling(policy_net,
                                                     target_net,
                                                     memory,
                                                     optimiser,
+                                                    optimiser_device,
                                                     gamma,
                                                     batch_size,
                                                     priority_coefficient,
                                                     weighting_coefficient)
+            optimisation_time += time.time() - timer_start
 
-            # Soft-update the target net -- is this expensive? probably.
-            target_net_state_dict = target_net.state_dict()
-            policy_net_state_dict = policy_net.state_dict()
-            for key in policy_net_state_dict:
-                target_net_state_dict[key] = policy_net_state_dict[key] * tau + target_net_state_dict[key] * (1 - tau)
-            target_net.load_state_dict(target_net_state_dict)
+            # Soft-update the target net -- doing this in-place for better efficiency
+            with torch.no_grad():
+                for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net.parameters()):
+                    target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
 
             # if done, process data and make plots
             if done:
@@ -446,6 +465,7 @@ def train_model(
                                np.vstack((episode_durations, rewards, epsilons)).transpose())
                     torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/checkpoints/policy_weights_epoch{i_episode}")
                 break
+        print(f"Total time for optimisation this episode: {optimisation_time*1000:.3f}ms")
 
     print(f"Training complete in {int(time.time() - start_time)} seconds.")
     return policy_net, episode_durations, rewards, epsilons
@@ -534,12 +554,13 @@ def optimise_model_with_importance_sampling(policy_dqn,
                                             target_dqn,
                                             replay_memory,
                                             optimiser,
+                                            optimiser_device,
                                             gamma,
                                             batch_size,
                                             priority_coefficient,
                                             weighting_coefficient):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    criterion = nn.SmoothL1Loss()  # maybe I should actually use Huber?
+
+    # optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # print("Attempting to optimise...")
 
@@ -550,11 +571,10 @@ def optimise_model_with_importance_sampling(policy_dqn,
     # get the batch of transitions. sample one transition from each of k linear segments
     lower = 0
     transitions = np.empty(batch_size, dtype=DeltaTransition)
-    transition_indices = torch.tensor(np.empty(batch_size, dtype=int), device=device)
-    weights = torch.empty(batch_size, dtype=torch.float, device=device)
+    transition_indices = torch.tensor(np.empty(batch_size, dtype=int), device=torch.device("cpu"))
+    weights = torch.empty(batch_size, dtype=torch.float, device=torch.device("cpu"))
 
     # loop over the k linear segments
-    # print("batching...")
     for i in range(batch_size):
         upper = replay_memory.bounds[i]
         tr_index = random.randint(lower, upper - 1)  # get a random index that falls in the segment
@@ -562,8 +582,8 @@ def optimise_model_with_importance_sampling(policy_dqn,
         transitions[i] = replay_memory.memory[tr_index]
 
         tr_priority = 1 / (tr_index + 1)
-        P_tr = (tr_priority ** priority_coefficient) * replay_memory.prob_divisor
-        weight = ((batch_size * P_tr) ** -weighting_coefficient) * (1 / replay_memory.max_priority)
+        p_tr = (tr_priority ** priority_coefficient) * replay_memory.prob_divisor
+        weight = ((batch_size * p_tr) ** -weighting_coefficient) * (1 / replay_memory.max_priority)
         weights[i] = weight
 
         lower = upper
@@ -572,26 +592,25 @@ def optimise_model_with_importance_sampling(policy_dqn,
     batch = DeltaTransition(*zip(*transitions))
 
     # boolean mask of which states are final (i.e. termination occurs in this state)
-    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
-                                            batch.next_state)), device=device, dtype=torch.bool)
+    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=torch.device("cpu"), dtype=torch.bool)
 
     # collection of non-final s
-    non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(device)  # tensor
-    state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(device)  # tensor
-    # print(f"shape of batch states {state_batch.shape}")
-    action_batch = torch.cat(batch.action).to(device)  # tensor
-    reward_batch = torch.cat(batch.reward).to(device)  # tensor
+    non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
+    state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
+    action_batch = torch.tensor(batch.action).to(optimiser_device)  # tensor
+    reward_batch = torch.tensor(batch.reward).to(optimiser_device)  # tensor
 
     # the qvalues of actions in this state. the .gather gets the qvalue corresponding to the
     # indices in 'action_batch'
     try:
-        state_action_values = policy_dqn(state_batch).gather(1, action_batch)
+        q_values = policy_dqn(state_batch)
+        state_action_values = q_values.gather(1, action_batch.unsqueeze(1))
     except AttributeError:
-        print("caught")
+        raise Exception("Something went wrong with gathering the state/action q-values")
 
     # q values of action in the next state
     # print("Getting q of actions in the next state ")
-    next_state_values = torch.zeros(batch_size, device=device)
+    next_state_values = torch.zeros(batch_size, device=optimiser_device)
     with torch.no_grad():
         next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0]
     # Compute the expected Q values
@@ -616,19 +635,6 @@ def optimise_model_with_importance_sampling(policy_dqn,
         replay_memory.updatePriorities(index, torch.mean(loss_vector[i]).item())
 
     # print(f"Finished optimisation.")
-
-
-def plot_state_tree(state_tree, env, reset=False):
-    plt.figure(figsize=(10, 10))
-    plt.scatter([state["x"] for state in state_tree], [state["y"] for state in state_tree])
-    plt.plot([env.goal[0]], [env.goal[1]], marker="x", color="orange", markersize=10)
-    if (reset):
-        plt.plot([env.state["x"]], [env.state["y"]], marker="$O$", color="magenta", markersize=20)
-    else:
-        plt.plot([env.state["x"]], [env.state["y"]], marker="x", color="red", markersize=10)
-
-    plt.show()
-
 
 def evaluate_model(dqn,
                    num_episodes,

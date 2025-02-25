@@ -98,33 +98,16 @@ class TokamakEnv14(gym.Env):
         self.num_goals = len(system_parameters.goal_locations)
         self.num_robots = len(system_parameters.robot_locations)
 
-        self.state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters)
-        self.initial_state_tensor = self.construct_state_tensor_from_dict(state)  # now we have a tensor containing the state
+        # torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Transition = namedtuple('Transition', (f"robot{self.num_robots}clock"))
-        # a = Transition("test")
-        # print(a)
+        self.state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu"))
+        self.initial_state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu"))
 
         # internal/environmental parameters
         self.training = training
         self.window_size = 700  # The size of the PyGame window
         self.num_actions = 4  # this can be changed for dev purposes
         self.most_recent_actions = np.empty((self.num_actions), np.dtype('U100'))
-        # self.render_mode = render_mode
-
-        # observations are an exact copy of 'state'
-        # observations should also be tensors
-
-        # obDict = {}
-        # for i in range(0, self.num_robots):
-        #     obDict[f"robot{i} location"] = spaces.Discrete(self.size)
-        #     obDict[f"robot{i} clock"] = spaces.Discrete(2)
-        # for i in range(0, self.num_goals):
-        #     obDict[f"goal{i} location"] = spaces.Discrete(self.size)
-        #     obDict[f"goal{i} active"] = spaces.Discrete(2)
-        #     obDict[f"goal{i} checked"] = spaces.Discrete(2)
-        #     obDict[f"goal{i} discovery probability"] = spaces.Box(low=0, high=1, shape=[1])
-        #     obDict[f"goal{i} completion probability"] = spaces.Box(low=0, high=1, shape=[1])
 
         self.action_labels = [  # this is used mostly for pygame rendering
             "r0 ccw",
@@ -173,10 +156,10 @@ class TokamakEnv14(gym.Env):
 
         return state_dict
 
-    def construct_state_tensor_from_system_parameters(self, system_parameters):
+    def construct_state_tensor_from_system_parameters(self, system_parameters, device):
 
         tensor_length = self.num_robots * 2 + self.num_goals * 5
-        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device)
 
         for i in range(len(system_parameters.robot_locations)):
             index = i * 2
@@ -192,10 +175,10 @@ class TokamakEnv14(gym.Env):
 
         return state_tensor
 
-    def construct_state_tensor_from_dict(self, state_dict):
+    def construct_state_tensor_from_dict(self, state_dict, device):
 
         tensor_length = self.num_robots * 2 + self.num_goals * 5
-        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device)
 
         for i in range(self.num_robots):
             index = i * 2
@@ -212,22 +195,10 @@ class TokamakEnv14(gym.Env):
         return state_tensor
 
     def get_parameters(self):
-        # parameters = {
-        #     "size": self.size,
-        #     "num_active" : self.num_robots,
-        #     "robot_locations" : self.robot_locations,
-        #     "goal_locations" : self.goal_locations,
-        #     "goal_probabilities" : self.goal_probabilities,
-        #     "goal_activations" : self.goal_activations,
-        #     # "elapsed" : self.elapsed
-        # }
-        # return parameters
-
         raise NotImplementedError()
 
     def get_obs(self):
-        # return self.state_tensor.detach().clone()
-        return {}
+        return self.state_tensor.detach().clone()
 
     def get_info(self):
         info = {}
@@ -304,13 +275,13 @@ class TokamakEnv14(gym.Env):
 
         # assume the new state
         # self.state = s_tensor[chosen_state].detach().clone()
-        self.state_tensor = s_tensor[chosen_state] #self.construct_state_tensor_from_dict(s_tensor[chosen_state])  # have to replace this with tensor logic in transition model
+        self.state_tensor = s_tensor[chosen_state]  # self.construct_state_tensor_from_dict(s_tensor[chosen_state])  # have to replace this with tensor logic in transition model
 
         # set terminated (all goals checked and inactive)
         terminated = True
         goal_start_tensor_index = self.num_robots * 2
         for i in range(self.num_goals):
-            if (self.state_tensor[goal_start_tensor_index + (i*5) + 1].item() == 1 or self.state_tensor[goal_start_tensor_index + (i*5) + 2].item() == 0):
+            if (self.state_tensor[goal_start_tensor_index + (i * 5) + 1].item() == 1 or self.state_tensor[goal_start_tensor_index + (i * 5) + 2].item() == 0):
                 terminated = False
                 break
 

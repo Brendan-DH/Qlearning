@@ -336,7 +336,7 @@ def b_model(env, state_tensor):
                     break
             blocked_actions[(i * env.num_actions) + 2] = block_task_completion
 
-    return blocked_actions
+    return torch.tensor(blocked_actions, dtype=torch.bool, device=global_device)
 
 
 def get_counter_cw_blocked(env, state_tensor, robot_no):
@@ -371,8 +371,8 @@ def get_cw_blocked(env, state_tensor, robot_no):
 def state_is_final(env, state_tensor):
     for i in range(env.num_goals):
         # iterate over goals in state
-        if (state_tensor[f"goal{i} checked"] == 0 or (state_tensor[f"goal{i} checked"] == 1 and state_tensor[f"goal{i} active"] == 1)):
-            return False
+        # if (state_tensor[f"goal{i} checked"] == 0 or (state_tensor[f"goal{i} checked"] == 1 and state_tensor[f"goal{i} active"] == 1)):
+        #     return False
         if (state_tensor[(env.num_robots * 2) + (i * 5) + 2] == 0 or (state_tensor[(env.num_robots * 2) + (i * 5) + 2] == 1 and state_tensor[(env.num_robots * 2) + (i * 5) + 1] == 1)):
             return False
 
