@@ -288,7 +288,7 @@ def train_model(
 
             Environmental parameters:
             {state_string}
-            {reset_options}
+            # {reset_options}
 
             ----
 
@@ -318,7 +318,6 @@ def train_model(
 
     # Initialisation of NN apparatus
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
-    optimiser_to(optimiser, optimiser_device)
 
     memory = PriorityMemory(buffer_size)
     torch.set_grad_enabled(True)
@@ -379,6 +378,7 @@ def train_model(
             # print(f"Step {t}")
 
             # calculate action utilities and choose action
+            # print(policy_net.device, state_tensor.device)
             action_utilities = policy_net.forward(state_tensor.unsqueeze(0))[0]  # why is this indexed?
             # print(action_utilities, "device: ", action_utilities.device)
             # get blocked actions
@@ -566,6 +566,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
 
     target_dqn.to(optimiser_device)
     policy_dqn.to(optimiser_device)
+    optimiser_to(optimiser, optimiser_device)
 
     if len(replay_memory.memory) < batch_size or len(replay_memory.bounds) == 0:
         # print(f"memory not yet ready {len(replay_memory.memory)}/{batch_size} | {len(replay_memory.bounds)}")
@@ -642,6 +643,8 @@ def optimise_model_with_importance_sampling(policy_dqn,
     # move the nns back. note: is it somehow possible to keep the dqns to optimise on the GPU only? do I need to move around the target_dqn?
     target_dqn.to(torch.device("cpu"))
     policy_dqn.to(torch.device("cpu"))
+    optimiser_to(optimiser, torch.device("cpu"))
+
 
 
 def evaluate_model(dqn,
