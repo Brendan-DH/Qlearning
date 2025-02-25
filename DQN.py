@@ -601,7 +601,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
 
     # print(transitions)
     batch = DeltaTransition(*zip(*transitions))
-    weights.to(optimiser_device)
+    weights = weights.to(optimiser_device)
 
     # boolean mask of which states are final (i.e. termination occurs in this state)
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=torch.device("cpu"), dtype=torch.bool)
