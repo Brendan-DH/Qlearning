@@ -565,15 +565,16 @@ def optimise_model_with_importance_sampling(policy_dqn,
 
     # optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+    if len(replay_memory.memory) < batch_size or len(replay_memory.bounds) == 0:
+        # print(f"memory not yet ready {len(replay_memory.memory)}/{batch_size} | {len(replay_memory.bounds)}")
+        return
+
     # print("Attempting to optimise...")
 
     target_dqn.to(optimiser_device)
     policy_dqn.to(optimiser_device)
     optimiser_to(optimiser, optimiser_device)
-
-    if len(replay_memory.memory) < batch_size or len(replay_memory.bounds) == 0:
-        # print(f"memory not yet ready {len(replay_memory.memory)}/{batch_size} | {len(replay_memory.bounds)}")
-        return
 
     # get the batch of transitions. sample one transition from each of k linear segments
     lower = 0
