@@ -26,7 +26,7 @@ sys.stdout.flush()
 env_to_use = "Tokamak-v14"
 saved_weights_name = "" #"saved_weights_999862"
 env = gym.make(env_to_use,
-               system_parameters=scenarios.small_case1,
+               system_parameters=scenarios.case_5goals,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
@@ -36,7 +36,7 @@ env = gym.make(env_to_use,
 
 nodes_per_layer = 128 * 2  # default 128
 
-state, info = env.reset()
+state_tensor, info = env.reset()
 
 # set up matplotlib
 is_ipython = 'inline' in matplotlib.get_backend()
@@ -47,8 +47,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Running on '{device}'")
 
 n_actions = env.action_space.n
-state, info = env.reset()
-n_observations = len(state)
+state_tensor, info = env.reset()
+n_observations = len(state_tensor)
+print("State is of length", n_observations)
 
 policy_net = DQN.DeepQNetwork(
     n_observations, n_actions, nodes_per_layer).to(device)
@@ -74,7 +75,7 @@ else:
                                                 # something wrong with these. investigate noisy rewards.
                                                 usePseudorewards=False,
                                                 plot_frequency=20,
-                                                memory_sort_frequency=25,
+                                                memory_sort_frequency=5,
                                                 max_steps=200,
                                                 buffer_size=50000,
                                                 checkpoint_frequency=50,

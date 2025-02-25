@@ -20,7 +20,7 @@ import torch
 
 
 class TensorSpace(gym.Space):
-    def __init__(self, shape, dtype=np.int64):
+    def __init__(self, shape, dtype=torch.float32):
         """
         Custom observation space for PyTorch tensors.
 
@@ -141,7 +141,7 @@ class TokamakEnv14(gym.Env):
             "r2 wait",
         ]
 
-        self.observation_space = TensorSpace(shape=(self.num_robots * 2 + self.num_goals * 5,), dtype=np.int64)
+        self.observation_space = TensorSpace(shape=(self.num_robots * 2 + self.num_goals * 5,), dtype=np.float32)
 
         # actions that the robots can carry out
         # move clockwise/anticlockwise, engage
@@ -176,7 +176,7 @@ class TokamakEnv14(gym.Env):
     def construct_state_tensor_from_system_parameters(self, system_parameters):
 
         tensor_length = self.num_robots * 2 + self.num_goals * 5
-        state_tensor = torch.tensor(np.empty(shape=tensor_length), device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
         for i in range(len(system_parameters.robot_locations)):
             index = i * 2
@@ -195,7 +195,7 @@ class TokamakEnv14(gym.Env):
     def construct_state_tensor_from_dict(self, state_dict):
 
         tensor_length = self.num_robots * 2 + self.num_goals * 5
-        state_tensor = torch.tensor(np.empty(shape=tensor_length), device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
         for i in range(self.num_robots):
             index = i * 2
@@ -283,14 +283,15 @@ class TokamakEnv14(gym.Env):
 
         old_state = self.state_tensor
 
-        p_array, s_array = self.transition_model(self, old_state, action)  # probabilities and states
+        p_tensor, s_tensor = self.transition_model(self, old_state, action)  # probabilities and states
+        # print(action, p_tensor, s_tensor)
 
         # roll dice to detemine resultant state from possibilities
         roll = np.random.random()
         t = 0
         chosen_state = -1
-        for i in range(len(p_array)):
-            t += p_array[i]
+        for i in range(len(p_tensor)):
+            t += p_tensor[i]
             # print("probs:", t, p_array)
             if (roll < t):
                 chosen_state = i
@@ -299,17 +300,17 @@ class TokamakEnv14(gym.Env):
             raise ValueError("Something has gone wrong with choosing the state")
 
         # get the reward for this transition based on the reward model
-        reward = self.reward_model(self, old_state, action, s_array[chosen_state])
+        reward = self.reward_model(self, old_state, action, s_tensor[chosen_state])
 
         # assume the new state
-        self.state = s_array[chosen_state].copy()
-        self.state_tensor = self.construct_state_tensor_from_dict(s_array[chosen_state])  # have to replace this with tensor logic in transition model
+        # self.state = s_tensor[chosen_state].detach().clone()
+        self.state_tensor = s_tensor[chosen_state] #self.construct_state_tensor_from_dict(s_tensor[chosen_state])  # have to replace this with tensor logic in transition model
 
         # set terminated (all goals checked and inactive)
         terminated = True
         goal_start_tensor_index = self.num_robots * 2
         for i in range(self.num_goals):
-            if (self.state_tensor[goal_start_tensor_index + i + 1] == 1 or self.state_tensor[goal_start_tensor_index + i + 2] == 0):
+            if (self.state_tensor[goal_start_tensor_index + (i*5) + 1].item() == 1 or self.state_tensor[goal_start_tensor_index + (i*5) + 2].item() == 0):
                 terminated = False
                 break
 
@@ -317,7 +318,7 @@ class TokamakEnv14(gym.Env):
 
         info = self.get_info()
 
-        return s_array[chosen_state], reward, terminated, False, info
+        return s_tensor[chosen_state], reward, terminated, False, info
 
     def render(self):
         if self.render_mode == "rgb_array":

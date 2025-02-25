@@ -19,6 +19,7 @@ the mdp translation functionaltiy.
 
 
 """
+import math
 
 import numpy as np
 import torch
@@ -57,15 +58,19 @@ def template_move(env, state_tensor, action_no):
     if (rel_action == 0):
         # counter-clockwise
         if (current_location < env.size - 1):
-            state_tensor[robot_no * 2] = current_location + 1
-        if (current_location == env.size - 1):  # cycle round
-            state_tensor[robot_no * 2] = 0
+            # print(f"{new_state[robot_no * 2]}->{current_location + 1}")
+            new_state[robot_no * 2] = current_location + 1
+        elif (current_location == env.size - 1):  # cycle round
+            # print(f"{new_state[robot_no * 2]}->{0}")
+            new_state[robot_no * 2] = 0
     elif (rel_action == 1):
         # clockwise
         if (current_location > 0):
-            state_tensor[robot_no * 2] = current_location - 1
-        if (current_location == 0):  # cycle round
-            state_tensor[robot_no * 2] = env.size - 1
+            # print(f"{new_state[robot_no * 2]}->{current_location - 1}")
+            new_state[robot_no * 2] = current_location - 1
+        elif (current_location == 0):  # cycle round
+            # print(f"{new_state[robot_no * 2]}->{env.size - 1}")
+            new_state[robot_no * 2] = env.size - 1
     else:
         raise ValueError("Error: invalid action number for movement effect function!")
 
@@ -101,20 +106,16 @@ def template_complete(env, state_tensor, action_no):
             state1 = state_tensor.detach().clone()
             state1[(env.num_robots * 2) + (i * 5) + 1] = 0
             state1 = clock_effect(env, state1, robot_no)  # at this point, goals have been inspected
-            p_tensor[0] = prob1
-            s_tensor[0] = state1
 
             # failure to complete goal
-            prob2 = round(1 - state_tensor[(env.num_robots * 2) + (i * 5) + 4], 5)  # this rounding may cause problems!!!!!
+            prob2 = round(1 - state_tensor[(env.num_robots * 2) + (i * 5) + 4].item(), 5)  # this rounding may cause problems!!!!!
             state2 = state_tensor.detach().clone()
             state2[(env.num_robots * 2) + (i * 5) + 1] = 1
             state2 = clock_effect(env, state2, robot_no)  # at this point, goals have been inspected
-            p_tensor[1] = prob2
-            s_tensor[1] = state2
 
-            return p_tensor, s_tensor
+            return ([prob1, prob2], torch.stack([state1, state2]))
 
-    return torch.empty(0), torch.empty(0)
+    return [], torch.empty(0)
 
 
 def template_wait(env, state_tensor, action_no):
@@ -125,7 +126,8 @@ def template_wait(env, state_tensor, action_no):
     robot_no = int(torch.floor_divide(action_no, env.num_actions).item())
     new_state = clock_effect(env, state_tensor, robot_no)
 
-    return torch.tensor([1], device=global_device), torch.tensor([new_state], device=global_device)
+    return (torch.tensor([1], device=global_device, dtype=torch.float32),
+            new_state.to(device=global_device, dtype=torch.float32).unsqueeze(0))
 
 
 def clock_effect(env, state_tensor, robot_no):
@@ -185,28 +187,31 @@ def discovery_effect(env, state_tensor, robot_no):
     # if there is a goal here, get the index (i.e. which goal it is)
     goal_index = -1
     for i in range(env.num_goals):
-        gloc = new_state[(env.num_robots * 2) + (i * 5)]
-        rloc = new_state[(robot_no * 2)]  # made a change here were an extra loop over num_robots appeared to do nothing
-        if (gloc == rloc):
+        gloc = new_state[(env.num_robots * 2) + (i * 5)].item()
+        rloc = new_state[(robot_no * 2)].item()  # made a change here were an extra loop over num_robots appeared to do nothing
+        # print("locations", gloc, rloc)
+        if (gloc == rloc):  # this requires a CPU transfer so is expensive
             goal_index = i
+#             print(f"goal index: {i}")
             break
 
     if (goal_index == -1):  # no goals here; return the original state dict
-        p_tensor = torch.tensor([1], device=global_device)
-        s_tensor = torch.tensor([new_state], device=global_device)
+        p_tensor = torch.tensor([1], device=global_device, dtype=torch.float32)
+        s_tensor = new_state.to(device=global_device, dtype=torch.float32).unsqueeze(0)
+#         print("no goal")
         return p_tensor, s_tensor  # is this correct?
 
     # if there is a goal here, has it already been checked?
     if (state_tensor[(env.num_robots * 2) + (goal_index * 5) + 2] == 1):
-        p_tensor = torch.tensor([1], device=global_device)
-        s_tensor = torch.tensor([new_state], device=global_device)
+        p_tensor = torch.tensor([1], device=global_device, dtype=torch.float32)
+        s_tensor = new_state.to(device=global_device, dtype=torch.float32).unsqueeze(0)
+#         print("goal, already checked")
         return p_tensor, s_tensor
 
     # if a goal needs to be revealed:
     else:
 
-        p_tensor = torch.empty(2, device=global_device)
-        s_tensor = torch.empty(2, device=global_device)
+#         print("revealing a goal...")
 
         # goal becomes 'checked'
         new_state[(env.num_robots * 2) + (goal_index * 5) + 2] = 1
@@ -215,17 +220,13 @@ def discovery_effect(env, state_tensor, robot_no):
         prob1 = state_tensor[(env.num_robots * 2) + (goal_index * 5) + 3]
         state1 = new_state.detach().clone()
         state1[(env.num_robots * 2) + (goal_index * 5) + 1] = 1
-        p_tensor[0] = prob1
-        s_tensor[0] = state1
 
         # no goal was found here
-        prob2 = round(1 - state_tensor[(env.num_robots * 2) + (goal_index * 5) + 3], 5)  # this rounding may cause problems!!!!!
-        state2 = new_state.copy()
+        prob2 = round(1 - state_tensor[(env.num_robots * 2) + (goal_index * 5) + 3].item(), 5)  # this rounding may cause problems!!!!!
+        state2 = new_state.detach().clone()
         state2[(env.num_robots * 2) + (goal_index * 5) + 1] = 0
-        p_tensor[1] = prob2
-        s_tensor[1] = state2
 
-        return p_tensor, s_tensor
+        return ([prob1, prob2], torch.stack([state1, state2]))
 
 
 # %%
@@ -243,8 +244,8 @@ def t_model(env, state_tensor, action_no):
 
     if (env.blocked_model(env, state_tensor)[action_no] == 1):
         new_state = clock_effect(env, state_tensor, robot_no)
-        p = torch.tensor([1], device=global_device)
-        s = torch.tensor([new_state], device=global_device)
+        p = torch.tensor([1], device=global_device, dtype=torch.float32)
+        s = torch.tensor([new_state], device=global_device, dtype=torch.float32)
         return p, s
 
     rel_action = action_no % env.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
@@ -274,13 +275,17 @@ def r_model(env, state_tensor, action, next_state_tensor):
     # this is necessary to stop the total rewards shooting up when blocked actions are taken
     # mostly a diagnostic thing... I think
     if (env.blocked_model(env, state_tensor)[action] == 1):
+        # print("action blocked")  # pretty sure this should be firing more often -- dunno
         return 0
 
     rel_action = action % env.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
+    # print(f"action: {rel_action} ( 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait) ")
+    # print(f"robot location {state_tensor[math.floor(action/env.num_robots) * 2]}")
 
     # reward for checking a goal by moving onto its position
     if (rel_action < 2):
         for i in range(env.num_goals):
+            # check if goal went from unchecked to checked
             if (state_tensor[(env.num_robots * 2) + (i * 5) + 2] != next_state_tensor[(env.num_robots * 2) + (i * 5) + 2]):
                 reward += 100
 
@@ -306,7 +311,7 @@ def b_model(env, state_tensor):
     blocked_actions = np.zeros(env.action_space.n)
 
     for i in range(env.num_robots):
-        print(state_tensor)
+        # print(state_tensor)
         active_robot_loc = state_tensor[i * 2]
         if (state_tensor[(i * 2) + 1]):  # clock
             blocked_actions[i * env.num_actions: (i * env.num_actions) + env.num_actions] = 1  # block these actions
@@ -325,7 +330,8 @@ def b_model(env, state_tensor):
 
             block_task_completion = True
             for k in range(env.num_goals):
-                if (state_tensor[f"goal{k} location"] == active_robot_loc and state_tensor[f"goal{k} active"] == 1):
+                # if (state_tensor[f"goal{k} location"] == active_robot_loc and state_tensor[f"goal{k} active"] == 1):
+                if (state_tensor[(env.num_robots * 2) + (k * 5)] == active_robot_loc and state_tensor[(env.num_robots * 2) + (k * 5) + 1] == 1):
                     block_task_completion = False  # unblock this engage action
                     break
             blocked_actions[(i * env.num_actions) + 2] = block_task_completion
