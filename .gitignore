@@ -14,3 +14,4 @@ mpc.py
 .initialised
 *.out
 .vscode/*
+*.in    

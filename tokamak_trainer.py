@@ -15,11 +15,11 @@ import torch
 import DQN
 import os
 import numpy as np
-import system_logic
 from mdp_translation import GenerateDTMCFile
 import subprocess
 import sys
 import scenarios
+import select
 
 # use a non-display backend. no, i don't know what this means.
 matplotlib.use('Agg')
@@ -44,9 +44,9 @@ input_dict = {
     "batch_size": 256
 }
 
-if ("default_inputs.txt" not in os.listdir(os.getcwd())):
-    print(f"Saving default inputs to {os.getcwd()}'/default_inputs.txt'")
-    with open("default_inputs.txt", "w") as file:
+if ("default_inputs.in" not in os.listdir(os.getcwd())):
+    print(f"Saving default inputs to {os.getcwd()}'/default_inputs.in'")
+    with open("default_inputs.in", "w") as file:
         file.write("# default input parameters for tokamak_trainer.py\n")
         for key, value in input_dict.items():
             file.write(f"{key}={value}\n")
@@ -55,14 +55,19 @@ if ("default_inputs.txt" not in os.listdir(os.getcwd())):
 # get input from stdin
 print("Attempting to read input file.")
 stdin = sys.stdin
-for line in stdin:
-    if (line[0] == "#"):
-        continue
-    key, value = line.strip().split("=")
-    if (key in input_dict.keys()):
-        input_dict[key] = value
-    else:
-        print(f"Warning: input variable '{key}' not understood, skipping.")
+if (select.select([sys.stdin,],[],[],0.0)[0]):
+    for line in stdin:
+        if (line[0] == "#"):
+            continue
+        key, value = line.strip().split("=")
+        if (key in input_dict.keys()):
+            input_dict[key] = value
+        else:
+            print(f"Warning: input variable '{key}' not understood, skipping.")
+else:
+    print("No input file specified, exiting.")
+    sys.exit(1)
+
 
 dict_string = '\n'.join('{0}: {1}'.format(k, v)  for k,v in input_dict.items())
 print(f"Input dictionary:\n----\n{dict_string}\n----\n")
