@@ -30,7 +30,7 @@ else:
     print("RENDERING IS TURNED OFF")
 
 env_to_use = "Tokamak-v14"
-saved_weights_name = "" #"saved_weights_799198"
+saved_weights_name = "saved_weights_258466"
 env = gym.make(env_to_use,
                system_parameters=scenarios.case_5goals,
                transition_model=mdpt.t_model,
@@ -63,15 +63,15 @@ else:
     trained_dqn, dur, re, eps = DQN.train_model(env,
                                                 policy_net,
                                                 target_net,
-                                                epsilon_decay_function=lambda ep, e_max, e_min, num_eps: DQN.exponential_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min, num_episodes=num_eps,
+                                                epsilon_decay_function=lambda ep, e_max, e_min, num_eps: DQN.exponential_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min,
+                                                                                                                                       num_episodes=num_eps,
                                                                                                                                        max_epsilon_time=0, min_epsilon_time=0),
                                                 epsilon_min=0.05,
                                                 alpha=1e-3,
                                                 gamma=0.5,
                                                 num_episodes=300,
                                                 tau=0.005,
-                                                # something wrong with these. investigate noisy rewards.
-                                                usePseudorewards=False,
+                                                usePseudorewards=False,  # something wrong with these. investigate noisy rewards.
                                                 plot_frequency=20,
                                                 memory_sort_frequency=5,
                                                 max_steps=200,
@@ -86,7 +86,7 @@ else:
 
 print("\nEvaluation by trail...")
 s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
-                                                  num_episodes=200,
+                                                  num_episodes=10,
                                                   env=env,
                                                   max_steps=300,
                                                   render=render)
@@ -98,7 +98,6 @@ plt.xlabel("Total env steps")
 print("Generate DTMC file...")
 GenerateDTMCFile(os.getcwd() + "/outputs/" + saved_weights_name,
                  env, f"dtmc_of_{saved_weights_name}")
-
 
 # this makes slurm think that the job was nice :) (a lie)
 # don't know if actually needed

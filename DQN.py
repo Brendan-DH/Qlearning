@@ -59,6 +59,7 @@ class hashdict(dict):
     def __hash__(self):
         return hash(frozenset(self))
 
+
 def optimiser_to(optim, device):
     for param in optim.state.values():
         # Not sure there are any global tensors in the state dict
@@ -72,6 +73,7 @@ def optimiser_to(optim, device):
                     subparam.data = subparam.data.to(device)
                     if subparam._grad is not None:
                         subparam._grad.data = subparam._grad.data.to(device)
+
 
 class DeepQNetwork(nn.Module):
 
@@ -340,7 +342,6 @@ def train_model(
     if epsilon_decay_function is None:
         decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes)  # ensures epsilon ~= epsilon_min at end
 
-
         def epsilon_decay_function(ep, e_max, e_min, num_eps):
             return exponential_epsilon_decay(episode=ep,
                                              epsilon_max=e_max,
@@ -397,7 +398,7 @@ def train_model(
                 while blocked[sample] == 1:
                     # print("blocked")
                     sample = env.action_space.sample()
-                action = sample #torch.tensor([[sample]], device=device, dtype=torch.long)  # this will be expensive
+                action = sample  # torch.tensor([[sample]], device=device, dtype=torch.long)  # this will be expensive
             else:
                 # action = action_utilities.max(1)[1].view(1, 1)
                 action = torch.argmax(action_utilities).item()
@@ -418,7 +419,7 @@ def train_model(
                 pseudoreward = 0
 
             # calculate reward
-            reward = reward + pseudoreward #torch.tensor([reward + pseudoreward], device=device, dtype=torch.float32)
+            reward = reward + pseudoreward  # torch.tensor([reward + pseudoreward], device=device, dtype=torch.float32)
             ep_reward += reward
 
             # work out if the run is over
@@ -471,7 +472,7 @@ def train_model(
                                np.vstack((episode_durations, rewards, epsilons)).transpose())
                     torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/checkpoints/policy_weights_epoch{i_episode}")
                 break
-        print(f"Total time for optimisation this episode: {optimisation_time*1000:.3f}ms")
+        print(f"Total time for optimisation this episode: {optimisation_time * 1000:.3f}ms")
 
     print(f"Training complete in {int(time.time() - start_time)} seconds.")
     return policy_net, episode_durations, rewards, epsilons
@@ -565,9 +566,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
                                             batch_size,
                                             priority_coefficient,
                                             weighting_coefficient):
-
     # optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
     if len(replay_memory.memory) < batch_size or len(replay_memory.bounds) == 0:
         # print(f"memory not yet ready {len(replay_memory.memory)}/{batch_size} | {len(replay_memory.bounds)}")
@@ -624,14 +623,13 @@ def optimise_model_with_importance_sampling(policy_dqn,
     # print("Getting q of actions in the next state ")
     next_state_values = torch.zeros(batch_size, device=optimiser_device)
     with torch.no_grad():
-        next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0] # why use the target dqn, not the policy? what is no_grad?
+        next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0]  # why use the target dqn, not the policy? what is no_grad?
     # Compute the expected Q values
     expected_state_action_values = (next_state_values * gamma_tensor) + reward_batch
 
     # Compute loss. Times by weight of transition
     # print("Computing loss")
     criterion = nn.SmoothL1Loss(reduction="none")
-    print(state_action_values.device, expected_state_action_values.unsqueeze(1).device, weights.device)
     loss_vector = criterion(state_action_values, expected_state_action_values.unsqueeze(1)) * weights
     loss = torch.mean(loss_vector)
 
@@ -655,7 +653,6 @@ def optimise_model_with_importance_sampling(policy_dqn,
     optimiser_to(optimiser, torch.device("cpu"))
 
 
-
 def evaluate_model(dqn,
                    num_episodes,
                    env,
@@ -672,8 +669,6 @@ def evaluate_model(dqn,
     device = torch.device("cpu")
     print(f"Evaluation running on {device}.")
 
-    if (not torch.cuda.is_available()) : ticks = []
-    if (not torch.cuda.is_available()) : goal_resolutions = []
     steps = np.empty(num_episodes)
     deadlock_counter = 0
     deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
@@ -685,13 +680,11 @@ def evaluate_model(dqn,
             state_tensor, info = env.reset()
 
         states = [env.interpret_state_tensor(state_tensor)]
+        print(states)
         actions = []
         state_tensor = state_tensor
 
         for t in count():
-
-            if(render):
-                env.render_frame(states[-1])
 
             # action_utilities = dqn.forward(stateT)
             # action = action_utilities.max(1)[1].view(1, 1)
@@ -712,9 +705,12 @@ def evaluate_model(dqn,
 
             done = terminated
 
+            if (render):
+                env.render_frame(states[-1], True)
+
             if (done or truncated or t > max_steps):
-                if (not torch.cuda.is_available()) : ticks.append(info["elapsed ticks"])
-                if (not torch.cuda.is_available()) : goal_resolutions.append(np.sum(info["goal_resolutions"]))
+                # if (not torch.cuda.is_available()) : ticks.append(info["elapsed ticks"])
+                # if (not torch.cuda.is_available()) : goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
                     print(f"{i}/{num_episodes} episodes complete")
                 break
@@ -724,31 +720,6 @@ def evaluate_model(dqn,
             deadlock_counter += 1
 
         steps[i] = t
-
-    # if (not torch.cuda.is_available()):
-    #     ticks = np.array(ticks)
-    #     plt.figure(figsize=(10,10))
-    #     ticks_start = 0
-    #     # process 'ticks' into sub-arrays based on the unique entries in goal_resolutions
-    #     unique_res = np.unique(goal_resolutions)
-    #     for unique in unique_res:
-    #         unique_ticks = ticks[goal_resolutions == unique]  # groups episodes with this unique number of tasks
-    #         # plot the ticks. assign a range on x for each group based on the size of the group and where the last group ended.
-    #         plt.plot(np.array(range(len(unique_ticks))) + ticks_start,
-    #                  unique_ticks,
-    #                  ls="",
-    #                  marker="o",
-    #                  label="{} goals - avg {:.2f}".format(int(unique), np.mean(unique_ticks)))
-    #         ticks_start = len(unique_ticks) + ticks_start + num_episodes / 20
-    #
-    #     plt.legend()
-    #     plt.hlines(np.mean(ticks), 0, len(ticks) + len(unique_res) * num_episodes / 20, ls="--", color="grey")
-    #     plt.text(0,np.mean(ticks), f"avg: {np.mean(ticks)}")
-    #     plt.xticks([])
-    #     plt.ylabel("Duration / ticks")
-    #     plt.xlabel("Episode, sorted by number goals encountered")
-    #     plt.title("Evaluation durations")
-    #     plt.show()
 
     print("Evaluation complete.")
     print(

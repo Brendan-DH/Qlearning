@@ -143,16 +143,16 @@ class TokamakEnv14(gym.Env):
 
         for i in range(self.num_robots):
             index = i * 2
-            state_dict[f"robot{i} location"] = state_tensor[index]
-            state_dict[f"robot{i} clock"] = state_tensor[index + 1]
+            state_dict[f"robot{i} location"] = state_tensor[index].item()
+            state_dict[f"robot{i} clock"] = state_tensor[index + 1].item()
 
-        for i in range(self.num_robots, self.num_goals + self.num_robots):
+        for i in range(self.num_goals):
             index = self.num_robots * 2 + i * 5
-            state_dict[f"goal{i} location"] = state_tensor[index]
-            state_dict[f"goal{i} active"] = state_tensor[index + 1]
-            state_dict[f"goal{i} checked"] = state_tensor[index + 2]
-            state_dict[f"goal{i} discovery probability"] = state_tensor[index + 3]
-            state_dict[f"goal{i} completion probability"] = state_tensor[index + 4]
+            state_dict[f"goal{i} location"] = state_tensor[index].item()
+            state_dict[f"goal{i} active"] = state_tensor[index + 1].item()
+            state_dict[f"goal{i} checked"] = state_tensor[index + 2].item()
+            state_dict[f"goal{i} discovery probability"] = state_tensor[index + 3].item()
+            state_dict[f"goal{i} completion probability"] = state_tensor[index + 4].item()
 
         return state_dict
 
@@ -202,8 +202,9 @@ class TokamakEnv14(gym.Env):
 
     def get_info(self):
         info = {}
-        info["elapsed steps"] = self.elapsed_steps
-        info["pseudoreward"] = self.pseudoreward_function()
+        # info["elapsed steps"] = self.elapsed_steps
+        # info["elapsed ticks"] = self.elapsed_ticks
+        # info["pseudoreward"] = self.pseudoreward_function()
         return info
 
     # def query_state_action_pair(self, state, action):
@@ -296,6 +297,7 @@ class TokamakEnv14(gym.Env):
             return self.render_frame()
 
     def render_frame(self, state, inEnv=False):
+
         # note: the -np.pi is to keep the segments consistent with the jorek interpreter
 
         # print(self.blocked_model(self, state))
@@ -347,13 +349,13 @@ class TokamakEnv14(gym.Env):
             xpos = tokamak_centre[0] + tokamak_r * 3 / 4 * np.cos(angle * pos - np.pi)
             ypos = tokamak_centre[1] + tokamak_r * 3 / 4 * np.sin(angle * pos - np.pi)
             if (state[f"goal{i} checked"] == 0):
-                text = font.render(str(state[f"goal{i} discovery probability"]), True, (255, 255, 255))
+                text = font.render("{:.2f}".format(state[f"goal{i} discovery probability"]), True, (255, 255, 255))
                 circ_colour = (200 * state[f"goal{i} discovery probability"], 200 * (1 - state[f"goal{i} discovery probability"]), 0)
             elif (state[f"goal{i} active"] == 1):
-                text = font.render(str(state[f"goal{i} completion probability"]), True, (255, 255, 255))
+                text = font.render("{:.2f}".format(state[f"goal{i} completion probability"]), True, (255, 255, 255))
                 circ_colour = (0, 200, 0)
             elif (state[f"goal{i} active"] == 0):
-                text = font.render(str(state[f"goal{i} completion probability"]), True, (255, 255, 255))
+                text = font.render("{:.2f}".format(state[f"goal{i} completion probability"]), True, (255, 255, 255))
                 circ_colour = (200, 200, 200)
 
             circ = pygame.draw.circle(canvas, circ_colour, (xpos, ypos), 30)  # maybe make these rects again
@@ -380,34 +382,7 @@ class TokamakEnv14(gym.Env):
         circ = pygame.draw.circle(canvas, (255, 255, 255), tokamak_centre, 60)
         circ = pygame.draw.circle(canvas, (144, 144, 144), tokamak_centre, 60, width=1)
 
-        # print(f"""
-        #       epoch: {state["elapsed"]}
-        #       robot locations : {self.robot_locations}
-        #       actions: {self.most_recent_actions}
-        #       blocked actions: {self.get_blocked_actions()}
-        #       goal checked : {self.goal_checked}
-        #       goal instantiations: {self.goal_instantiations}
-        #       """)
-
-        # print(f"""
-        #       epoch: {info["elapsed steps"]}
-        #       """)
-
-        # # draw tick number
-        # rect = pygame.draw.rect(canvas,(255,255,255), pygame.Rect((self.window_size,0), (40, 40)))
-        # canvas.blit(font.render("t=" + str(state["elapsed ticks"]), True, (0,0,0)), rect)
-        # most recent actions
-        if (inEnv):
-            rect = pygame.draw.rect(canvas, (255, 255, 255), pygame.Rect((self.window_size, 40), (40, 40)))
-            canvas.blit(font.render("r0: " + str(self.most_recent_actions[0]), True, (0, 0, 0)), rect)
-
-            rect = pygame.draw.rect(canvas, (255, 255, 255), pygame.Rect((self.window_size, 80), (40, 40)))
-            canvas.blit(font.render("r1: " + str(self.most_recent_actions[1]), True, (0, 0, 0)), rect)
-
-            rect = pygame.draw.rect(canvas, (255, 255, 255), pygame.Rect((self.window_size, 120), (40, 40)))
-            canvas.blit(font.render("r2: " + str(self.most_recent_actions[2]), True, (0, 0, 0)), rect)
-
-        else:
+        if not inEnv:
             rect = pygame.draw.rect(canvas, (255, 255, 255), pygame.Rect((self.window_size, 40), (40, 40)))
             canvas.blit(font.render("(Trace replay)", True, (0, 0, 0)), rect)
 
