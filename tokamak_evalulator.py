@@ -77,7 +77,7 @@ policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + saved_weights)
 
 print("\nEvaluation by trail...")
 s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
-                                                  num_episodes=int(input_dict["evaluation_episodes"]),
+                                                  num_episodes=int(input_dict["num_evaluation_episodes"]),
                                                   env=env,
                                                   max_steps=int(input_dict["max_steps"]),
                                                   render=render)

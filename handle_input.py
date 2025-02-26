@@ -16,7 +16,7 @@ def get_input_dict():
         "epsilon_min": 0.05,
         "alpha": 1e-3,
         "gamma": 0.5,
-        "num_episodes": 300,
+        "num_training_episodes": 300,
         "tau": 0.005,
         "usePseudorewards": False,  # something wrong with these. investigate noisy rewards.
         "plot_frequency": 20,
@@ -26,7 +26,7 @@ def get_input_dict():
         "checkpoint_frequency": 50,
         "batch_size": 256,
         "render_evaluation": "false",
-        "evaluation_episodes": 100
+        "num_evaluation_episodes": 100
     }
 
     if ("default_inputs.in" not in os.listdir(os.getcwd())):
