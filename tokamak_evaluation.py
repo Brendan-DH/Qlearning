@@ -88,12 +88,11 @@ plt.xlabel("Total env steps")
 plt.savefig(f"outputs/trial_${saved_weights.replace('/', '_')}.svg")
 
 print("Generate DTMC file...")
-GenerateDTMCFile(os.getcwd() + "/outputs/" + saved_weights,
-                 env, f"dtmc_of_{saved_weights}")
-
+GenerateDTMCFile(os.getcwd() + "/outputs/" + saved_weights, env, f"dtmc_of_{saved_weights}")
 
 verification_property = "Rmax=?[F \"done\"]"
 
+print("Running STORM")
 subprocess.run(["storm",
                 "--explicit",
                 f"outputs/dtmc_of_{saved_weights}.tra",
