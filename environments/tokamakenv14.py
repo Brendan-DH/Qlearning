@@ -202,9 +202,9 @@ class TokamakEnv14(gym.Env):
 
     def get_info(self):
         info = {}
-        # info["elapsed steps"] = self.elapsed_steps
-        # info["elapsed ticks"] = self.elapsed_ticks
-        # info["pseudoreward"] = self.pseudoreward_function()
+        info["elapsed steps"] = self.elapsed_steps
+        info["elapsed ticks"] = self.elapsed_ticks
+        info["pseudoreward"] = self.pseudoreward_function()
         return info
 
     # def query_state_action_pair(self, state, action):

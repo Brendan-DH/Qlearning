@@ -1,0 +1,16 @@
+# default input parameters for tokamak_trainer.py
+scenario=None
+system_logic=None
+nodes_per_layer=256
+epsilon_min=0.05
+alpha=0.001
+gamma=0.5
+num_episodes=300
+tau=0.005
+usePseudorewards=False
+plot_frequency=20
+memory_sort_frequency=5
+max_steps=200
+buffer_size=50000
+checkpoint_frequency=50
+batch_size=256
