@@ -43,7 +43,7 @@ env_to_use = input_dict["environment"]
 
 env = gym.make(env_to_use,
                system_parameters=scenario,
-               transition_model=mdpt.t_model,
+               system_logic=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
                training=True,

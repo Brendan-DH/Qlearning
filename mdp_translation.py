@@ -13,16 +13,15 @@ import DQN
 import os
 import numpy as np
 from dtmc_checker import CheckDTMC
-import system_logic.hybrid_system as mdpt
 
-
-def GenerateDTMCFile(saved_weights_file, env, output_name="dtmc"):
+def GenerateDTMCFile(saved_weights_file, env, system_logic, output_name="dtmc"):
 
     # load the DQN
 
     n_actions = env.action_space.n
     state_tensor, info = env.reset()
-    initial_state_tensor = env.state
+    initial_state_tensor = state_tensor.detach().clone()
+    initial_state_dict = env.interpret_state_tensor(initial_state_tensor)
     n_observations = len(state_tensor)
 
     if(not saved_weights_file):
@@ -44,7 +43,7 @@ def GenerateDTMCFile(saved_weights_file, env, output_name="dtmc"):
 
     new_id = 0  # an unencountered state will get this id, after which it will be incremented
 
-    states_id_dict = {str(initial_state_tensor) : 0}  # dictionary of state dicts to id
+    states_id_dict = {str(initial_state_dict) : 0}  # dictionary of state dicts to id
     labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     exploration_queue = Queue()
@@ -62,7 +61,11 @@ def GenerateDTMCFile(saved_weights_file, env, output_name="dtmc"):
 
     while(not exploration_queue.empty()):
 
+        # print("\r-----------------------------------------------------------------", end="")
+        print(f"\rStates in exploration queue: {' ' * ( 10 - len(str(exploration_queue.qsize())))}{exploration_queue.qsize()}", end="")
+
         state_tensor = exploration_queue.get().detach().clone()  # what is the differnce between state and stateT
+        state_dict = env.interpret_state_tensor(state_tensor)
 
         action_utilities = policy_net.forward(state_tensor.unsqueeze(0))[0]  # why is this indexed?
         blocked = env.blocked_model(env, state_tensor)
@@ -70,14 +73,14 @@ def GenerateDTMCFile(saved_weights_file, env, output_name="dtmc"):
         action = torch.argmax(action_utilities).item()
 
         # get the result of the action from the transition model
-        result = mdpt.t_model(env, state_tensor, action)
+        result = system_logic.t_model(env, state_tensor, action)
 
         # label end states
-        all_done = mdpt.state_is_final(env, state_tensor)
+        all_done = system_logic.state_is_final(env, state_tensor)
         if (all_done):
-            labels_set.add(f"{states_id_dict[str(state_tensor)]} done\n")  # label end states
+            labels_set.add(f"{states_id_dict[str(state_dict)]} done\n")  # label end states
             # end states loop to themselves (formality):
-            transitions_array.append(f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(state_tensor)]} 1")
+            transitions_array.append(f"{states_id_dict[str(state_dict)]} {states_id_dict[str(state_dict)]} 1")
             continue  # continue as we don't care about other transitions from end states
 
         # iterate over result states:
@@ -85,23 +88,24 @@ def GenerateDTMCFile(saved_weights_file, env, output_name="dtmc"):
 
             prob = result[0][i]
             result_state_tensor = result[1][i]
+            result_state_dict = env.interpret_state_tensor(result_state_tensor)
 
             # print(prob)
 
             # register newly discovered states
-            if (str(result_state_tensor) not in list(states_id_dict.keys())):
-                states_id_dict[str(result_state_tensor)] = new_id
+            if (str(result_state_dict) not in list(states_id_dict.keys())):
+                states_id_dict[str(result_state_dict)] = new_id
                 # states_array.append(result_state)
                 exploration_queue.put(result_state_tensor)
                 new_id += 1
 
             # assign awards to clock ticks
             # all s' will lead to a clock tick if robots-1 clocks are ticked in s (provided blocked actions are impossible)
-            if (np.sum([result_state_tensor[f"robot{i} clock"] for i in range(env.num_robots)]) == 0):
-                rewards_array.append(f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(result_state_tensor)]} 1")
+            if (np.sum([result_state_dict[f"robot{i} clock"] for i in range(env.num_robots)]) == 0):
+                rewards_array.append(f"{states_id_dict[str(state_dict)]} {states_id_dict[str(result_state_dict)]} 1")
 
             # write the transitions into the file/array
-            transitions_array.append(f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(result_state_tensor)]} {prob}")
+            transitions_array.append(f"{states_id_dict[str(state_dict)]} {states_id_dict[str(result_state_dict)]} {prob}")
 
 
     """Write the DTMC file"""

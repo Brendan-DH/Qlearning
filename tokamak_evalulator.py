@@ -46,7 +46,6 @@ if not scenario:
     print(f"Scenario {input_dict['scenario']} was not found.")
     sys.exit(1)
 
-
 env_to_use = input_dict["environment"]
 
 env = gym.make(env_to_use,
@@ -66,29 +65,27 @@ plt.ion()
 n_actions = env.action_space.n
 state_tensor, info = env.reset()
 n_observations = len(state_tensor)
-print("State is of length", n_observations)
 
 policy_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer)
-
-
 
 print(f"Loading from '/outputs/{saved_weights}")
 policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + saved_weights))
 
-print("\nEvaluation by trail...")
-s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
-                                                  num_episodes=int(input_dict["num_evaluation_episodes"]),
-                                                  env=env,
-                                                  max_steps=int(input_dict["max_steps"]),
-                                                  render=render)
+if int(input_dict["num_evaluation_episodes"]) > 0:
+    print("\nEvaluation by trail...")
+    s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
+                                                      num_episodes=int(input_dict["num_evaluation_episodes"]),
+                                                      env=env,
+                                                      max_steps=int(input_dict["max_steps"]),
+                                                      render=render)
 
-plt.figure(figsize=(10, 7))
-plt.hist(x=steps, rwidth=0.95)
-plt.xlabel("Total env steps")
-plt.savefig(f"outputs/trial_${saved_weights.replace('/', '_')}.svg")
+    plt.figure(figsize=(10, 7))
+    plt.hist(x=steps, rwidth=0.95)
+    plt.xlabel("Total env steps")
+    plt.savefig(f"outputs/trial_{saved_weights.replace('/', '_')}.svg")
 
 print("Generate DTMC file...")
-GenerateDTMCFile(os.getcwd() + "/outputs/" + saved_weights, env, f"dtmc_of_{saved_weights}")
+GenerateDTMCFile(os.getcwd() + "/outputs/" + saved_weights, env, mdpt, f"dtmc_of_{saved_weights}")
 
 verification_property = "Rmax=?[F \"done\"]"
 
