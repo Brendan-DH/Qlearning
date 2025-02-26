@@ -293,8 +293,6 @@ def train_model(
 
             Environmental parameters:
             {state_string}
-            # {reset_options}
-
             ----
 
             Training hyperparameters:
@@ -680,7 +678,6 @@ def evaluate_model(dqn,
             state_tensor, info = env.reset()
 
         states = [env.interpret_state_tensor(state_tensor)]
-        print(states)
         actions = []
         state_tensor = state_tensor
 

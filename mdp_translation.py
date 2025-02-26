@@ -5,8 +5,7 @@ Created on Wed Jan 17 13:29:40 2024
 
 @author: brendandevlin-hill
 """
-
-
+import sys
 # import gymnasium as gym
 from queue import Queue
 import torch
@@ -17,30 +16,28 @@ from dtmc_checker import CheckDTMC
 import system_logic.hybrid_system as mdpt
 
 
-def GenerateDTMCFile(saved_weights_path, env, output_name="dtmc"):
-
-    #%%
+def GenerateDTMCFile(saved_weights_file, env, output_name="dtmc"):
 
     # load the DQN
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    saved_weights_name = "saved_weights_715739"
-
     n_actions = env.action_space.n
     state, info = env.reset()
-    initial_state = state.copy()
+    initial_state_tensor = env.state
     n_observations = len(state)
 
-    try:
-        assert saved_weights_name
-        loaded_weights = torch.load(saved_weights_path)
-        nodes_per_layer = len(loaded_weights["layer1.weight"])  # assuming they all have the same width
-        print(f"Loading policy from '{saved_weights_path}'")
-    except NameError:
-        print(f"Weights file {saved_weights_path} not found")
+    if(not saved_weights_file):
+        print("No weights file specified, exiting.")
+        sys.exit(1)
 
-    policy_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer).to(device)
+    try:
+        loaded_weights = torch.load(saved_weights_file)
+        nodes_per_layer = len(loaded_weights["layer1.weight"])  # assuming they all have the same width
+        print(f"Loading policy from '{saved_weights_file}'")
+    except FileNotFoundError:
+        print(f"Weights file {saved_weights_file} not found, exiting.")
+        sys.exit(1)
+
+    policy_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer)
     policy_net.load_state_dict(loaded_weights)
 
     #%%
@@ -49,8 +46,8 @@ def GenerateDTMCFile(saved_weights_path, env, output_name="dtmc"):
 
     new_id = 0  # an unencountered state will get this id, after which it will be incremented
 
-    states_id_dict = {str(initial_state) : 0}  # dictionary of state dicts to id
-    labels_set = set(["0 init\n"])  # set of state labels ([id] [label] )
+    states_id_dict = {str(initial_state_tensor) : 0}  # dictionary of state dicts to id
+    labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     exploration_queue = Queue()
 
@@ -68,7 +65,7 @@ def GenerateDTMCFile(saved_weights_path, env, output_name="dtmc"):
     while(not exploration_queue.empty()):
 
         state = exploration_queue.get().copy()
-        stateT = torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
+        stateT = state.detach().clone()  #torch.tensor(list(state.values()), dtype=torch.float32, device=device).unsqueeze(0)
 
         action_utilities = policy_net.forward(stateT)[0]
 
