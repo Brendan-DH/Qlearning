@@ -40,8 +40,6 @@ def GenerateDTMCFile(saved_weights_file, env, output_name="dtmc"):
     policy_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer)
     policy_net.load_state_dict(loaded_weights)
 
-    #%%
-
     """Create the explicit DTMC representation"""
 
     new_id = 0  # an unencountered state will get this id, after which it will be incremented
@@ -99,8 +97,6 @@ def GenerateDTMCFile(saved_weights_file, env, output_name="dtmc"):
 
             # assign awards to clock ticks
             # all s' will lead to a clock tick if robots-1 clocks are ticked in s (provided blocked actions are impossible)
-            # print("a",np.sum([state[f"robot{i} clock"] for i in range(env.num_robots)]) == env.num_robots - 1)
-            # print("b",np.sum([result_state[f"robot{i} clock"] for i in range(env.num_robots)]) == 0, "\n")
             if (np.sum([result_state_tensor[f"robot{i} clock"] for i in range(env.num_robots)]) == 0):
                 rewards_array.append(f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(result_state_tensor)]} 1")
 
