@@ -42,7 +42,7 @@ def get_input_dict():
     stdin = sys.stdin
     if (select.select([sys.stdin,],[],[],0.0)[0]):
         for line in stdin:
-            if (line[0] == "#"):
+            if (line[0] == "#" or len(line) == 0):
                 continue
             key, value = line.replace(" ", "").strip().split("=")
             if (key in input_dict.keys()):
