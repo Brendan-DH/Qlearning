@@ -5,7 +5,7 @@ Created on Wed Nov  8 17:43:45 2023
 
 @author: brendandevlin-hill
 """
-
+import gc
 import math
 import random
 import matplotlib as matplotlib
@@ -357,8 +357,13 @@ def train_model(
         print(f"Training episode {i_episode}/{num_episodes}")
         optimisation_time = 0
 
+        # sort out memory
+        gc.collect()
+        torch.cuda.empty_cache()
+
         if ((i_episode % int(num_episodes / 10)) == 0):
             print(f"{i_episode}/{num_episodes} complete...")
+            if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
 
         if (i_episode % int(memory_sort_frequency) == 0):
             print("Sorting memory...")
@@ -470,7 +475,7 @@ def train_model(
                                np.vstack((episode_durations, rewards, epsilons)).transpose())
                     torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/checkpoints/policy_weights_epoch{i_episode}")
                 break
-        print(f"Total time for optimisation this episode: {optimisation_time * 1000:.3f}ms")
+        if i_episode > memory_sort_frequency: print(f"Total time for optimisation this episode: {optimisation_time * 1000:.3f}ms")
 
     print(f"Training complete in {int(time.time() - start_time)} seconds.")
     return policy_net, episode_durations, rewards, epsilons
@@ -574,13 +579,13 @@ def optimise_model_with_importance_sampling(policy_dqn,
 
     target_dqn.to(optimiser_device)
     policy_dqn.to(optimiser_device)
-    optimiser_to(optimiser, optimiser_device)
+    # optimiser_to(optimiser, optimiser_device)
 
     # get the batch of transitions. sample one transition from each of k linear segments
     lower = 0
     transitions = np.empty(batch_size, dtype=DeltaTransition)
-    transition_indices = torch.tensor(np.empty(batch_size, dtype=int), device=torch.device("cpu"))
-    weights = torch.empty(batch_size, dtype=torch.float, device=torch.device("cpu"))
+    transition_indices = torch.tensor(np.empty(batch_size, dtype=int), device=torch.device("cpu"), requires_grad=False)
+    weights = torch.empty(batch_size, dtype=torch.float, device=torch.device("cpu"), requires_grad=False)
 
     # loop over the k linear segments
     for i in range(batch_size):
@@ -600,17 +605,17 @@ def optimise_model_with_importance_sampling(policy_dqn,
     batch = DeltaTransition(*zip(*transitions))
     weights = weights.to(optimiser_device)
 
-    # boolean mask of which states are final (i.e. termination occurs in this state)
-    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=torch.device("cpu"), dtype=torch.bool)
+    # boolean mask of which states are NOT final (final = termination occurs in this state)
+    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=torch.device(optimiser_device), dtype=torch.bool)
 
-    # collection of non-final s
-    non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
-    state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
-    action_batch = torch.tensor(batch.action).to(optimiser_device)  # tensor
-    reward_batch = torch.tensor(batch.reward).to(optimiser_device)  # tensor
+    # collection of non-final states
+    with torch.no_grad():
+        non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
+        state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
+    action_batch = torch.tensor(batch.action, requires_grad=False).to(optimiser_device)  # tensor
+    reward_batch = torch.tensor(batch.reward, requires_grad=False).to(optimiser_device)  # tensor
 
-    # the qvalues of actions in this state. the .gather gets the qvalue corresponding to the
-    # indices in 'action_batch'
+    # the qvalues of actions in this state as according to the policy network
     try:
         q_values = policy_dqn(state_batch)
         state_action_values = q_values.gather(1, action_batch.unsqueeze(1))
@@ -618,21 +623,19 @@ def optimise_model_with_importance_sampling(policy_dqn,
         raise Exception("Something went wrong with gathering the state/action q-values")
 
     # q values of action in the next state
-    # print("Getting q of actions in the next state ")
     next_state_values = torch.zeros(batch_size, device=optimiser_device)
     with torch.no_grad():
-        next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0]  # why use the target dqn, not the policy? what is no_grad?
-    # Compute the expected Q values
+        next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0]
     expected_state_action_values = (next_state_values * gamma_tensor) + reward_batch
+    print("expected_state_action_values.device", expected_state_action_values.device)
 
     # Compute loss. Times by weight of transition
-    # print("Computing loss")
-    criterion = nn.SmoothL1Loss(reduction="none")
+    criterion = nn.SmoothL1Loss(reduction="none")  # (Huber loss)
     loss_vector = criterion(state_action_values, expected_state_action_values.unsqueeze(1)) * weights
     loss = torch.mean(loss_vector)
+    print("loss_vector.device, loss.device ", loss_vector.device, loss.device)
 
     # optimise the model
-    # print("Performing optimisation")
     optimiser.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_value_(policy_dqn.parameters(), 100)  # stops the gradients from becoming too large
@@ -643,12 +646,8 @@ def optimise_model_with_importance_sampling(policy_dqn,
         index = transition_indices[i]
         replay_memory.updatePriorities(index, torch.mean(loss_vector[i]).item())
 
-    # print(f"Finished optimisation.")
-
-    # move the nns back. note: is it somehow possible to keep the dqns to optimise on the GPU only? do I need to move around the target_dqn?
     target_dqn.to(torch.device("cpu"))
     policy_dqn.to(torch.device("cpu"))
-    optimiser_to(optimiser, torch.device("cpu"))
 
 
 def evaluate_model(dqn,

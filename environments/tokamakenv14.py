@@ -84,6 +84,7 @@ class TokamakEnv14(gym.Env):
 
         # state["elapsed ticks"] = system_parameters.elapsed_ticks
 
+        self.state = state.copy()
         self.initial_state = state.copy()
 
         # non-operational (static/inherited) parameters
@@ -94,7 +95,6 @@ class TokamakEnv14(gym.Env):
         self.num_robots = len(system_parameters.robot_locations)
 
         # torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
         self.state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu"))
         self.initial_state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu"))
 
@@ -128,6 +128,7 @@ class TokamakEnv14(gym.Env):
         # assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.window = None
         self.clock = None
+        self.elapsed_ticks = 0
         self.reset()
 
     def interpret_state_tensor(self, state_tensor):
@@ -154,7 +155,7 @@ class TokamakEnv14(gym.Env):
     def construct_state_tensor_from_system_parameters(self, system_parameters, device):
 
         tensor_length = self.num_robots * 2 + self.num_goals * 5
-        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device)
+        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device, requires_grad=False)
 
         for i in range(len(system_parameters.robot_locations)):
             index = i * 2
@@ -173,7 +174,7 @@ class TokamakEnv14(gym.Env):
     def construct_state_tensor_from_dict(self, state_dict, device):
 
         tensor_length = self.num_robots * 2 + self.num_goals * 5
-        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device)
+        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device, requires_grad=False)
 
         for i in range(self.num_robots):
             index = i * 2

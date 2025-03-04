@@ -95,7 +95,6 @@ def GenerateDTMCFile(saved_weights_file, env, system_logic, output_name="dtmc"):
             # register newly discovered states
             if (str(result_state_dict) not in list(states_id_dict.keys())):
                 states_id_dict[str(result_state_dict)] = new_id
-                # states_array.append(result_state)
                 exploration_queue.put(result_state_tensor)
                 new_id += 1
 

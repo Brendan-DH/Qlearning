@@ -49,7 +49,7 @@ def template_move(env, state_tensor, action_no):
     """
 
     # the effect function for moving robot 1 ccw
-    new_state = state_tensor.detach().clone()
+    # state_tensor = state_tensor.detach().clone()
     robot_no = int(torch.floor_divide(action_no, env.num_actions).item())
     current_location = state_tensor[robot_no * 2]
     rel_action = action_no % env.num_actions
@@ -59,22 +59,22 @@ def template_move(env, state_tensor, action_no):
         # counter-clockwise
         if (current_location < env.size - 1):
             # print(f"{new_state[robot_no * 2]}->{current_location + 1}")
-            new_state[robot_no * 2] = current_location + 1
+            state_tensor[robot_no * 2] = current_location + 1
         elif (current_location == env.size - 1):  # cycle round
             # print(f"{new_state[robot_no * 2]}->{0}")
-            new_state[robot_no * 2] = 0
+            state_tensor[robot_no * 2] = 0
     elif (rel_action == 1):
         # clockwise
         if (current_location > 0):
             # print(f"{new_state[robot_no * 2]}->{current_location - 1}")
-            new_state[robot_no * 2] = current_location - 1
+            state_tensor[robot_no * 2] = current_location - 1
         elif (current_location == 0):  # cycle round
             # print(f"{new_state[robot_no * 2]}->{env.size - 1}")
-            new_state[robot_no * 2] = env.size - 1
+            state_tensor[robot_no * 2] = env.size - 1
     else:
         raise ValueError("Error: invalid action number for movement effect function!")
 
-    clock_state = clock_effect(env, new_state, robot_no)  # advance clocks
+    clock_state = clock_effect(env, state_tensor, robot_no)  # advance clocks
     p_tensor, s_tensor = discovery_effect(env, clock_state, robot_no)  # get resultant states and probabilities
 
     return p_tensor, s_tensor
@@ -98,8 +98,6 @@ def template_complete(env, state_tensor, action_no):
     for i in range(env.num_goals):
         # if (state_tensor[f"goal{i} location"] == state_tensor[f"robot{robot_no} location"]):
         if (state_tensor[(env.num_robots * 2) + (i * 5)] == state_tensor[robot_no * 2]):
-            p_tensor = torch.empty(2, device=global_device)
-            s_tensor = torch.empty(2, device=global_device)
 
             # goal is successfully completed
             prob1 = state_tensor[(env.num_robots * 2) + (i * 5) + 4]
@@ -126,7 +124,7 @@ def template_wait(env, state_tensor, action_no):
     robot_no = int(torch.floor_divide(action_no, env.num_actions).item())
     new_state = clock_effect(env, state_tensor, robot_no)
 
-    return (torch.tensor([1], device=global_device, dtype=torch.float32),
+    return (torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False),
             new_state.to(device=global_device, dtype=torch.float32).unsqueeze(0))
 
 
@@ -146,20 +144,20 @@ def clock_effect(env, state_tensor, robot_no):
 
     """
 
-    new_state = state_tensor.detach().clone()
-    new_state[(robot_no * 2) + 1] = 1
+    # state_tensor = state_tensor.detach().clone()
+    state_tensor[(robot_no * 2) + 1] = 1
     # print(f"clock: {robot_no}")
 
     for i in range(env.num_robots):
-        if new_state[(i * 2) + 1] == 0:
-            return new_state  # if any clocks are not ticked, return
+        if state_tensor[(i * 2) + 1] == 0:
+            return state_tensor  # if any clocks are not ticked, return
 
     # else if all clocks are ticked:
     for i in range(env.num_robots):
-        new_state[(i * 2) + 1] = 0  # set all clocks to 0
+        state_tensor[(i * 2) + 1] = 0  # set all clocks to 0
         # new_state["elapsed ticks"] += 1
 
-    return new_state
+    return state_tensor
 
 
 def discovery_effect(env, state_tensor, robot_no):
@@ -181,14 +179,14 @@ def discovery_effect(env, state_tensor, robot_no):
 
 
     """
-    new_state = state_tensor.detach().clone()
+    # state_tensor = state_tensor.detach().clone()
 
     # deal with the discovery of goals in this location:
     # if there is a goal here, get the index (i.e. which goal it is)
     goal_index = -1
     for i in range(env.num_goals):
-        gloc = new_state[(env.num_robots * 2) + (i * 5)].item()
-        rloc = new_state[(robot_no * 2)].item()  # made a change here were an extra loop over num_robots appeared to do nothing
+        gloc = state_tensor[(env.num_robots * 2) + (i * 5)].item()
+        rloc = state_tensor[(robot_no * 2)].item()  # made a change here were an extra loop over num_robots appeared to do nothing
         # print("locations", gloc, rloc)
         if (gloc == rloc):  # this requires a CPU transfer so is expensive
             goal_index = i
@@ -196,34 +194,31 @@ def discovery_effect(env, state_tensor, robot_no):
             break
 
     if (goal_index == -1):  # no goals here; return the original state dict
-        p_tensor = torch.tensor([1], device=global_device, dtype=torch.float32)
-        s_tensor = new_state.to(device=global_device, dtype=torch.float32).unsqueeze(0)
+        p_tensor = torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False)
+        s_tensor = state_tensor.to(device=global_device, dtype=torch.float32).unsqueeze(0)
 #         print("no goal")
         return p_tensor, s_tensor  # is this correct?
 
     # if there is a goal here, has it already been checked?
     if (state_tensor[(env.num_robots * 2) + (goal_index * 5) + 2] == 1):
-        p_tensor = torch.tensor([1], device=global_device, dtype=torch.float32)
-        s_tensor = new_state.to(device=global_device, dtype=torch.float32).unsqueeze(0)
+        p_tensor = torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False)
+        s_tensor = state_tensor.to(device=global_device, dtype=torch.float32).unsqueeze(0)
 #         print("goal, already checked")
         return p_tensor, s_tensor
 
     # if a goal needs to be revealed:
     else:
-
-#         print("revealing a goal...")
-
         # goal becomes 'checked'
-        new_state[(env.num_robots * 2) + (goal_index * 5) + 2] = 1
+        state_tensor[(env.num_robots * 2) + (goal_index * 5) + 2] = 1
 
         # a goal was discovered
         prob1 = state_tensor[(env.num_robots * 2) + (goal_index * 5) + 3]
-        state1 = new_state.detach().clone()
+        state1 = state_tensor.detach().clone()
         state1[(env.num_robots * 2) + (goal_index * 5) + 1] = 1
 
         # no goal was found here
         prob2 = round(1 - state_tensor[(env.num_robots * 2) + (goal_index * 5) + 3].item(), 5)  # this rounding may cause problems!!!!!
-        state2 = new_state.detach().clone()
+        state2 = state_tensor.detach().clone()
         state2[(env.num_robots * 2) + (goal_index * 5) + 1] = 0
 
         return ([prob1, prob2], torch.stack([state1, state2]))
@@ -244,8 +239,8 @@ def t_model(env, state_tensor, action_no):
 
     if (env.blocked_model(env, state_tensor)[action_no] == 1):
         new_state = clock_effect(env, state_tensor, robot_no)
-        p = torch.tensor([1], device=global_device, dtype=torch.float32)
-        s = torch.tensor([new_state], device=global_device, dtype=torch.float32)
+        p = torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False)
+        s = torch.tensor([new_state], device=global_device, dtype=torch.float32, requires_grad=False)
         return p, s
 
     rel_action = action_no % env.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
@@ -336,7 +331,7 @@ def b_model(env, state_tensor):
                     break
             blocked_actions[(i * env.num_actions) + 2] = block_task_completion
 
-    return torch.tensor(blocked_actions, dtype=torch.bool, device=global_device)
+    return torch.tensor(blocked_actions, dtype=torch.bool, device=global_device, requires_grad=False)
 
 
 def get_counter_cw_blocked(env, state_tensor, robot_no):
