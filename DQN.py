@@ -74,6 +74,18 @@ def optimiser_to(optim, device):
                     if subparam._grad is not None:
                         subparam._grad.data = subparam._grad.data.to(device)
 
+def optimiser_device_check(optim):
+    for param in optim.state.values():
+        # Not sure there are any global tensors in the state dict
+        if isinstance(param, torch.Tensor):
+            print("optimiser_param_device", param.device)
+        elif isinstance(param, dict):
+            for subparam in param.values():
+                if isinstance(subparam, torch.Tensor):
+                    print("optimiser_subparam_device", subparam.device)
+
+
+
 
 class DeepQNetwork(nn.Module):
 
@@ -636,6 +648,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     print("loss_vector.device, loss.device ", loss_vector.device, loss.device)
 
     # optimise the model
+    optimiser_device_check(optimiser)
     optimiser.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_value_(policy_dqn.parameters(), 100)  # stops the gradients from becoming too large

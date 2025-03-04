@@ -196,14 +196,12 @@ def discovery_effect(env, state_tensor, robot_no):
     if (goal_index == -1):  # no goals here; return the original state dict
         p_tensor = torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False)
         s_tensor = state_tensor.to(device=global_device, dtype=torch.float32).unsqueeze(0)
-#         print("no goal")
         return p_tensor, s_tensor  # is this correct?
 
     # if there is a goal here, has it already been checked?
     if (state_tensor[(env.num_robots * 2) + (goal_index * 5) + 2] == 1):
         p_tensor = torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False)
         s_tensor = state_tensor.to(device=global_device, dtype=torch.float32).unsqueeze(0)
-#         print("goal, already checked")
         return p_tensor, s_tensor
 
     # if a goal needs to be revealed:
