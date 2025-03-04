@@ -369,6 +369,7 @@ def train_model(
     start_time = time.time()
     for i_episode in range(num_episodes):
         print(f"Training episode {i_episode}/{num_episodes}")
+        if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
         optimisation_time = 0
 
         # sort out memory
@@ -377,7 +378,6 @@ def train_model(
 
         if ((i_episode % int(num_episodes / 10)) == 0):
             print(f"{i_episode}/{num_episodes} complete...")
-            if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
 
         if (i_episode % int(memory_sort_frequency) == 0):
             print("Sorting memory...")
@@ -650,7 +650,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
 #     print("loss_vector.device, loss.device ", loss_vector.device, loss.device)
 
     # optimise the model
-    optimiser_device_check(optimiser)
+    # optimiser_device_check(optimiser)
     optimiser.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_value_(policy_dqn.parameters(), 100)  # stops the gradients from becoming too large
