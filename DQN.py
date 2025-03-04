@@ -278,11 +278,6 @@ def train_model(
     episode_durations = np.empty(num_episodes)
     rewards = np.empty(num_episodes)
     optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    state_string = str(env.state).replace(',', ',\n\t\t\t')
-
-    policy_net = nn.DataParallel(policy_net)
-    target_net = nn.DataParallel(target_net)
-
     policy_net.to(torch.device("cpu"))
     target_net.to(torch.device("cpu"))
 
@@ -580,10 +575,9 @@ def optimise_model_with_importance_sampling(policy_dqn,
 
     # print("Attempting to optimise...")
 
-    target_dqn.to(optimiser_device)
-    policy_dqn.to(optimiser_device)
-    # optimiser_to(optimiser, optimiser_device)
-
+    policy_dqn = nn.DataParallel(policy_dqn).to(optimiser_device)
+    target_dqn = nn.DataParallel(target_dqn).to(optimiser_device)
+    
     # get the batch of transitions. sample one transition from each of k linear segments
     lower = 0
     transitions = np.empty(batch_size, dtype=DeltaTransition)
