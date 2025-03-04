@@ -283,6 +283,9 @@ def train_model(
     policy_net = nn.DataParallel(policy_net)
     target_net = nn.DataParallel(target_net)
 
+    policy_net.to(torch.device("cpu"))
+    target_net.to(torch.device("cpu"))
+
     with open(os.getcwd()+"/outputs/env_desc.txt", "w") as file: json.dump(env.state, file)
 
     print(f"""
