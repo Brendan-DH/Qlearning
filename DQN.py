@@ -78,11 +78,13 @@ def optimiser_device_check(optim):
     for param in optim.state.values():
         # Not sure there are any global tensors in the state dict
         if isinstance(param, torch.Tensor):
-            print("optimiser_param_device", param.device)
+            print("optimiser param device", param.device)
         elif isinstance(param, dict):
-            for subparam in param.values():
+            for key, subparam in param.items():
                 if isinstance(subparam, torch.Tensor):
-                    print("optimiser_subparam_device", subparam.device)
+                    # print("optimiser_subparam_device", subparam.device)
+                    if subparam.device == torch.device("cpu"):
+                        print(f"{key} is on cpu")
 
 
 
@@ -639,13 +641,13 @@ def optimise_model_with_importance_sampling(policy_dqn,
     with torch.no_grad():
         next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0]
     expected_state_action_values = (next_state_values * gamma_tensor) + reward_batch
-    print("expected_state_action_values.device", expected_state_action_values.device)
+    # print("expected_state_action_values.device", expected_state_action_values.device)
 
     # Compute loss. Times by weight of transition
     criterion = nn.SmoothL1Loss(reduction="none")  # (Huber loss)
     loss_vector = criterion(state_action_values, expected_state_action_values.unsqueeze(1)) * weights
     loss = torch.mean(loss_vector)
-    print("loss_vector.device, loss.device ", loss_vector.device, loss.device)
+#     print("loss_vector.device, loss.device ", loss_vector.device, loss.device)
 
     # optimise the model
     optimiser_device_check(optimiser)
