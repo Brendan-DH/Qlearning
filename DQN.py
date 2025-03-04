@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from collections import namedtuple, deque
 from itertools import count
 import numpy as np
+import json
 
 import torch
 import torch.nn as nn
@@ -95,7 +96,6 @@ class DeepQNetwork(nn.Module):
         self.input_layer = nn.Linear(n_observations, nodes_per_layer)
         hidden_layers = []
         for i in range(n_hidden_layers):
-            print(i)
             hidden_layers.append(nn.Linear(nodes_per_layer, nodes_per_layer))
             hidden_layers.append(nn.ReLU())  # Add ReLU activation after each hidden layer
 
@@ -280,14 +280,19 @@ def train_model(
     optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     state_string = str(env.state).replace(',', ',\n\t\t\t')
 
+    policy_net = nn.DataParallel(policy_net)
+    target_net = nn.DataParallel(target_net)
+
+    with open(os.getcwd()+"/outputs/env_desc.txt", "w") as file: json.dump(env.state, file)
+
     print(f"""
             Commensing training.
             Optimisation Device: {optimiser_device}
+            Number of CUDA devices: {torch.cuda.device_count()}
             Environment: {env.unwrapped.spec.id}
             ----
 
-            Environmental parameters:
-            {state_string}
+            Environment description: saved to outputs/env_desc.txt
             ----
 
             Training hyperparameters:
