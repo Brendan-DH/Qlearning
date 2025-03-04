@@ -14,6 +14,7 @@ import os
 import numpy as np
 from dtmc_checker import CheckDTMC
 
+
 def GenerateDTMCFile(saved_weights_file, env, system_logic, output_name="dtmc"):
 
     # load the DQN
@@ -30,13 +31,14 @@ def GenerateDTMCFile(saved_weights_file, env, system_logic, output_name="dtmc"):
 
     try:
         loaded_weights = torch.load(saved_weights_file)
-        nodes_per_layer = len(loaded_weights["layer1.weight"])  # assuming they all have the same width
+        nodes_per_layer = len(loaded_weights["layer1.weight"])
+        num_hidden_layers = len(loaded_weights["hidden_layers"])  # not sure if this will work
         print(f"Loading policy from '{saved_weights_file}'")
     except FileNotFoundError:
         print(f"Weights file {saved_weights_file} not found, exiting.")
         sys.exit(1)
 
-    policy_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer)
+    policy_net = DQN.DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
     policy_net.load_state_dict(loaded_weights)
 
     """Create the explicit DTMC representation"""

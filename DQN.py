@@ -87,19 +87,20 @@ def optimiser_device_check(optim):
                         print(f"{key} is on cpu")
 
 
-
-
 class DeepQNetwork(nn.Module):
 
-    def __init__(self, n_observations, n_actions, nodes_per_layer=128):
+    def __init__(self, n_observations, n_actions, n_hidden_layers, nodes_per_layer):
         super(DeepQNetwork, self).__init__()
         # print()
-        self.layer1 = nn.Linear(n_observations, nodes_per_layer)
-        self.layer2 = nn.Linear(nodes_per_layer, nodes_per_layer)
-        self.layer3 = nn.Linear(nodes_per_layer, nodes_per_layer)
-        self.layer4 = nn.Linear(nodes_per_layer, nodes_per_layer)
-        self.layer5 = nn.Linear(nodes_per_layer, nodes_per_layer)
-        self.layer6 = nn.Linear(nodes_per_layer, n_actions)
+        self.input_layer = nn.Linear(n_observations, nodes_per_layer)
+        hidden_layers = []
+        for i in range(n_hidden_layers):
+            print(i)
+            hidden_layers.append(nn.Linear(nodes_per_layer, nodes_per_layer))
+            hidden_layers.append(nn.ReLU())  # Add ReLU activation after each hidden layer
+
+        self.hidden_layers = nn.ModuleList(hidden_layers)
+        self.output_layer = nn.Linear(nodes_per_layer, n_actions)
 
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
@@ -112,33 +113,13 @@ class DeepQNetwork(nn.Module):
             print(f"Had to move input device. Original was: {x.device}, now {next(self.parameters()).device})")
             x = x.to(next(self.parameters()).device)
         try:
-            x = F.relu(self.layer1(x))
-            x = F.relu(self.layer2(x))
-            x = F.relu(self.layer3(x))
-            x = F.relu(self.layer4(x))
-            x = F.relu(self.layer5(x))
-            return self.layer6(x)
+            x = torch.relu(self.input_layer(x))
+            for hidden_layer in self.hidden_layers:
+                x = hidden_layer(x)
+            x = self.output_layer(x)
+            return x
         except RuntimeError:
             raise Exception(f"Error occured with DeepQNetwork.forward with the following tensor:\n{x}")
-
-
-# def select_action(dqn, env, state_tensor, epsilon, forbidden_actions=[]):
-#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#     roll = random.random()
-#     if roll > epsilon:
-#         with torch.no_grad():
-#             # t.max(1) will return the largest column value of each row.
-#             # second column on max result is index of where max element was
-#             # found, so we pick action with the larger expected reward.
-#             # if(epsilon == 0):
-#             # print(dqn(state), dqn(state).max(1)[1].view(1, 1))
-#             return dqn(state_tensor).max(1)[1].view(1, 1)
-#     else:
-#         sample = env.action_space.sample()
-#         print(sample)
-#         while forbidden_actions[sample] == 1:
-#             sample = env.action_space.sample()
-#         return torch.tensor([[sample]], device=device, dtype=torch.long)
 
 
 def plot_status(episode_durations, rewards, epsilons):

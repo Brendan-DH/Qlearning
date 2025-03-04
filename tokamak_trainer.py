@@ -50,6 +50,7 @@ env = gym.make(env_to_use,
                render=False)
 
 nodes_per_layer = int(input_dict["nodes_per_layer"])  # default 128
+num_hidden_layers = int(input_dict["num_hidden_layers"])
 
 # set up matplotlib
 is_ipython = 'inline' in matplotlib.get_backend()
@@ -59,11 +60,11 @@ n_actions = env.action_space.n
 state_tensor, info = env.reset()
 n_observations = len(state_tensor)
 
-policy_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer)
+policy_net = DQN.DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 
 saved_weights_name = input_dict["saved_weights_file"]
 
-target_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer)
+target_net = DQN.DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 target_net.load_state_dict(policy_net.state_dict())
 trained_dqn, dur, re, eps = DQN.train_model(env,
                                             policy_net,

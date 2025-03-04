@@ -66,7 +66,9 @@ n_actions = env.action_space.n
 state_tensor, info = env.reset()
 n_observations = len(state_tensor)
 
-policy_net = DQN.DeepQNetwork(n_observations, n_actions, nodes_per_layer)
+num_hidden_layers = int(input_dict["num_hidden_layers"])
+
+policy_net = DQN.DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 
 print(f"Loading from '/outputs/{saved_weights}")
 policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + saved_weights))
