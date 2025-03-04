@@ -75,6 +75,7 @@ def optimiser_to(optim, device):
                     if subparam._grad is not None:
                         subparam._grad.data = subparam._grad.data.to(device)
 
+
 def optimiser_device_check(optim):
     for param in optim.state.values():
         # Not sure there are any global tensors in the state dict
@@ -281,7 +282,8 @@ def train_model(
     policy_net.to(torch.device("cpu"))
     target_net.to(torch.device("cpu"))
 
-    with open(os.getcwd()+"/outputs/env_desc.txt", "w") as file: json.dump(env.state, file)
+    with open(os.getcwd() + "/outputs/env_desc.txt", "w") as file:
+        json.dump(env.state, file)
 
     print(f"""
             Commensing training.
@@ -575,9 +577,12 @@ def optimise_model_with_importance_sampling(policy_dqn,
 
     # print("Attempting to optimise...")
 
-    policy_dqn = nn.DataParallel(policy_dqn).to(optimiser_device)
-    target_dqn = nn.DataParallel(target_dqn).to(optimiser_device)
-    
+    # policy_dqn = nn.parallel.DistributedDataParallel(policy_dqn).to(optimiser_device)
+    # target_dqn = nn.parallel.DistributedDataParallel(target_dqn).to(optimiser_device)
+
+    policy_dqn = policy_dqn.to(optimiser_device)
+    target_dqn = target_dqn.to(optimiser_device)
+
     # get the batch of transitions. sample one transition from each of k linear segments
     lower = 0
     transitions = np.empty(batch_size, dtype=DeltaTransition)
@@ -630,7 +635,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     criterion = nn.SmoothL1Loss(reduction="none")  # (Huber loss)
     loss_vector = criterion(state_action_values, expected_state_action_values.unsqueeze(1)) * weights
     loss = torch.mean(loss_vector)
-#     print("loss_vector.device, loss.device ", loss_vector.device, loss.device)
+    #     print("loss_vector.device, loss.device ", loss_vector.device, loss.device)
 
     # optimise the model
     # optimiser_device_check(optimiser)
