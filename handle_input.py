@@ -19,7 +19,7 @@ def get_input_dict():
         "gamma": 0.5,
         "num_training_episodes": 300,
         "tau": 0.005,
-        "usePseudorewards": False,  # something wrong with these. investigate noisy rewards.
+        "use_pseudorewards": "n",
         "plot_frequency": 20,
         "memory_sort_frequency": 5,
         "max_steps": 200,

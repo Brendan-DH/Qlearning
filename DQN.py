@@ -351,10 +351,25 @@ def train_model(
     if not max_steps:
         max_steps = np.inf  # remember: ultimately defined by the gym environment
 
+    def alpha_decay_function(ep):
+        alpha_decay_rate = np.log(100 * (alpha - 0.001)) / (num_episodes)  # ensures epsilon ~= epsilon_min at end
+        return exponential_epsilon_decay(episode=ep,
+                                         epsilon_max=alpha,
+                                         epsilon_min=0.001,
+                                         max_epsilon_time=0,
+                                         min_epsilon_time=0,
+                                         decay_rate=alpha_decay_rate,
+                                         num_episodes=num_episodes)
+
     # Loop over training episodes
     start_time = time.time()
     for i_episode in range(num_episodes):
+
         print(f"Training episode {i_episode}/{num_episodes}")
+        for g in optimiser.param_groups:
+            g['lr'] = alpha_decay_function(i_episode)
+            print("New learning rate: ", alpha_decay_function(i_episode))
+
         if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
         optimisation_time = 0
 
@@ -378,7 +393,7 @@ def train_model(
 
         # Initialise the first state
         if (usePseudorewards):
-            phi_sprime = info["pseudoreward"]  # phi_sprime is the pseudoreward of the new state
+            phi_sprime = env.pseudoreward_function(state_tensor)  # phi_sprime is the pseudoreward of the new state
         ep_reward = 0
 
         # Navigate the environment
@@ -388,14 +403,10 @@ def train_model(
             # print(f"Step {t}")
 
             # calculate action utilities and choose action
-            # print(policy_net.device, state_tensor.device)
             action_utilities = policy_net.forward(state_tensor.unsqueeze(0))[0]  # why is this indexed?
-            # print(action_utilities, "device: ", action_utilities.device)
-            # get blocked actions
             blocked = env.blocked_model(env, state_tensor)
             action_utilities = torch.where(blocked, -1000, action_utilities)
-            # print(masked_utilities, type(masked_utilities))
-            # action_utilities = torch.tensor([masked_utilities], dtype=torch.float32, device=device) # shouldn't need this cast here
+
             if (np.random.random() < epsilon):
                 sample = env.action_space.sample()
                 while blocked[sample] == 1:
@@ -416,8 +427,10 @@ def train_model(
             # calculate pseudoreward
             if (usePseudorewards):
                 phi = phi_sprime
-                phi_sprime = info["pseudoreward"]
+                phi_sprime = env.pseudoreward_function(state_tensor)
                 pseudoreward = (gamma * phi_sprime - phi)
+                # print("state description: ", env.interpret_state_tensor(state_tensor))
+                # print("pseudoreward terms: ", phi, phi_sprime)
             else:
                 pseudoreward = 0
 
@@ -489,17 +502,13 @@ class PriorityMemory(object):
         self.memory = deque([], maxlen=capacity)  # this could be a tensor
         self.max_priority = 1
         self.bounds = []
-
-    # things that I would have to implement if i were to make the memory a tensor:
-    # appendleft
-    # sorting
-    # the deltatransition object in a tensor-friendly format
+        self.prob_divisor = np.NaN
 
     def push(self, *args):
         """Save a transition"""
         # when a new transition is saved, it should have max priority:
         self.memory.appendleft(DeltaTransition(*args, self.max_priority))  # append at the high-prio part.
-        if len(self) == self.capacity and self.warning is False:
+        if len(self.memory) == self.capacity and self.warning is False:
             print("REPLAY AT CAPACITY: " + str(len(self)))
             self.warning = True
 
@@ -534,10 +543,8 @@ class PriorityMemory(object):
             prob_in_segment = 0
             for j in range(start,
                            start + self.capacity):  # the (inclusive) start is the (exclusive) end of the previous bound
-                # print(j)
                 priority = 1 / (j + 1)  # wary of div by 0
                 prob_in_segment += (priority ** priority_coefficient) * self.prob_divisor
-                # print(prob_in_segment)
                 if (prob_in_segment >= (1 / batch_size)):
                     # conservative boundaries (j rather than j+1); this means the boundaries contain less than 1/batch_size the probability
                     # this ensures that the boundaries won't overflow the size of the memory
@@ -647,6 +654,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     # now update the priorities of the transitions that were used
     for i in range(len(transition_indices)):  # would it be more efficient to store just delta_i? might require fewer calculations
         index = transition_indices[i]
+        # the new priority (delta) is the mean loss for this transition (how surprising it was)
         replay_memory.updatePriorities(index, torch.mean(loss_vector[i]).item())
 
     target_dqn.to(torch.device("cpu"))

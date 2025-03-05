@@ -15,11 +15,8 @@ import DQN
 import os
 import numpy as np
 import handle_input
-from mdp_translation import GenerateDTMCFile
-import subprocess
 import sys
 import scenarios
-import select
 
 # use a non-display backend. no, i don't know what this means.
 matplotlib.use('Agg')
@@ -28,9 +25,10 @@ sys.stdout.flush()
 input_dict = handle_input.get_input_dict()
 
 scenario = getattr(scenarios, input_dict["scenario"], None)
+
 try:
-    # mdpt = importlib.import_module(f"system_logic.{input_dict['system_logic']}")
-    mdpt = importlib.import_module(f"system_logic.hybrid_system_tensor_logic")
+    mdpt = importlib.import_module(f"system_logic.{input_dict['system_logic']}")
+    # mdpt = importlib.import_module(f"system_logic.hybrid_system_tensor_logic")
 except ModuleNotFoundError:
     print(f"System logic {input_dict['system_logic']} was not found")
     sys.exit(1)
@@ -77,7 +75,7 @@ trained_dqn, dur, re, eps = DQN.train_model(env,
                                             gamma=float(input_dict["gamma"]),
                                             num_episodes=int(input_dict["num_training_episodes"]),
                                             tau=float(input_dict["tau"]),
-                                            usePseudorewards=False,
+                                            usePseudorewards=input_dict["use_pseudorewards"].lower() == "y",
                                             plot_frequency=int(input_dict["plot_frequency"]),
                                             memory_sort_frequency=int(input_dict["memory_sort_frequency"]),
                                             max_steps=int(input_dict["max_steps"]),

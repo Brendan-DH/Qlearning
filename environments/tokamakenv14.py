@@ -200,7 +200,7 @@ class TokamakEnv14(gym.Env):
         info = {}
         info["elapsed steps"] = self.elapsed_steps
         info["elapsed ticks"] = self.elapsed_ticks
-        info["pseudoreward"] = self.pseudoreward_function()
+        # info["pseudoreward"] = self.pseudoreward_function()
         return info
 
     # def query_state_action_pair(self, state, action):
@@ -221,23 +221,44 @@ class TokamakEnv14(gym.Env):
 
         return self.state_tensor, info
 
-    def pseudoreward_function(self):  # gets the minimum mod distance between any robot/goal in the current state
-        tot = 0  # sum of sum mod dists for each robot
+    def pseudoreward_function(self, state_tensor):
+        # defining a pseudoreward function that roughly describes the proximity to the `completed' state
+        pr = self.size * self.num_robots * 2  # initialising to a high value
         for i in range(self.num_robots):
-            rob_pos = self.state[f"robot{i} location"]
-            # mod_dist = 0  # sum mod dist between robot and active goals
-            min_mod_dist = self.size * 2  # initialise to large value
+            rob_position = state_tensor[i*2].item()
+            min_mod_dist = self.size + 1  # store the mod distance to closest goal
             for j in range(self.num_goals):
-                if self.state[f"goal{j} checked"] == 1 and self.state[f"goal{j} active"] == 0:
-                    pass  # this ensures that completing a goal doesn't lead to a decrease in phi
+                goal_active = state_tensor[(self.num_robots * 2) + (i*5) + 1].item()
+                goal_checked = state_tensor[(self.num_robots * 2) + (i*5) + 2].item()
+                if (not goal_active and goal_checked):
+                    pr += self.size + 2 # bonus for completing a goal; ensures PR always increases when goals completed
                 else:
-                    goal_pos = self.state[f"goal{j} location"]
-                    naive_dist = abs(rob_pos - goal_pos)  # non-mod distance
+                    goal_position = state_tensor[(self.num_robots * 2) + (j*5)].item()
+                    naive_dist = abs(rob_position - goal_position)  # non-mod distance
                     mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
                     min_mod_dist = min(mod_dist, min_mod_dist)  # update the smaller of the two
-            tot += min_mod_dist
-        completed_bonus = np.sum([self.size if self.state[f"goal{j} checked"] == 1 and self.state[f"goal{j} active"] == 0 else 0 for i in range(self.num_goals)])
-        return -tot + completed_bonus  # -ve sign so that it should be minimised
+            # print(f"min_mod_dist for robot{i}: {min_mod_dist}")
+            pr -= min_mod_dist  # subtract the distance 'penalty' from total possible reward
+
+        return pr
+
+    # def pseudoreward_function(self):  # gets the minimum mod distance between any robot/goal in the current state
+    #     tot = 0  # sum of sum mod dists for each robot
+    #     for i in range(self.num_robots):
+    #         rob_pos = self.state[f"robot{i} location"]
+    #         # mod_dist = 0  # sum mod dist between robot and active goals
+    #         min_mod_dist = self.size * 2  # initialise to large value
+    #         for j in range(self.num_goals):
+    #             if self.state[f"goal{j} checked"] == 1 and self.state[f"goal{j} active"] == 0:
+    #                 pass  # this ensures that completing a goal doesn't lead to a decrease in phi
+    #             else:
+    #                 goal_pos = self.state[f"goal{j} location"]
+    #                 naive_dist = abs(rob_pos - goal_pos)  # non-mod distance
+    #                 mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
+    #                 min_mod_dist = min(mod_dist, min_mod_dist)  # update the smaller of the two
+    #         tot += min_mod_dist
+    #     completed_bonus = np.sum([self.size if self.state[f"goal{j} checked"] == 1 and self.state[f"goal{j} active"] == 0 else 0 for i in range(self.num_goals)])
+    #     return -tot + completed_bonus  # -ve sign so that it should be minimised
 
     def transition_model(self, state, action_no):
         raise NotImplementedError("The transistion model of this environment is not defined.")

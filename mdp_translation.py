@@ -31,8 +31,10 @@ def GenerateDTMCFile(saved_weights_file, env, system_logic, output_name="dtmc"):
 
     try:
         loaded_weights = torch.load(saved_weights_file)
-        nodes_per_layer = len(loaded_weights["layer1.weight"])
-        num_hidden_layers = len(loaded_weights["hidden_layers"])  # not sure if this will work
+        # print(loaded_weights.keys())
+        # sys.exit(0)
+        nodes_per_layer = len(loaded_weights["hidden_layers.0.weight"])
+        num_hidden_layers = int((len(loaded_weights.keys()) - 4)/2)  # -4 accounts for input and output weights and biases
         print(f"Loading policy from '{saved_weights_file}'")
     except FileNotFoundError:
         print(f"Weights file {saved_weights_file} not found, exiting.")
