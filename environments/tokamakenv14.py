@@ -121,6 +121,18 @@ class TokamakEnv14(gym.Env):
 
         self.observation_space = TensorSpace(shape=(self.num_robots * 2 + self.num_goals * 5,), dtype=np.float32)
 
+        # Define discrete ranges (adjust bounds as needed)
+        obs_space = {}
+        for i in range(self.num_robots):
+            obs_space[f"robot{i} location"] = spaces.Discrete(self.size)
+            obs_space[f"robot{i} clock"] = spaces.Discrete(2)
+
+        for i in range(self.num_goals):
+            obs_space[f"goal{i} active"] = spaces.Discrete(2)
+            obs_space[f"goal{i} checked"] = spaces.Discrete(2)
+
+        self.observation_space = spaces.Dict(obs_space)
+
         # actions that the robots can carry out
         # move clockwise/anticlockwise, engage
         self.action_space = spaces.Discrete(self.num_robots * self.num_actions)
@@ -194,7 +206,20 @@ class TokamakEnv14(gym.Env):
         raise NotImplementedError()
 
     def get_obs(self):
-        return self.state_tensor.detach().clone()
+
+        obs_dict = {}
+
+        for i in range(self.num_robots):
+            index = i * 2
+            obs_dict[f"robot{i} location"] = int(self.state_tensor[index].item())
+            obs_dict[f"robot{i} clock"] = int(self.state_tensor[index + 1].item())
+
+        for i in range(self.num_goals):
+            index = self.num_robots * 2 + i * 5
+            obs_dict[f"goal{i} active"] = int(self.state_tensor[index + 1].item())
+            obs_dict[f"goal{i} checked"] = int(self.state_tensor[index + 2].item())
+
+        return obs_dict
 
     def get_info(self):
         info = {}
@@ -219,21 +244,21 @@ class TokamakEnv14(gym.Env):
         if self.render:
             self.render_frame(self.state, info)
 
-        return self.state_tensor, info
+        return self.get_obs(), info
 
     def pseudoreward_function(self, state_tensor):
         # defining a pseudoreward function that roughly describes the proximity to the `completed' state
         pr = self.size * self.num_robots * 2  # initialising to a high value
         for i in range(self.num_robots):
-            rob_position = state_tensor[i*2].item()
+            rob_position = state_tensor[i * 2].item()
             min_mod_dist = self.size + 1  # store the mod distance to closest goal
             for j in range(self.num_goals):
-                goal_active = state_tensor[(self.num_robots * 2) + (i*5) + 1].item()
-                goal_checked = state_tensor[(self.num_robots * 2) + (i*5) + 2].item()
+                goal_active = state_tensor[(self.num_robots * 2) + (i * 5) + 1].item()
+                goal_checked = state_tensor[(self.num_robots * 2) + (i * 5) + 2].item()
                 if (not goal_active and goal_checked):
-                    pr += self.size + 2 # bonus for completing a goal; ensures PR always increases when goals completed
+                    pr += self.size + 2  # bonus for completing a goal; ensures PR always increases when goals completed
                 else:
-                    goal_position = state_tensor[(self.num_robots * 2) + (j*5)].item()
+                    goal_position = state_tensor[(self.num_robots * 2) + (j * 5)].item()
                     naive_dist = abs(rob_position - goal_position)  # non-mod distance
                     mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
                     min_mod_dist = min(mod_dist, min_mod_dist)  # update the smaller of the two
@@ -241,24 +266,6 @@ class TokamakEnv14(gym.Env):
             pr -= min_mod_dist  # subtract the distance 'penalty' from total possible reward
 
         return pr
-
-    # def pseudoreward_function(self):  # gets the minimum mod distance between any robot/goal in the current state
-    #     tot = 0  # sum of sum mod dists for each robot
-    #     for i in range(self.num_robots):
-    #         rob_pos = self.state[f"robot{i} location"]
-    #         # mod_dist = 0  # sum mod dist between robot and active goals
-    #         min_mod_dist = self.size * 2  # initialise to large value
-    #         for j in range(self.num_goals):
-    #             if self.state[f"goal{j} checked"] == 1 and self.state[f"goal{j} active"] == 0:
-    #                 pass  # this ensures that completing a goal doesn't lead to a decrease in phi
-    #             else:
-    #                 goal_pos = self.state[f"goal{j} location"]
-    #                 naive_dist = abs(rob_pos - goal_pos)  # non-mod distance
-    #                 mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
-    #                 min_mod_dist = min(mod_dist, min_mod_dist)  # update the smaller of the two
-    #         tot += min_mod_dist
-    #     completed_bonus = np.sum([self.size if self.state[f"goal{j} checked"] == 1 and self.state[f"goal{j} active"] == 0 else 0 for i in range(self.num_goals)])
-    #     return -tot + completed_bonus  # -ve sign so that it should be minimised
 
     def transition_model(self, state, action_no):
         raise NotImplementedError("The transistion model of this environment is not defined.")
@@ -273,7 +280,6 @@ class TokamakEnv14(gym.Env):
         old_state = self.state_tensor
 
         p_tensor, s_tensor = self.transition_model(self, old_state, action)  # probabilities and states
-        # print(action, p_tensor, s_tensor)
 
         # roll dice to detemine resultant state from possibilities
         roll = np.random.random()
@@ -292,8 +298,10 @@ class TokamakEnv14(gym.Env):
         reward = self.reward_model(self, old_state, action, s_tensor[chosen_state])
 
         # assume the new state
-        # self.state = s_tensor[chosen_state].detach().clone()
-        self.state_tensor = s_tensor[chosen_state]  # self.construct_state_tensor_from_dict(s_tensor[chosen_state])  # have to replace this with tensor logic in transition model
+        self.state_tensor = s_tensor[chosen_state]
+
+        # get the new observed state
+        # observed_state_tensor = self.construct_state_tensor_from_dict(self.get_obs(), device=torch.device("cpu"))
 
         # set terminated (all goals checked and inactive)
         terminated = True
@@ -303,11 +311,9 @@ class TokamakEnv14(gym.Env):
                 terminated = False
                 break
 
-        # I don't think the state tree is actually used anymore - it was here, I have deleted it.
-
         info = self.get_info()
 
-        return s_tensor[chosen_state], reward, terminated, False, info
+        return self.get_obs(), reward, terminated, False, info
 
     def render(self):
         if self.render_mode == "rgb_array":

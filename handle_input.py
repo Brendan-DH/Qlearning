@@ -9,7 +9,8 @@ import importlib
 def get_input_dict():
     input_dict = {
         "environment": "Tokamak-v14",
-        "saved_weights_file": None,
+        "save_weights_file": None,
+        "load_weights_file": None,
         "scenario": None,
         "system_logic": "hybrid_system_tensor_logic",
         "nodes_per_layer": 256,

@@ -14,6 +14,7 @@ from collections import namedtuple, deque
 from itertools import count
 import numpy as np
 import json
+import math
 
 import torch
 import torch.nn as nn
@@ -22,6 +23,7 @@ import torch.nn.functional as F
 import time
 import os
 import sys
+from collections import deque, OrderedDict
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -119,8 +121,8 @@ class DeepQNetwork(nn.Module):
                 x = hidden_layer(x)
             x = self.output_layer(x)
             return x
-        except RuntimeError:
-            raise Exception(f"Error occured with DeepQNetwork.forward with the following tensor:\n{x}")
+        except RuntimeError as e:
+            raise Exception(f"Error occured with DeepQNetwork.forward with the following tensor:\n{x}\n{e}")
 
 
 def plot_status(episode_durations, rewards, epsilons):
@@ -149,8 +151,8 @@ def plot_status(episode_durations, rewards, epsilons):
     color1, color2, color3 = plt.cm.viridis([0, .5, .9])
 
     epsilon_plot = bot_ax.plot(epsilons, color="orange", label="epsilon", zorder=0)
-    duration_plot = mid_ax.plot(episode_durations, color="royalblue", alpha=0.2, label="durations", zorder=5)
-    reward_plot = upper_ax.plot(rewards, color="mediumseagreen", alpha=0.5, label="rewards", zorder=10)
+    duration_plot = mid_ax.plot(episode_durations, color="royalblue", alpha=0.75, label="durations", zorder=5, marker="x", ls="")
+    reward_plot = upper_ax.plot(rewards, color="mediumseagreen", alpha=0.5, label="rewards", zorder=10, marker="o", ls="")
 
     bot_ax.set_zorder(0)
     mid_ax.set_zorder(5)
@@ -330,7 +332,7 @@ def train_model(
         file = open(os.getcwd() + "/outputs/diagnostics", "w")
         file.write("# no data yet...")
 
-    state, info = env.reset()  # reset to init
+    obs_state, info = env.reset()  # reset to init
     # state tree reset optimisation
 
     gamma_tensor = torch.tensor(gamma, device=optimiser_device)
@@ -351,24 +353,14 @@ def train_model(
     if not max_steps:
         max_steps = np.inf  # remember: ultimately defined by the gym environment
 
-    def alpha_decay_function(ep):
-        alpha_decay_rate = np.log(100 * (alpha - 0.001)) / (num_episodes)  # ensures epsilon ~= epsilon_min at end
-        return exponential_epsilon_decay(episode=ep,
-                                         epsilon_max=alpha,
-                                         epsilon_min=0.001,
-                                         max_epsilon_time=0,
-                                         min_epsilon_time=0,
-                                         decay_rate=alpha_decay_rate,
-                                         num_episodes=num_episodes)
 
     # Loop over training episodes
     start_time = time.time()
+    obs_visits = FiniteDict(max_size = 10000)
+
     for i_episode in range(num_episodes):
 
         print(f"Training episode {i_episode}/{num_episodes}")
-        for g in optimiser.param_groups:
-            g['lr'] = alpha_decay_function(i_episode)
-            print("New learning rate: ", alpha_decay_function(i_episode))
 
         if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
         optimisation_time = 0
@@ -386,26 +378,31 @@ def train_model(
 
         # calculate the new epsilon
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
+        base_epsilon = epsilon
+        new_state_ep_bonus = 0.2
         if (plotting_on or checkpoints_on):
-            epsilons[i_episode] = epsilon
+            epsilons[i_episode] = base_epsilon
 
-        state_tensor, info = env.reset()
+        obs_state, info = env.reset()
 
         # Initialise the first state
         if (usePseudorewards):
-            phi_sprime = env.pseudoreward_function(state_tensor)  # phi_sprime is the pseudoreward of the new state
+            phi_sprime = env.pseudoreward_function(env.state_tensor)  # phi_sprime is the pseudoreward of the new state
         ep_reward = 0
 
         # Navigate the environment
+
 
         for t in count():
 
             # print(f"Step {t}")
 
             # calculate action utilities and choose action
-            action_utilities = policy_net.forward(state_tensor.unsqueeze(0))[0]  # why is this indexed?
-            blocked = env.blocked_model(env, state_tensor)
+            obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
+            action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
+            blocked = env.blocked_model(env, env.state_tensor)
             action_utilities = torch.where(blocked, -1000, action_utilities)
+
 
             if (np.random.random() < epsilon):
                 sample = env.action_space.sample()
@@ -418,7 +415,7 @@ def train_model(
                 action = torch.argmax(action_utilities).item()
 
             # apply action to environment
-            state_tensor, reward, terminated, truncated, info = env.step(action)
+            new_obs_state, reward, terminated, truncated, info = env.step(action)
             # print("reward", reward)
 
             if (terminated):
@@ -427,7 +424,7 @@ def train_model(
             # calculate pseudoreward
             if (usePseudorewards):
                 phi = phi_sprime
-                phi_sprime = env.pseudoreward_function(state_tensor)
+                phi_sprime = env.pseudoreward_function(env.state_tensor)
                 pseudoreward = (gamma * phi_sprime - phi)
                 # print("state description: ", env.interpret_state_tensor(state_tensor))
                 # print("pseudoreward terms: ", phi, phi_sprime)
@@ -441,13 +438,19 @@ def train_model(
             # work out if the run is over
             done = terminated or truncated or (t > max_steps)
             if terminated:
-                next_state_tensor = None
+                new_obs_state_tensor = None
             else:
-                next_state_tensor = state_tensor.detach().clone()
+                new_obs_state_tensor = torch.tensor(list(new_obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
             # move transition to the replay memory
-            memory.push(state_tensor, action, next_state_tensor, reward)
-            state_tensor = next_state_tensor
+            memory.push(obs_tensor, action, new_obs_state_tensor, reward)
+            obs_state = new_obs_state
+
+            obs_visits[str(obs_state.values())] += 1  #remember that we have been to this state
+            epsilon = base_epsilon + (1/obs_visits[str(obs_state.values())]) * new_state_ep_bonus
+
+
+
 
             # run optimiser
             # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
@@ -471,8 +474,6 @@ def train_model(
 
             # if done, process data and make plots
             if done:
-                # print("done")
-                # print([env.state[f"goal{i} active"] for i in range(12)])
                 if (plotting_on or checkpoints_on):
                     episode_durations[i_episode] = info["elapsed steps"]
                     rewards[i_episode] = ep_reward
@@ -494,6 +495,35 @@ def train_model(
     return policy_net, episode_durations, rewards, epsilons
 
 
+class FiniteDict:
+    def __init__(self, max_size):
+        self.max_size = max_size
+        self.data = OrderedDict()
+
+    def __setitem__(self, key, value):
+        if key not in self.data:
+            self.data[key] = 0  # Initialize missing keys with 0, keeping the order
+        self.data.move_to_end(key)  # Move the key to the end (most recent)
+        self.data[key] = value
+
+        if len(self.data) > self.max_size:
+            self.data.popitem(last=False)  # Remove the oldest item (FIFO)
+
+    def __getitem__(self, key):
+        if key not in self.data:
+            self.data[key] = 0  # Set the default value to 0 if key is missing
+        return self.data[key]
+
+    def __delitem__(self, key):
+        del self.data[key]
+
+    def __contains__(self, key):
+        return key in self.data
+
+    def __repr__(self):
+        return repr(self.data)
+
+
 class PriorityMemory(object):
 
     def __init__(self, capacity):
@@ -508,7 +538,8 @@ class PriorityMemory(object):
         """Save a transition"""
         # when a new transition is saved, it should have max priority:
         self.memory.appendleft(DeltaTransition(*args, self.max_priority))  # append at the high-prio part.
-        if len(self.memory) == self.capacity and self.warning is False:
+        # print("mem size:", len(self.memory))
+        if len(self.memory) == self.capacity and not self.warning:
             print("REPLAY AT CAPACITY: " + str(len(self)))
             self.warning = True
 
@@ -618,9 +649,15 @@ def optimise_model_with_importance_sampling(policy_dqn,
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=torch.device(optimiser_device), dtype=torch.bool)
 
     # collection of non-final states
-    with torch.no_grad():
-        non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
-        state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
+    # with torch.no_grad():
+    #     non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
+    #     state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
+
+    # with torch.no_grad():
+    non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
+    state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
+
+
     action_batch = torch.tensor(batch.action, requires_grad=False).to(optimiser_device)  # tensor
     reward_batch = torch.tensor(batch.reward, requires_grad=False).to(optimiser_device)  # tensor
 
@@ -683,13 +720,14 @@ def evaluate_model(dqn,
 
     for i in range(num_episodes):
         if (reset_options):
-            state_tensor, info = env.reset(options=reset_options.copy())
+            obs_state, info = env.reset(options=reset_options.copy())
         else:
-            state_tensor, info = env.reset()
+            obs_state, info = env.reset()
 
-        states = [env.interpret_state_tensor(state_tensor)]
+        states = [env.interpret_state_tensor(env.state_tensor)]
         actions = []
-        state_tensor = state_tensor
+        obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
+        rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
         for t in count():
 
@@ -697,18 +735,24 @@ def evaluate_model(dqn,
             # action = action_utilities.max(1)[1].view(1, 1)
 
             # calculate action utilities and choose action
-            action_utilities = dqn.forward(state_tensor.unsqueeze(0))[0]  # why is this indexed?
-            blocked = env.blocked_model(env, state_tensor)
+            action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
+            blocked = env.blocked_model(env, env.state_tensor)
+            print("blocked", blocked)
+            print("blocked actions:", [f"{math.floor(i/env.num_actions)}-{rel_actions[i % env.num_actions]} --- BLOCKED" if b else f"{math.floor(i/env.num_actions)}-{rel_actions[i % env.num_actions]}" for i, b in enumerate(blocked)])
             action_utilities = torch.where(blocked, -1000, action_utilities)
             action = torch.argmax(action_utilities).item()
 
             # apply action to environment
-            new_state_tensor, reward, terminated, truncated, info = env.step(action)
+            new_obs_state, reward, terminated, truncated, info = env.step(action)
 
-            states.append(env.interpret_state_tensor(new_state_tensor))
+            states.append(env.interpret_state_tensor(env.state_tensor))
             actions.append(action)
+            robot_no = math.floor(action/env.num_actions)
+            rel_action = rel_actions[action % env.num_actions]
+            print(f"{robot_no}-{rel_action}")
 
-            state_tensor = new_state_tensor
+            obs_state = new_obs_state
+            obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
             done = terminated
 

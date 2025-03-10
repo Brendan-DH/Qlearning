@@ -60,7 +60,7 @@ n_observations = len(state_tensor)
 
 policy_net = DQN.DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 
-saved_weights_name = input_dict["saved_weights_file"]
+save_weights_name = input_dict["save_weights_file"]
 
 target_net = DQN.DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 target_net.load_state_dict(policy_net.state_dict())
@@ -87,15 +87,15 @@ trained_dqn, dur, re, eps = DQN.train_model(env,
 random_identifier = int(np.random.rand() * 1e6)
 new_file_name = f"saved_weights_{random_identifier}"
 
-if saved_weights_name is None:
+if save_weights_name is None:
     print(f"Saving weights as {new_file_name}")
     output_name = new_file_name
-elif (saved_weights_name in os.listdir(os.getcwd() + "/outputs")):
-    print(f"File {saved_weights_name} already exists. Saving as {new_file_name} instead")
+elif (save_weights_name in os.listdir(os.getcwd() + "/outputs")):
+    print(f"File {save_weights_name} already exists. Saving as {new_file_name} instead")
     output_name = new_file_name
 else:
-    print(f"Saving weights as f{saved_weights_name}")
-    output_name = saved_weights_name
+    print(f"Saving weights as f{save_weights_name}")
+    output_name = save_weights_name
 
 torch.save(trained_dqn.state_dict(), f"./outputs/{output_name}")
 

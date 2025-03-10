@@ -28,8 +28,8 @@ sys.stdout.flush()
 
 input_dict = handle_input.get_input_dict()
 
-saved_weights = input_dict["saved_weights_file"]
-if (not saved_weights):
+load_weights_file = input_dict["load_weights_file"]
+if (not load_weights_file):
     print("No weights file provided, exiting.")
     sys.exit(1)
 
@@ -70,8 +70,8 @@ num_hidden_layers = int(input_dict["num_hidden_layers"])
 
 policy_net = DQN.DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 
-print(f"Loading from '/outputs/{saved_weights}")
-policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + saved_weights))
+print(f"Loading from '/outputs/{load_weights_file}")
+policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + load_weights_file))
 
 if int(input_dict["num_evaluation_episodes"]) > 0:
     print("\nEvaluation by trail...")
@@ -84,20 +84,20 @@ if int(input_dict["num_evaluation_episodes"]) > 0:
     plt.figure(figsize=(10, 7))
     plt.hist(x=steps, rwidth=0.95)
     plt.xlabel("Total env steps")
-    plt.savefig(f"outputs/trial_{saved_weights.replace('/', '_')}.svg")
+    plt.savefig(f"outputs/trial_{load_weights_file.replace('/', '_')}.svg")
 
 print("Generate DTMC file...")
-GenerateDTMCFile(os.getcwd() + "/outputs/" + saved_weights, env, mdpt, f"dtmc_of_{saved_weights}")
+GenerateDTMCFile(os.getcwd() + "/outputs/" + load_weights_file, env, mdpt, f"dtmc_of_{load_weights_file}")
 
 verification_property = "Rmax=?[F \"done\"]"
 
 print("Running STORM")
 subprocess.run(["storm",
                 "--explicit",
-                f"outputs/dtmc_of_{saved_weights}.tra",
-                f"outputs/dtmc_of_{saved_weights}.lab",
+                f"outputs/dtmc_of_{load_weights_file}.tra",
+                f"outputs/dtmc_of_{load_weights_file}.lab",
                 "--transrew",
-                f"outputs/dtmc_of_{saved_weights}.transrew",
+                f"outputs/dtmc_of_{load_weights_file}.transrew",
                 "--prop",
                 verification_property])
 

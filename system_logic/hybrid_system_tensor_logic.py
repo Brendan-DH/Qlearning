@@ -287,6 +287,9 @@ def r_model(env, state_tensor, action, next_state_tensor):
         # check if any goals have been accomplished
         if (state_tensor[(env.num_robots * 2) + (i * 5) + 1] == 1 and next_state_tensor[(env.num_robots * 2) + (i * 5) + 1] == 0):
             reward += 1000
+    #
+    # if (rel_action == 3):
+    #     reward -= 10
 
     return reward
 
@@ -302,6 +305,8 @@ Essentially, this is an auxiliary part of the transition model
 
 def b_model(env, state_tensor):
     blocked_actions = np.zeros(env.action_space.n)
+    for i in range(0, env.num_robots):
+        blocked_actions[(i * env.num_actions) + 3] = 1
 
     for i in range(env.num_robots):
         # print(state_tensor)
@@ -323,11 +328,14 @@ def b_model(env, state_tensor):
 
             block_task_completion = True
             for k in range(env.num_goals):
-                # if (state_tensor[f"goal{k} location"] == active_robot_loc and state_tensor[f"goal{k} active"] == 1):
                 if (state_tensor[(env.num_robots * 2) + (k * 5)] == active_robot_loc and state_tensor[(env.num_robots * 2) + (k * 5) + 1] == 1):
                     block_task_completion = False  # unblock this engage action
                     break
             blocked_actions[(i * env.num_actions) + 2] = block_task_completion
+
+            # if all else are blocked, unblock "wait"
+            if np.all(blocked_actions[i * env.num_actions: (i * env.num_actions) + env.num_actions] == 1):  # block these actions
+                blocked_actions[(i * env.num_actions) + 3] = 0
 
     return torch.tensor(blocked_actions, dtype=torch.bool, device=global_device, requires_grad=False)
 
