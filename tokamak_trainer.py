@@ -67,7 +67,7 @@ target_net.load_state_dict(policy_net.state_dict())
 trained_dqn, dur, re, eps = DQN.train_model(env,
                                             policy_net,
                                             target_net,
-                                            epsilon_decay_function=lambda ep, e_max, e_min, num_eps: DQN.exponential_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min,
+                                            epsilon_decay_function=lambda ep, e_max, e_min, num_eps: DQN.linear_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min,
                                                                                                                                    num_episodes=num_eps,
                                                                                                                                    max_epsilon_time=0, min_epsilon_time=0),
                                             epsilon_min=float(input_dict["epsilon_min"]),
