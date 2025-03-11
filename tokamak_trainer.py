@@ -95,6 +95,7 @@ trained_dqn, dur, re, eps = DQN.train_model(env,
                                             buffer_size=int(input_dict["buffer_size"]),
                                             checkpoint_frequency=int(input_dict["checkpoint_frequency"]),
                                             batch_size=int(input_dict["batch_size"]),
+                                            run_id=save_weights_name
                                             )
 
 random_identifier = int(np.random.rand() * 1e6)

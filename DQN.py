@@ -183,7 +183,6 @@ def plot_status(episode_durations, rewards, epsilons):
         mid_ax.text(0, episode_durations[-1], episode_durations[-1])
 
     mid_ax.legend(handles=handles, loc='best').set_zorder(100)
-    # plt.pause(0.001)  # pause a bit so that plots are updated
 
     return fig
 
@@ -242,8 +241,8 @@ def train_model(
         checkpoint_frequency=0,  # number of episodes between saving weights (0=disabled)
         memory_sort_frequency=100,  # number of episodes between sorting the replay memory
         priority_coefficient=0.5,  # alpha in the sampling probability equation, higher prioritises importance more
-        weighting_coefficient=0.7  # beta in the transition weighting equation, higher ameliorates sampling bias more
-        # save_plot_data=False          # whether to save the plotting data to a file
+        weighting_coefficient=0.7,  # beta in the transition weighting equation, higher ameliorates sampling bias more
+        run_id=None
 ):
     """
     For training a DQN on a gymnasium environment.
@@ -292,6 +291,7 @@ def train_model(
             Optimisation Device: {optimiser_device}
             Number of CUDA devices: {torch.cuda.device_count()}
             Environment: {env.unwrapped.spec.id}
+            Run Id: {run_id}
             ----
 
             Environment description: saved to outputs/env_desc.txt
@@ -353,10 +353,9 @@ def train_model(
     if not max_steps:
         max_steps = np.inf  # remember: ultimately defined by the gym environment
 
-
     # Loop over training episodes
     start_time = time.time()
-    obs_visits = FiniteDict(max_size = 10000)
+    obs_visits = FiniteDict(max_size=10000)
 
     for i_episode in range(num_episodes):
 
@@ -379,7 +378,7 @@ def train_model(
         # calculate the new epsilon
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
         base_epsilon = epsilon
-        new_state_ep_bonus = 0.2
+        epsilon_boost = 0.2
         if (plotting_on or checkpoints_on):
             epsilons[i_episode] = base_epsilon
 
@@ -391,7 +390,8 @@ def train_model(
         ep_reward = 0
 
         # Navigate the environment
-
+        recent_state_capacity = 5
+        recent_states = deque([], maxlen=recent_state_capacity)
 
         for t in count():
 
@@ -402,7 +402,6 @@ def train_model(
             action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
             blocked = env.blocked_model(env, env.state_tensor)
             action_utilities = torch.where(blocked, -1000, action_utilities)
-
 
             if (np.random.random() < epsilon):
                 sample = env.action_space.sample()
@@ -446,11 +445,11 @@ def train_model(
             memory.push(obs_tensor, action, new_obs_state_tensor, reward)
             obs_state = new_obs_state
 
-            obs_visits[str(obs_state.values())] += 1  #remember that we have been to this state
-            epsilon = base_epsilon + (1/obs_visits[str(obs_state.values())]) * new_state_ep_bonus
-
-
-
+            obs_visits[str(obs_state.values())] += 1  # remember that we have been to this state
+            # maybe I could take the last 5 states, work out how novel they are, and then set the boost based on this
+            recent_states.appendleft(str(obs_state.values()))
+            novelty_rating = np.mean(list(map(obs_visits.data.get, list(recent_states))))  # average visits in last 5 states
+            epsilon = base_epsilon + (5 / novelty_rating) * epsilon_boost
 
             # run optimiser
             # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
@@ -479,7 +478,7 @@ def train_model(
                     rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
                     f = plot_status(episode_durations[:i_episode], rewards[:i_episode], epsilons[:i_episode])
-                    file_dir = os.getcwd() + f"/outputs/plots/plt_epoch{i_episode}.png"
+                    file_dir = os.getcwd() + f"/outputs/plots/plt_epoch{i_episode}_{run_id}.png"
                     print(f"Saving plot {i_episode} at {file_dir}")
                     f.savefig(file_dir)
                     plt.close(f)
@@ -657,7 +656,6 @@ def optimise_model_with_importance_sampling(policy_dqn,
     non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
     state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
 
-
     action_batch = torch.tensor(batch.action, requires_grad=False).to(optimiser_device)  # tensor
     reward_batch = torch.tensor(batch.reward, requires_grad=False).to(optimiser_device)  # tensor
 
@@ -738,7 +736,9 @@ def evaluate_model(dqn,
             action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
             blocked = env.blocked_model(env, env.state_tensor)
             print("blocked", blocked)
-            print("blocked actions:", [f"{math.floor(i/env.num_actions)}-{rel_actions[i % env.num_actions]} --- BLOCKED" if b else f"{math.floor(i/env.num_actions)}-{rel_actions[i % env.num_actions]}" for i, b in enumerate(blocked)])
+            print("blocked actions:",
+                  [f"{math.floor(i / env.num_actions)}-{rel_actions[i % env.num_actions]} --- BLOCKED" if b else f"{math.floor(i / env.num_actions)}-{rel_actions[i % env.num_actions]}" for i, b in
+                   enumerate(blocked)])
             action_utilities = torch.where(blocked, -1000, action_utilities)
             action = torch.argmax(action_utilities).item()
 
@@ -747,7 +747,7 @@ def evaluate_model(dqn,
 
             states.append(env.interpret_state_tensor(env.state_tensor))
             actions.append(action)
-            robot_no = math.floor(action/env.num_actions)
+            robot_no = math.floor(action / env.num_actions)
             rel_action = rel_actions[action % env.num_actions]
             print(f"{robot_no}-{rel_action}")
 
