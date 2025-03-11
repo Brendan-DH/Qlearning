@@ -193,8 +193,6 @@ def train_model(
 
         for t in count():
 
-            # print(f"Step {t}")
-
             # calculate action utilities and choose action
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
             action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
@@ -245,7 +243,7 @@ def train_model(
             # maybe I could take the last 5 states, work out how novel they are, and then set the boost based on this
             recent_states.appendleft(str(obs_state.values()))
             novelty_rating = np.mean(list(map(obs_visits.data.get, list(recent_states))))  # average visits in last 5 states
-            epsilon = base_epsilon + (5 / novelty_rating) * epsilon_boost
+            epsilon = base_epsilon + (1 / novelty_rating) * epsilon_boost
 
             # run optimiser
             # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
