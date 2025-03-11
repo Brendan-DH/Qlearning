@@ -81,7 +81,7 @@ def train_model(
     policy_net.to(torch.device("cpu"))
     target_net.to(torch.device("cpu"))
 
-    with open(os.getcwd() + "/outputs/env_desc.txt", "w") as file:
+    with open(os.getcwd() + f"/outputs/env_desc_{run_id}.txt", "w") as file:
         json.dump(env.state, file)
 
     print(f"""
@@ -92,7 +92,7 @@ def train_model(
             Run Id: {run_id}
             ----
 
-            Environment description: saved to outputs/env_desc.txt
+            Environment description: saved to outputs/env_desc_{run_id}.txt
             ----
 
             Training hyperparameters:
@@ -184,7 +184,7 @@ def train_model(
 
         # Initialise the first state
         if (use_pseudorewards):
-            phi_sprime = env.pseudoreward_function(env.obs_state)  # phi_sprime is the pseudoreward of the new state
+            phi_sprime = env.pseudoreward_function(env.state_tensor)  # phi_sprime is the pseudoreward of the new state
         ep_reward = 0
 
         # Navigate the environment
@@ -198,7 +198,7 @@ def train_model(
             # calculate action utilities and choose action
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
             action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
-            blocked = env.blocked_model(env, env.obs_state)
+            blocked = env.blocked_model(env, env.state_tensor)
             action_utilities = torch.where(blocked, -1000, action_utilities)
 
             if (np.random.random() < epsilon):
@@ -221,10 +221,8 @@ def train_model(
             # calculate pseudoreward
             if (use_pseudorewards):
                 phi = phi_sprime
-                phi_sprime = env.pseudoreward_function(env.obs_state)
+                phi_sprime = env.pseudoreward_function(env.state_tensor)
                 pseudoreward = (gamma * phi_sprime - phi)
-                # print("state description: ", env.interpret_state_tensor(state_tensor))
-                # print("pseudoreward terms: ", phi, phi_sprime)
             else:
                 pseudoreward = 0
 
