@@ -16,4 +16,4 @@ mpc.py
 .vscode/*
 *.in
 js*
-    
+/tokamak 

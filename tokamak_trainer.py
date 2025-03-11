@@ -28,7 +28,6 @@ scenario = getattr(scenarios, input_dict["scenario"], None)
 
 try:
     mdpt = importlib.import_module(f"system_logic.{input_dict['system_logic']}")
-    # mdpt = importlib.import_module(f"system_logic.hybrid_system_tensor_logic")
 except ModuleNotFoundError:
     print(f"System logic {input_dict['system_logic']} was not found")
     sys.exit(1)
@@ -36,6 +35,16 @@ except ModuleNotFoundError:
 if not scenario:
     print(f"Scenario {input_dict['scenario']} was not found.")
     sys.exit(1)
+
+if (input_dict['epsilon_decay_type'] == "exponential"):
+    epsilon_function = DQN.exponential_epsilon_decay
+elif (input_dict['epsilon_decay_type'] == "linear"):
+    epsilon_function = DQN.linear_epsilon_decay
+else:
+    print(f"Epsilon decay type '{input_dict['epsilon_decay_type']}' not recognised. Exiting.")
+    sys.exit(1)
+
+# sys.exit(0)
 
 env_to_use = input_dict["environment"]
 
@@ -67,9 +76,13 @@ target_net.load_state_dict(policy_net.state_dict())
 trained_dqn, dur, re, eps = DQN.train_model(env,
                                             policy_net,
                                             target_net,
-                                            epsilon_decay_function=lambda ep, e_max, e_min, num_eps: DQN.linear_epsilon_decay(episode=ep, epsilon_max=e_max, epsilon_min=e_min,
-                                                                                                                                   num_episodes=num_eps,
-                                                                                                                                   max_epsilon_time=0, min_epsilon_time=0),
+                                            epsilon_decay_function=lambda ep, e_max, e_min, num_eps: DQN.linear_epsilon_decay(episode=ep,
+                                                                                                                              epsilon_max=e_max,
+                                                                                                                              epsilon_min=e_min,
+                                                                                                                              num_episodes=num_eps,
+                                                                                                                              max_epsilon_time=float(input_dict["max_epsilon_time"]),
+                                                                                                                              min_epsilon_time=float(input_dict["min_epsilon_time"])),
+                                            epsilon_max=float(input_dict["epsilon_max"]),
                                             epsilon_min=float(input_dict["epsilon_min"]),
                                             alpha=float(input_dict["alpha"]),
                                             gamma=float(input_dict["gamma"]),
