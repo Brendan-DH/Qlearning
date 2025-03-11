@@ -12,7 +12,6 @@ import gymnasium as gym
 import matplotlib
 import matplotlib.pyplot as plt
 import torch
-import DQN
 import os
 import numpy as np
 from mdp_translation import GenerateDTMCFile
@@ -33,7 +32,7 @@ if (not load_weights_file):
     print("No weights file provided, exiting.")
     sys.exit(1)
 
-render = input_dict["render_evaluation"].lower() == "true"
+render = input_dict["render_evaluation"].lower() == "y"
 
 scenario = getattr(scenarios, input_dict["scenario"], None)
 try:
@@ -75,11 +74,11 @@ policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + load_weights_f
 
 if int(input_dict["num_evaluation_episodes"]) > 0:
     print("\nEvaluation by trail...")
-    s, a, steps, deadlock_traces = DQN.evaluate_model(dqn=policy_net,
-                                                      num_episodes=int(input_dict["num_evaluation_episodes"]),
-                                                      env=env,
-                                                      max_steps=int(input_dict["max_steps"]),
-                                                      render=render)
+    s, a, steps, deadlock_traces = DQN.evaluate_model_by_trial(dqn=policy_net,
+                                                               num_episodes=int(input_dict["num_evaluation_episodes"]),
+                                                               env=env,
+                                                               max_steps=int(input_dict["max_steps"]),
+                                                               render=render)
 
     plt.figure(figsize=(10, 7))
     plt.hist(x=steps, rwidth=0.95)

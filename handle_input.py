@@ -31,7 +31,7 @@ def get_input_dict():
         "buffer_size": 50000,
         "checkpoint_frequency": 50,
         "batch_size": 256,
-        "render_evaluation": "false",
+        "render_evaluation": "n",
         "num_evaluation_episodes": 100
     }
 

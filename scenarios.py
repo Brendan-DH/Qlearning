@@ -1,6 +1,6 @@
-import DQN
+from dqn.dqn_collections import system_parameters
 
-small_case1 = DQN.system_parameters(
+small_case1 = system_parameters(
     size=12,
     robot_locations=[1, 2, 3],
     goal_locations=[11, 5, 7],
@@ -11,7 +11,7 @@ small_case1 = DQN.system_parameters(
     elapsed_ticks=0,
 )
 
-case_5goals = DQN.system_parameters(
+case_5goals = system_parameters(
     size=12,
     robot_locations=[1, 2, 7],
     goal_locations=[11, 3, 5, 4, 6],
@@ -22,7 +22,7 @@ case_5goals = DQN.system_parameters(
     elapsed_ticks=0,
 )
 
-case_7goals = DQN.system_parameters(
+case_7goals = system_parameters(
     size=12,
     robot_locations=[1, 5, 6],
     goal_locations=[11, 3, 5, 4, 10, 9, 7],
@@ -33,7 +33,7 @@ case_7goals = DQN.system_parameters(
     elapsed_ticks=0,
 )
 
-large_case_peaked = DQN.system_parameters(
+large_case_peaked = system_parameters(
     size=12,
     robot_locations=[1, 5, 6],
     goal_locations=[i for i in range(12)],
@@ -46,7 +46,7 @@ large_case_peaked = DQN.system_parameters(
     elapsed_ticks=0,
 )
 
-seg20_case = DQN.system_parameters(
+seg20_case = system_parameters(
     size=20,
     robot_locations=[1, 5, 6],
     goal_locations=[i for i in range(20)],
@@ -57,7 +57,7 @@ seg20_case = DQN.system_parameters(
     elapsed_ticks=0,
 )
 
-rects_id19_case_peaked = DQN.system_parameters(
+rects_id19_case_peaked = system_parameters(
     size=12,
     robot_locations=[1, 5, 6],
     goal_locations=[i for i in range(12)],

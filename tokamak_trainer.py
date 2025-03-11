@@ -6,17 +6,19 @@ Created on Sat Oct 21 15:12:23 2023
 @author: brendandevlin-hill
 """
 import importlib
-from os.path import split
 import gymnasium as gym
 import matplotlib
 import matplotlib.pyplot as plt
 import torch
-import DQN
 import os
 import numpy as np
 import handle_input
 import sys
 import scenarios
+
+from dqn.training import train_model
+from dqn.dqn import DeepQNetwork
+from dqn.decay_functions import linear_epsilon_decay, exponential_epsilon_decay
 
 # use a non-display backend. no, i don't know what this means.
 matplotlib.use('Agg')
@@ -37,14 +39,12 @@ if not scenario:
     sys.exit(1)
 
 if (input_dict['epsilon_decay_type'] == "exponential"):
-    epsilon_function = DQN.exponential_epsilon_decay
+    epsilon_function = exponential_epsilon_decay
 elif (input_dict['epsilon_decay_type'] == "linear"):
-    epsilon_function = DQN.linear_epsilon_decay
+    epsilon_function = linear_epsilon_decay
 else:
     print(f"Epsilon decay type '{input_dict['epsilon_decay_type']}' not recognised. Exiting.")
     sys.exit(1)
-
-# sys.exit(0)
 
 env_to_use = input_dict["environment"]
 
@@ -64,39 +64,39 @@ is_ipython = 'inline' in matplotlib.get_backend()
 plt.ion()
 
 n_actions = env.action_space.n
-state_tensor, info = env.reset()
-n_observations = len(state_tensor)
+obs_state, info = env.reset()
+n_observations = len(obs_state)
 
-policy_net = DQN.DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
+policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 
 save_weights_name = input_dict["save_weights_file"]
 
-target_net = DQN.DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
+target_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 target_net.load_state_dict(policy_net.state_dict())
-trained_dqn, dur, re, eps = DQN.train_model(env,
-                                            policy_net,
-                                            target_net,
-                                            epsilon_decay_function=lambda ep, e_max, e_min, num_eps: DQN.linear_epsilon_decay(episode=ep,
-                                                                                                                              epsilon_max=e_max,
-                                                                                                                              epsilon_min=e_min,
-                                                                                                                              num_episodes=num_eps,
-                                                                                                                              max_epsilon_time=float(input_dict["max_epsilon_time"]),
-                                                                                                                              min_epsilon_time=float(input_dict["min_epsilon_time"])),
-                                            epsilon_max=float(input_dict["epsilon_max"]),
-                                            epsilon_min=float(input_dict["epsilon_min"]),
-                                            alpha=float(input_dict["alpha"]),
-                                            gamma=float(input_dict["gamma"]),
-                                            num_episodes=int(input_dict["num_training_episodes"]),
-                                            tau=float(input_dict["tau"]),
-                                            usePseudorewards=input_dict["use_pseudorewards"].lower() == "y",
-                                            plot_frequency=int(input_dict["plot_frequency"]),
-                                            memory_sort_frequency=int(input_dict["memory_sort_frequency"]),
-                                            max_steps=int(input_dict["max_steps"]),
-                                            buffer_size=int(input_dict["buffer_size"]),
-                                            checkpoint_frequency=int(input_dict["checkpoint_frequency"]),
-                                            batch_size=int(input_dict["batch_size"]),
-                                            run_id=save_weights_name
-                                            )
+trained_dqn, dur, re, eps = train_model(env,
+                                        policy_net,
+                                        target_net,
+                                        epsilon_decay_function=lambda ep, e_max, e_min, num_eps: epsilon_function(episode=ep,
+                                                                                                                  epsilon_max=e_max,
+                                                                                                                  epsilon_min=e_min,
+                                                                                                                  num_episodes=num_eps,
+                                                                                                                  max_epsilon_time=float(input_dict["max_epsilon_time"]),
+                                                                                                                  min_epsilon_time=float(input_dict["min_epsilon_time"])),
+                                        epsilon_max=float(input_dict["epsilon_max"]),
+                                        epsilon_min=float(input_dict["epsilon_min"]),
+                                        alpha=float(input_dict["alpha"]),
+                                        gamma=float(input_dict["gamma"]),
+                                        num_episodes=int(input_dict["num_training_episodes"]),
+                                        tau=float(input_dict["tau"]),
+                                        use_pseudorewards=input_dict["use_pseudorewards"].lower() == "y",
+                                        plot_frequency=int(input_dict["plot_frequency"]),
+                                        memory_sort_frequency=int(input_dict["memory_sort_frequency"]),
+                                        max_steps=int(input_dict["max_steps"]),
+                                        buffer_size=int(input_dict["buffer_size"]),
+                                        checkpoint_frequency=int(input_dict["checkpoint_frequency"]),
+                                        batch_size=int(input_dict["batch_size"]),
+                                        run_id=save_weights_name
+                                        )
 
 random_identifier = int(np.random.rand() * 1e6)
 new_file_name = f"saved_weights_{random_identifier}"
