@@ -100,7 +100,7 @@ def train_model(
             gamma = {gamma}
             epsilon_max = {epsilon_max}
             epsilon_min = {epsilon_min}
-            epsilon_decay_function = {"default" if not epsilon_decay_function else "custom"}
+            epsilon_decay_function = {"default (exponential)" if not epsilon_decay_function else "custom"}
             alpha = {alpha}
             tau = {tau}
             state_tree_capacity = {state_tree_capacity}
@@ -157,8 +157,6 @@ def train_model(
 
     for i_episode in range(num_episodes):
 
-        print(f"Training episode {i_episode}/{num_episodes}")
-
         if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
         optimisation_time = 0
 
@@ -166,16 +164,15 @@ def train_model(
         gc.collect()
         torch.cuda.empty_cache()
 
-        if ((i_episode % int(num_episodes / 10)) == 0):
-            print(f"{i_episode}/{num_episodes} complete...")
+        base_epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
+        epsilon = base_epsilon
+        if ((i_episode % plot_frequency) == 0):
+            print(f"{i_episode}/{num_episodes} complete, epsilon = {base_epsilon}")
 
         if (i_episode % int(memory_sort_frequency) == 0):
-            print("Sorting memory...")
             memory.sort(batch_size, priority_coefficient)
 
         # calculate the new epsilon
-        epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
-        base_epsilon = epsilon
         epsilon_boost = 0.2
         if (plotting_on or checkpoints_on):
             epsilons[i_episode] = base_epsilon
@@ -184,27 +181,30 @@ def train_model(
 
         # Initialise the first state
         if (use_pseudorewards):
-            phi_sprime = env.pseudoreward_function(env.obs_state)  # phi_sprime is the pseudoreward of the new state
+            phi_sprime = env.pseudoreward_function(env.state_tensor)  # phi_sprime is the pseudoreward of the new state
         ep_reward = 0
 
         # Navigate the environment
         recent_state_capacity = 5
         recent_states = deque([], maxlen=recent_state_capacity)
+        # recent_states.appendleft(str(obs_state.values()))
 
         for t in count():
-
-            # print(f"Step {t}")
 
             # calculate action utilities and choose action
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
             action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
-            blocked = env.blocked_model(env, env.obs_state)
+            blocked = env.blocked_model(env, env.state_tensor)
             action_utilities = torch.where(blocked, -1000, action_utilities)
+
+            if(torch.all(blocked)):
+                print("WARNING: all actions were blocked. Continuing to next episode.")
+                print(f"Offending state: {obs_state}")
+                break
 
             if (np.random.random() < epsilon):
                 sample = env.action_space.sample()
                 while blocked[sample] == 1:
-                    # print("blocked")
                     sample = env.action_space.sample()
                 action = sample  # torch.tensor([[sample]], device=device, dtype=torch.long)  # this will be expensive
             else:
@@ -213,18 +213,12 @@ def train_model(
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
-            # print("reward", reward)
-
-            if (terminated):
-                print(f"terminated at step {t}")
 
             # calculate pseudoreward
             if (use_pseudorewards):
                 phi = phi_sprime
-                phi_sprime = env.pseudoreward_function(env.obs_state)
+                phi_sprime = env.pseudoreward_function(env.state_tensor)
                 pseudoreward = (gamma * phi_sprime - phi)
-                # print("state description: ", env.interpret_state_tensor(state_tensor))
-                # print("pseudoreward terms: ", phi, phi_sprime)
             else:
                 pseudoreward = 0
 
@@ -247,7 +241,7 @@ def train_model(
             # maybe I could take the last 5 states, work out how novel they are, and then set the boost based on this
             recent_states.appendleft(str(obs_state.values()))
             novelty_rating = np.mean(list(map(obs_visits.data.get, list(recent_states))))  # average visits in last 5 states
-            epsilon = base_epsilon + (5 / novelty_rating) * epsilon_boost
+            epsilon = base_epsilon + (1 / novelty_rating) * epsilon_boost
 
             # run optimiser
             # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
@@ -286,7 +280,7 @@ def train_model(
                                np.vstack((episode_durations, rewards, epsilons)).transpose())
                     torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/checkpoints/policy_weights_epoch{i_episode}")
                 break
-        if i_episode > memory_sort_frequency: print(f"Total time for optimisation this episode: {optimisation_time * 1000:.3f}ms")
+        # if i_episode > memory_sort_frequency: print(f"Total time for optimisation this episode: {optimisation_time * 1000:.3f}ms")
 
     print(f"Training complete in {int(time.time() - start_time)} seconds.")
     return policy_net, episode_durations, rewards, epsilons

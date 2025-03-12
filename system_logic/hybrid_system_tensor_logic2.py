@@ -20,11 +20,9 @@ the mdp translation functionaltiy.
 
 """
 import math
-import random
 
 import numpy as np
 import torch
-
 
 global_device = "cpu"
 print("Transition logic running on: ", global_device)
@@ -100,7 +98,6 @@ def template_complete(env, state_tensor, action_no):
     for i in range(env.num_goals):
         # if (state_tensor[f"goal{i} location"] == state_tensor[f"robot{robot_no} location"]):
         if (state_tensor[(env.num_robots * 2) + (i * 5)] == state_tensor[robot_no * 2]):
-
             # goal is successfully completed
             prob1 = state_tensor[(env.num_robots * 2) + (i * 5) + 4]
             state1 = state_tensor.detach().clone()
@@ -189,7 +186,7 @@ def discovery_effect(env, state_tensor, robot_no):
         # print("locations", gloc, rloc)
         if (gloc == rloc):  # this requires a CPU transfer so is expensive
             goal_index = i
-#             print(f"goal index: {i}")
+            #             print(f"goal index: {i}")
             break
 
     if (goal_index == -1):  # no goals here; return the original state dict
@@ -255,24 +252,6 @@ def t_model(env, state_tensor, action_no):
 
 # %%
 
-def initial_state_logic(env, state_tensor):
-
-    state = state_tensor.detach().clone()
-
-    for i in range(env.num_robots):
-        rloc = state_tensor[(i * 2)].item()  # made a change here were an extra loop over num_robots appeared to do nothing
-        for j in range(env.num_goals):
-            gloc = state_tensor[(env.num_robots * 2) + (j * 5)].item()
-            if rloc == gloc:
-                gprob = state_tensor[(env.num_robots * 2) + (j * 5) + 3].item()
-                roll = np.random.random()
-                if (roll < gprob):
-                    state[(env.num_robots * 2) + (j * 5) + 1] = 1
-                state[(env.num_robots * 2) + (j * 5) + 2] = 1
-
-    return state
-
-
 
 """
 This block defines the rewards model of the system
@@ -306,7 +285,7 @@ def r_model(env, state_tensor, action, next_state_tensor):
         if (state_tensor[(env.num_robots * 2) + (i * 5) + 1] == 1 and next_state_tensor[(env.num_robots * 2) + (i * 5) + 1] == 0):
             reward += 1000
 
-    if(state_is_final(env, state_tensor)):
+    if (state_is_final(env, state_tensor)):
         reward += 10000
 
     return reward
@@ -349,6 +328,12 @@ def b_model(env, state_tensor):
                 if (state_tensor[(env.num_robots * 2) + (k * 5)] == active_robot_loc and state_tensor[(env.num_robots * 2) + (k * 5) + 1] == 1):
                     block_task_completion = False  # unblock this engage action
                     break
+                for m in range(env.num_robots):
+                    if i == m:
+                        continue
+                    elif active_robot_loc == state_tensor[m * 2]:
+                        block_task_completion = True
+
             blocked_actions[(i * env.num_actions) + 2] = block_task_completion
 
             # if all else are blocked, unblock "wait"
@@ -360,6 +345,7 @@ def b_model(env, state_tensor):
 
 def get_counter_cw_blocked(env, state_tensor, robot_no):
     moving_robot_loc = state_tensor[robot_no * 2]
+    n_robots_on_new_space = 0
 
     for j in range(env.num_robots):
         other_robot_loc = state_tensor[j * 2]
@@ -368,12 +354,13 @@ def get_counter_cw_blocked(env, state_tensor, robot_no):
         if (moving_robot_loc == other_robot_loc):
             raise ValueError(f"Two robots occupy the same location (r{robot_no} & r{j} @ {moving_robot_loc}).")
         if (other_robot_loc == (moving_robot_loc + 1) % env.size):
-            return True
-    return False
+            n_robots_on_new_space += 1
+    return n_robots_on_new_space > 2
 
 
 def get_cw_blocked(env, state_tensor, robot_no):
     moving_robot_loc = state_tensor[robot_no * 2]
+    n_robots_on_new_space = 0
 
     for j in range(env.num_robots):
         other_robot_loc = state_tensor[j * 2]
@@ -382,9 +369,9 @@ def get_cw_blocked(env, state_tensor, robot_no):
         if (moving_robot_loc == other_robot_loc):
             raise ValueError(f"Two robots occupy the same location (r{robot_no} & r{j} @ {moving_robot_loc}).")
         if (other_robot_loc == (env.size - 1 if moving_robot_loc - 1 < 0 else moving_robot_loc - 1)):
-            return True
+            n_robots_on_new_space += 1
 
-    return False
+    return n_robots_on_new_space > 2
 
 
 def state_is_final(env, state_tensor):

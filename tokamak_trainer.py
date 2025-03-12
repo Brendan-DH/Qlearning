@@ -53,6 +53,7 @@ env = gym.make(env_to_use,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
+               initial_state_logic=mdpt.initial_state_logic,
                training=True,
                render=False)
 
@@ -69,7 +70,8 @@ n_observations = len(obs_state)
 
 policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 
-save_weights_name = input_dict["save_weights_file"]
+run_id = input_dict["run_id"]
+overwrite = input_dict["overwrite_saved_weights"].lower() == "y"
 
 target_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 target_net.load_state_dict(policy_net.state_dict())
@@ -95,21 +97,23 @@ trained_dqn, dur, re, eps = train_model(env,
                                         buffer_size=int(input_dict["buffer_size"]),
                                         checkpoint_frequency=int(input_dict["checkpoint_frequency"]),
                                         batch_size=int(input_dict["batch_size"]),
-                                        run_id=save_weights_name
+                                        run_id=run_id
                                         )
 
-random_identifier = int(np.random.rand() * 1e6)
-new_file_name = f"saved_weights_{random_identifier}"
 
-if save_weights_name is None:
-    print(f"Saving weights as {new_file_name}")
-    output_name = new_file_name
-elif (save_weights_name in os.listdir(os.getcwd() + "/outputs")):
-    print(f"File {save_weights_name} already exists. Saving as {new_file_name} instead")
-    output_name = new_file_name
+random_id = int(np.random.rand() * 1e6)
+if run_id is None:
+    print("No run_id was specified in the input file, so one has been assigned: ", random_id)
+    run_id = random_id
+
+file_name = f"weights_{run_id}"
+
+if (file_name in os.listdir(os.getcwd() + "/outputs") and not overwrite):
+    print(f"File {file_name} already exists. Saving as {file_name}_{random_id} instead")
+    output_name = f"{file_name}_{random_id}"
 else:
-    print(f"Saving weights as f{save_weights_name}")
-    output_name = save_weights_name
+    print(f"Saving weights as weights_{run_id}")
+    output_name = file_name
 
 torch.save(trained_dqn.state_dict(), f"./outputs/{output_name}")
 

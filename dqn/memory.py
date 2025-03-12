@@ -32,7 +32,6 @@ class PriorityMemory(object):
         # i.e. lower rank should be higher delta, as such:
 
         if (len(self.memory) < batch_size):
-            print(f"Memory too empty to sort {len(self.memory)}/{batch_size}")
             return
 
         items = [self.memory.pop() for i in range(len(self.memory))]  # pop everything?

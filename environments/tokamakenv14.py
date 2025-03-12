@@ -8,6 +8,7 @@ Created on Mon Sep 18 14:34:49 2023
 
 import numpy as np
 import gymnasium as gym
+import system_logic.hybrid_system_tensor_logic
 from gymnasium import spaces
 import pygame
 
@@ -56,6 +57,7 @@ class TokamakEnv14(gym.Env):
                  transition_model,
                  blocked_model,
                  reward_model,
+                 initial_state_logic = None,
                  training=True,
                  render=False,
                  render_ticks_only=True):
@@ -94,9 +96,15 @@ class TokamakEnv14(gym.Env):
         self.num_goals = len(system_parameters.goal_locations)
         self.num_robots = len(system_parameters.robot_locations)
 
-        # torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu"))
-        self.initial_state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu"))
+        if initial_state_logic:
+            print("Taking care of initial state transitions")
+            state_tensor = initial_state_logic(self, self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu")))
+            self.state_tensor = state_tensor
+            self.initial_state_tensor = state_tensor.detach().clone()
+
+        else:
+            self.state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu"))
+            self.initial_state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu"))
 
         # internal/environmental parameters
         self.training = training
@@ -143,6 +151,22 @@ class TokamakEnv14(gym.Env):
         self.elapsed_ticks = 0
         self.reset()
 
+    def state_tensor_to_observable(self, state_tensor):
+
+        obs_dict = {}
+
+        for i in range(self.num_robots):
+            index = i * 2
+            obs_dict[f"robot{i} location"] = int(state_tensor[index].item())
+            obs_dict[f"robot{i} clock"] = int(state_tensor[index + 1].item())
+
+        for i in range(self.num_goals):
+            index = self.num_robots * 2 + i * 5
+            obs_dict[f"goal{i} active"] = int(state_tensor[index + 1].item())
+            obs_dict[f"goal{i} checked"] = int(state_tensor[index + 2].item())
+
+        return obs_dict
+
     def interpret_state_tensor(self, state_tensor):
 
         # function to take the state tensor and translate it into a state dict
@@ -164,7 +188,7 @@ class TokamakEnv14(gym.Env):
 
         return state_dict
 
-    def construct_state_tensor_from_system_parameters(self, system_parameters, device):
+    def construct_state_tensor_from_system_parameters(self, system_parameters, device=torch.device("cpu")):
 
         tensor_length = self.num_robots * 2 + self.num_goals * 5
         state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device, requires_grad=False)
@@ -183,7 +207,7 @@ class TokamakEnv14(gym.Env):
 
         return state_tensor
 
-    def construct_state_tensor_from_dict(self, state_dict, device):
+    def construct_state_tensor_from_dict(self, state_dict, device=torch.device("cpu")):
 
         tensor_length = self.num_robots * 2 + self.num_goals * 5
         state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device, requires_grad=False)
@@ -201,9 +225,6 @@ class TokamakEnv14(gym.Env):
             state_tensor[index + 4] = state_dict[f"goal{i} completion probability"]
 
         return state_tensor
-
-    def get_parameters(self):
-        raise NotImplementedError()
 
     def get_obs(self):
 
@@ -251,7 +272,19 @@ class TokamakEnv14(gym.Env):
         pr = self.size * self.num_robots * 2  # initialising to a high value
         for i in range(self.num_robots):
             rob_position = state_tensor[i * 2].item()
-            min_mod_dist = self.size + 1  # store the mod distance to closest goal
+            goal_min_mod_dist = self.size + 1  # store the mod distance to closest goal
+            rob_min_mod_dist = self.size + 1  # store the mod distance to closest goal
+
+            for j in range(self.num_robots):
+                if i == j:
+                    continue
+                other_robot_pos = state_tensor[j * 2].item()
+                naive_dist = abs(rob_position - other_robot_pos)  # non-mod distance
+                rob_mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
+                rob_min_mod_dist = min(rob_min_mod_dist, rob_mod_dist)  # update the smaller of the two
+
+            pr += 0.2 * rob_min_mod_dist  # give a small bonus for being farther away from nearest robot
+
             for j in range(self.num_goals):
                 goal_active = state_tensor[(self.num_robots * 2) + (i * 5) + 1].item()
                 goal_checked = state_tensor[(self.num_robots * 2) + (i * 5) + 2].item()
@@ -260,10 +293,9 @@ class TokamakEnv14(gym.Env):
                 else:
                     goal_position = state_tensor[(self.num_robots * 2) + (j * 5)].item()
                     naive_dist = abs(rob_position - goal_position)  # non-mod distance
-                    mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
-                    min_mod_dist = min(mod_dist, min_mod_dist)  # update the smaller of the two
-            # print(f"min_mod_dist for robot{i}: {min_mod_dist}")
-            pr -= min_mod_dist  # subtract the distance 'penalty' from total possible reward
+                    goal_mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
+                    goal_min_mod_dist = min(goal_mod_dist, goal_min_mod_dist)  # update the smaller of the two
+            pr -= goal_min_mod_dist  # subtract the distance 'penalty' from total possible reward
 
         return pr
 

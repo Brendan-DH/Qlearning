@@ -7,10 +7,11 @@ import importlib
 
 
 def get_input_dict():
+
     input_dict = {
         "environment": "Tokamak-v14",
-        "save_weights_file": None,
-        "load_weights_file": None,
+        "run_id": None,
+        "evaluation_weights_file": None,
         "scenario": None,
         "system_logic": "hybrid_system_tensor_logic",
         "nodes_per_layer": 256,
@@ -32,7 +33,8 @@ def get_input_dict():
         "checkpoint_frequency": 50,
         "batch_size": 256,
         "render_evaluation": "n",
-        "num_evaluation_episodes": 100
+        "num_evaluation_episodes": 100,
+        "overwrite_saved_weights": "n"
     }
 
     if ("default_inputs.in" not in os.listdir(os.getcwd())):
