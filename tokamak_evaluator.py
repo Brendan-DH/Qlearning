@@ -5,21 +5,21 @@ Created on Sat Oct 21 15:12:23 2023
 
 @author: brendandevlin-hill
 """
-import importlib
-from os.path import split
 
+from mdp_translation import GenerateDTMCFile
+import subprocess
+import importlib
 import gymnasium as gym
 import matplotlib
 import matplotlib.pyplot as plt
 import torch
 import os
-import numpy as np
-from mdp_translation import GenerateDTMCFile
-import subprocess
+import handle_input
 import sys
 import scenarios
-import select
-import handle_input
+
+from dqn.dqn import DeepQNetwork
+from dqn.evaluation import evaluate_model_by_trial
 
 # use a non-display backend. no, i don't know what this means.
 matplotlib.use('Agg')
@@ -67,18 +67,18 @@ n_observations = len(state_tensor)
 
 num_hidden_layers = int(input_dict["num_hidden_layers"])
 
-policy_net = DQN.DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
+policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 
 print(f"Loading from '/outputs/{load_weights_file}")
 policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + load_weights_file))
 
 if int(input_dict["num_evaluation_episodes"]) > 0:
     print("\nEvaluation by trail...")
-    s, a, steps, deadlock_traces = DQN.evaluate_model_by_trial(dqn=policy_net,
-                                                               num_episodes=int(input_dict["num_evaluation_episodes"]),
-                                                               env=env,
-                                                               max_steps=int(input_dict["max_steps"]),
-                                                               render=render)
+    s, a, steps, deadlock_traces = evaluate_model_by_trial(dqn=policy_net,
+                                                           num_episodes=int(input_dict["num_evaluation_episodes"]),
+                                                           env=env,
+                                                           max_steps=int(input_dict["max_steps"]),
+                                                           render=render)
 
     plt.figure(figsize=(10, 7))
     plt.hist(x=steps, rwidth=0.95)

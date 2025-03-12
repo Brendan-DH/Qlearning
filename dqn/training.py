@@ -184,7 +184,7 @@ def train_model(
 
         # Initialise the first state
         if (use_pseudorewards):
-            phi_sprime = env.pseudoreward_function(env.state_tensor)  # phi_sprime is the pseudoreward of the new state
+            phi_sprime = env.pseudoreward_function(env.obs_state)  # phi_sprime is the pseudoreward of the new state
         ep_reward = 0
 
         # Navigate the environment
@@ -193,10 +193,12 @@ def train_model(
 
         for t in count():
 
+            # print(f"Step {t}")
+
             # calculate action utilities and choose action
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
             action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
-            blocked = env.blocked_model(env, env.state_tensor)
+            blocked = env.blocked_model(env, env.obs_state)
             action_utilities = torch.where(blocked, -1000, action_utilities)
 
             if (np.random.random() < epsilon):
@@ -219,8 +221,10 @@ def train_model(
             # calculate pseudoreward
             if (use_pseudorewards):
                 phi = phi_sprime
-                phi_sprime = env.pseudoreward_function(env.state_tensor)
+                phi_sprime = env.pseudoreward_function(env.obs_state)
                 pseudoreward = (gamma * phi_sprime - phi)
+                # print("state description: ", env.interpret_state_tensor(state_tensor))
+                # print("pseudoreward terms: ", phi, phi_sprime)
             else:
                 pseudoreward = 0
 
@@ -243,7 +247,7 @@ def train_model(
             # maybe I could take the last 5 states, work out how novel they are, and then set the boost based on this
             recent_states.appendleft(str(obs_state.values()))
             novelty_rating = np.mean(list(map(obs_visits.data.get, list(recent_states))))  # average visits in last 5 states
-            epsilon = base_epsilon + (1 / novelty_rating) * epsilon_boost
+            epsilon = base_epsilon + (5 / novelty_rating) * epsilon_boost
 
             # run optimiser
             # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
