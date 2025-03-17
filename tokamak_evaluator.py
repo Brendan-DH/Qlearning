@@ -55,8 +55,6 @@ env = gym.make(env_to_use,
                training=False,
                render=False)
 
-nodes_per_layer = int(input_dict["nodes_per_layer"])  # default 128
-
 # set up matplotlib
 is_ipython = 'inline' in matplotlib.get_backend()
 plt.ion()
@@ -65,12 +63,15 @@ n_actions = env.action_space.n
 state_tensor, info = env.reset()
 n_observations = len(state_tensor)
 
-num_hidden_layers = int(input_dict["num_hidden_layers"])
+
+loaded_weights = torch.load(os.getcwd() + "/outputs/" + load_weights_file)
+nodes_per_layer = len(loaded_weights["hidden_layers.0.weight"])
+num_hidden_layers = int((len(loaded_weights.keys()) - 4)/2)  # -4 accounts for input and output weights and biases
 
 policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 
 print(f"Loading from '/outputs/{load_weights_file}")
-policy_net.load_state_dict(torch.load(os.getcwd() + "/outputs/" + load_weights_file))
+policy_net.load_state_dict(loaded_weights)
 
 if int(input_dict["num_evaluation_episodes"]) > 0:
     print("\nEvaluation by trail...")

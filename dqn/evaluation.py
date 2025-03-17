@@ -46,10 +46,6 @@ def evaluate_model_by_trial(dqn,
             # calculate action utilities and choose action
             action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
             blocked = env.blocked_model(env, env.state_tensor)
-            # print("blocked", blocked)
-            # print("blocked actions:",
-            #       [f"{math.floor(i / env.num_actions)}-{rel_actions[i % env.num_actions]} --- BLOCKED" if b else f"{math.floor(i / env.num_actions)}-{rel_actions[i % env.num_actions]}" for i, b in
-            #        enumerate(blocked)])
             action_utilities = torch.where(blocked, -1000, action_utilities)
             action = torch.argmax(action_utilities).item()
 
@@ -60,7 +56,6 @@ def evaluate_model_by_trial(dqn,
             actions.append(action)
             robot_no = math.floor(action / env.num_actions)
             rel_action = rel_actions[action % env.num_actions]
-            # print(f"{robot_no}-{rel_action}")
 
             obs_state = new_obs_state
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
@@ -71,8 +66,6 @@ def evaluate_model_by_trial(dqn,
                 env.render_frame(states[-1], True)
 
             if (done or truncated or t > max_steps):
-                # if (not torch.cuda.is_available()) : ticks.append(info["elapsed ticks"])
-                # if (not torch.cuda.is_available()) : goal_resolutions.append(np.sum(info["goal_resolutions"]))
                 if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
                     print(f"{i}/{num_episodes} episodes complete")
                 break

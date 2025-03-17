@@ -25,8 +25,6 @@ import numpy as np
 import torch
 
 global_device = "cpu"
-print("Transition logic running on: ", global_device)
-
 # %%
 
 """
@@ -250,6 +248,23 @@ def t_model(env, state_tensor, action_no):
     return p, s
 
 
+def initial_state_logic(env, state_tensor):
+
+    state = state_tensor.detach().clone()
+
+    for i in range(env.num_robots):
+        rloc = state_tensor[(i * 2)].item()  # made a change here were an extra loop over num_robots appeared to do nothing
+        for j in range(env.num_goals):
+            gloc = state_tensor[(env.num_robots * 2) + (j * 5)].item()
+            if rloc == gloc:
+                gprob = state_tensor[(env.num_robots * 2) + (j * 5) + 3].item()
+                roll = np.random.random()
+                if (roll < gprob):
+                    state[(env.num_robots * 2) + (j * 5) + 1] = 1
+                state[(env.num_robots * 2) + (j * 5) + 2] = 1
+
+    return state
+
 # %%
 
 
@@ -311,14 +326,6 @@ def b_model(env, state_tensor):
         if (state_tensor[(i * 2) + 1]):  # clock
             blocked_actions[i * env.num_actions: (i * env.num_actions) + env.num_actions] = 1  # block these actions
         else:
-            for j in range(env.num_robots):
-                other_robot_loc = state_tensor[j * 2]
-
-                if (i == j):
-                    continue  # don't check robots against themselves
-
-                if (active_robot_loc == other_robot_loc):
-                    raise ValueError(f"Two robots occupy the same location (r{i} & r{j} @ {active_robot_loc}).")
 
             blocked_actions[(i * env.num_actions)] = get_counter_cw_blocked(env, state_tensor, i)
             blocked_actions[(i * env.num_actions) + 1] = get_cw_blocked(env, state_tensor, i)
@@ -351,8 +358,6 @@ def get_counter_cw_blocked(env, state_tensor, robot_no):
         other_robot_loc = state_tensor[j * 2]
         if (robot_no == j):  # don't need to check robots against themselves
             continue
-        if (moving_robot_loc == other_robot_loc):
-            raise ValueError(f"Two robots occupy the same location (r{robot_no} & r{j} @ {moving_robot_loc}).")
         if (other_robot_loc == (moving_robot_loc + 1) % env.size):
             n_robots_on_new_space += 1
     return n_robots_on_new_space > 2
@@ -366,8 +371,6 @@ def get_cw_blocked(env, state_tensor, robot_no):
         other_robot_loc = state_tensor[j * 2]
         if (robot_no == j):  # don't need to check robots against themselves
             continue
-        if (moving_robot_loc == other_robot_loc):
-            raise ValueError(f"Two robots occupy the same location (r{robot_no} & r{j} @ {moving_robot_loc}).")
         if (other_robot_loc == (env.size - 1 if moving_robot_loc - 1 < 0 else moving_robot_loc - 1)):
             n_robots_on_new_space += 1
 

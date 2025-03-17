@@ -27,7 +27,6 @@ import torch
 
 
 global_device = "cpu"
-print("Transition logic running on: ", global_device)
 
 # %%
 
@@ -332,14 +331,6 @@ def b_model(env, state_tensor):
         if (state_tensor[(i * 2) + 1]):  # clock
             blocked_actions[i * env.num_actions: (i * env.num_actions) + env.num_actions] = 1  # block these actions
         else:
-            for j in range(env.num_robots):
-                other_robot_loc = state_tensor[j * 2]
-
-                if (i == j):
-                    continue  # don't check robots against themselves
-
-                if (active_robot_loc == other_robot_loc):
-                    raise ValueError(f"Two robots occupy the same location (r{i} & r{j} @ {active_robot_loc}).")
 
             blocked_actions[(i * env.num_actions)] = get_counter_cw_blocked(env, state_tensor, i)
             blocked_actions[(i * env.num_actions) + 1] = get_cw_blocked(env, state_tensor, i)
