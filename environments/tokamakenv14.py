@@ -57,7 +57,7 @@ class TokamakEnv14(gym.Env):
                  transition_model,
                  blocked_model,
                  reward_model,
-                 initial_state_logic = None,
+                 initial_state_logic=None,
                  training=True,
                  render=False,
                  render_ticks_only=True):
@@ -73,6 +73,7 @@ class TokamakEnv14(gym.Env):
         self.statetree = []
         self.render = render
         self.render_ticks_only = render_ticks_only
+        self.frame_counter = 0
 
         for i in range(len(system_parameters.robot_locations)):
             state[f"robot{i} location"] = system_parameters.robot_locations[i]
@@ -323,7 +324,9 @@ class TokamakEnv14(gym.Env):
             if (roll < t):
                 chosen_state = i
                 break
+
         if (chosen_state < 0):
+            print(action, p_tensor, s_tensor)
             raise ValueError("Something has gone wrong with choosing the state")
 
         # get the reward for this transition based on the reward model
@@ -422,8 +425,15 @@ class TokamakEnv14(gym.Env):
         # draw robots
         for i in range(self.num_robots):
             pos = state[f"robot{i} location"]
-            xpos = tokamak_centre[0] + tokamak_r / 2 * np.cos(angle * pos - np.pi)
-            ypos = tokamak_centre[1] + tokamak_r / 2 * np.sin(angle * pos - np.pi)
+            second_robot_present = False
+            for j in range(self.num_robots):
+                if j <= i:
+                    continue
+                else:
+                    if state[f"robot{j} location"] == pos:
+                        second_robot_present = True
+            xpos = tokamak_centre[0] + (tokamak_r / (2 if not second_robot_present else 3)) * np.cos(angle * pos - np.pi)
+            ypos = tokamak_centre[1] + (tokamak_r / (2 if not second_robot_present else 3)) * np.sin(angle * pos - np.pi)
             circ = pygame.draw.circle(canvas, (0, 0, 255), (xpos, ypos), 20)
             if (state[f"robot{i} clock"]):
                 text = font.render(str(i) + "'", True, (255, 255, 255))
@@ -449,6 +459,9 @@ class TokamakEnv14(gym.Env):
         # We need to ensure that human-rendering occurs at the predefined framerate.
         # The following line will automatically add a delay to keep the framerate stable.
         self.clock.tick(self.metadata["render_fps"])
+
+        pygame.image.save(self.window, f"./animation/{self.frame_counter}.png")
+        self.frame_counter += 1
 
     def close(self):
         if self.window is not None:

@@ -280,12 +280,9 @@ def r_model(env, state_tensor, action, next_state_tensor):
     # this is necessary to stop the total rewards shooting up when blocked actions are taken
     # mostly a diagnostic thing... I think
     if (env.blocked_model(env, state_tensor)[action] == 1):
-        # print("action blocked")  # pretty sure this should be firing more often -- dunno
         return 0
 
     rel_action = action % env.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
-    # print(f"action: {rel_action} ( 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait) ")
-    # print(f"robot location {state_tensor[math.floor(action/env.num_robots) * 2]}")
 
     # reward for checking a goal by moving onto its position
     if (rel_action < 2):
@@ -293,6 +290,9 @@ def r_model(env, state_tensor, action, next_state_tensor):
             # check if goal went from unchecked to checked
             if (state_tensor[(env.num_robots * 2) + (i * 5) + 2] != next_state_tensor[(env.num_robots * 2) + (i * 5) + 2]):
                 reward += 100
+
+    if (rel_action != 2):  # everything other than waiting costs a bit
+        reward -= 5
 
     # rewards for completing goals
     for i in range(env.num_goals):
@@ -331,21 +331,25 @@ def b_model(env, state_tensor):
             blocked_actions[(i * env.num_actions) + 1] = get_cw_blocked(env, state_tensor, i)
 
             block_task_completion = True
-            for k in range(env.num_goals):
-                if (state_tensor[(env.num_robots * 2) + (k * 5)] == active_robot_loc and state_tensor[(env.num_robots * 2) + (k * 5) + 1] == 1):
-                    block_task_completion = False  # unblock this engage action
-                    break
-                for m in range(env.num_robots):
-                    if i == m:
-                        continue
-                    elif active_robot_loc == state_tensor[m * 2]:
-                        block_task_completion = True
+            other_robot_present = False
+
+            for m in range(env.num_robots):
+                if i == m:
+                    continue
+                elif active_robot_loc == state_tensor[m * 2]:
+                    other_robot_present = True
+
+            if not other_robot_present:
+                for k in range(env.num_goals):
+                    if (state_tensor[(env.num_robots * 2) + (k * 5)] == active_robot_loc and state_tensor[(env.num_robots * 2) + (k * 5) + 1] == 1):
+                        block_task_completion = False  # unblock this engage action
+                        break
 
             blocked_actions[(i * env.num_actions) + 2] = block_task_completion
 
             # if all else are blocked, unblock "wait"
-            if np.all(blocked_actions[i * env.num_actions: (i * env.num_actions) + env.num_actions] == 1):  # block these actions
-                blocked_actions[(i * env.num_actions) + 3] = 0
+            # if np.all(blocked_actions[i * env.num_actions: (i * env.num_actions) + env.num_actions] == 1):  # block these actions
+            #     blocked_actions[(i * env.num_actions) + 3] = 0
 
     return torch.tensor(blocked_actions, dtype=torch.bool, device=global_device, requires_grad=False)
 
@@ -360,7 +364,7 @@ def get_counter_cw_blocked(env, state_tensor, robot_no):
             continue
         if (other_robot_loc == (moving_robot_loc + 1) % env.size):
             n_robots_on_new_space += 1
-    return n_robots_on_new_space > 2
+    return n_robots_on_new_space >= 2
 
 
 def get_cw_blocked(env, state_tensor, robot_no):
@@ -374,7 +378,7 @@ def get_cw_blocked(env, state_tensor, robot_no):
         if (other_robot_loc == (env.size - 1 if moving_robot_loc - 1 < 0 else moving_robot_loc - 1)):
             n_robots_on_new_space += 1
 
-    return n_robots_on_new_space > 2
+    return n_robots_on_new_space >= 2
 
 
 def state_is_final(env, state_tensor):

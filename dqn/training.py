@@ -156,8 +156,6 @@ def train_model(
     obs_visits = FiniteDict(max_size=10000)
 
     for i_episode in range(num_episodes):
-
-        if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
         optimisation_time = 0
 
         # sort out memory
@@ -168,6 +166,7 @@ def train_model(
         epsilon = base_epsilon
         if ((i_episode % plot_frequency) == 0):
             print(f"{i_episode}/{num_episodes} complete, epsilon = {base_epsilon}")
+            if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
 
         if (i_episode % int(memory_sort_frequency) == 0):
             memory.sort(batch_size, priority_coefficient)
