@@ -1,5 +1,6 @@
 agent.txt
 *.png
+animation/
 /outputs
 /environments/__pycache__
 __pycache__/

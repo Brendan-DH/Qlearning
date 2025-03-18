@@ -47,7 +47,6 @@ def template_move(env, state_tensor, action_no):
     """
 
     # the effect function for moving robot 1 ccw
-    # state_tensor = state_tensor.detach().clone()
     robot_no = int(torch.floor_divide(action_no, env.num_actions).item())
     current_location = state_tensor[robot_no * 2]
     rel_action = action_no % env.num_actions
@@ -56,18 +55,14 @@ def template_move(env, state_tensor, action_no):
     if (rel_action == 0):
         # counter-clockwise
         if (current_location < env.size - 1):
-            # print(f"{new_state[robot_no * 2]}->{current_location + 1}")
             state_tensor[robot_no * 2] = current_location + 1
         elif (current_location == env.size - 1):  # cycle round
-            # print(f"{new_state[robot_no * 2]}->{0}")
             state_tensor[robot_no * 2] = 0
     elif (rel_action == 1):
         # clockwise
         if (current_location > 0):
-            # print(f"{new_state[robot_no * 2]}->{current_location - 1}")
             state_tensor[robot_no * 2] = current_location - 1
         elif (current_location == 0):  # cycle round
-            # print(f"{new_state[robot_no * 2]}->{env.size - 1}")
             state_tensor[robot_no * 2] = env.size - 1
     else:
         raise ValueError("Error: invalid action number for movement effect function!")
@@ -291,7 +286,7 @@ def r_model(env, state_tensor, action, next_state_tensor):
             if (state_tensor[(env.num_robots * 2) + (i * 5) + 2] != next_state_tensor[(env.num_robots * 2) + (i * 5) + 2]):
                 reward += 100
 
-    if (rel_action != 2):  # everything other than waiting costs a bit
+    if (rel_action != 3):  # everything other than waiting costs a bit
         reward -= 5
 
     # rewards for completing goals

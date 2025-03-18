@@ -90,7 +90,6 @@ class TokamakEnv14(gym.Env):
         self.state = state.copy()
         self.initial_state = state.copy()
 
-        # non-operational (static/inherited) parameters
         self.size = system_parameters.size
         self.elapsed_steps = 0
         self.start_locations = np.array(system_parameters.robot_locations.copy())
