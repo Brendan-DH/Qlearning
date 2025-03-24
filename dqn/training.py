@@ -33,8 +33,6 @@ def train_model(
         max_steps=None,  # max steps per episode
         batch_size=128,  # batch size of the replay memory
         buffer_size=10000,  # total size of replay memory buffer
-        state_tree_capacity=200,  # capacity of the state tree
-        tree_prune_frequency=10,  # number of episodes between pruning the state tree
         plot_frequency=10,  # number of episodes between status plots (0=disabled)
         checkpoint_frequency=0,  # number of episodes between saving weights (0=disabled)
         memory_sort_frequency=100,  # number of episodes between sorting the replay memory
@@ -93,30 +91,6 @@ def train_model(
             ----
 
             Environment description: saved to outputs/env_desc_{run_id}.txt
-            ----
-
-            Training hyperparameters:
-            num_episodes = {num_episodes}
-            gamma = {gamma}
-            epsilon_max = {epsilon_max}
-            epsilon_min = {epsilon_min}
-            epsilon_decay_function = {"default (exponential)" if not epsilon_decay_function else "custom"}
-            alpha = {alpha}
-            tau = {tau}
-            state_tree_capacity = {state_tree_capacity}
-            tree_prune_frequency = {tree_prune_frequency}
-            max_steps = {"as per env" if not max_steps else max_steps}
-            batch_size = {batch_size}
-            buffer_size = {buffer_size}
-            memory_sort_frequency = {memory_sort_frequency}
-            priority_coefficient = {priority_coefficient}
-            weighting_coefficient = {weighting_coefficient}
-
-            ----
-
-            Diagnostic values:
-            plot_frequency = {plot_frequency}
-            checkpoint_frequency = {checkpoint_frequency}
           """)
 
     # Initialisation of NN apparatus

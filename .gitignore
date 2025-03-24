@@ -2,6 +2,7 @@ agent.txt
 *.png
 animation/
 /outputs
+/inputs
 /environments/__pycache__
 __pycache__/
 __pycache__/*
@@ -18,4 +19,5 @@ mpc.py
 .vscode/*
 *.in
 js*
-/tokamak 
+/tokamak
+/ihfs

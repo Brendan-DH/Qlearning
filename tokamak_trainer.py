@@ -20,7 +20,7 @@ from dqn.training import train_model
 from dqn.dqn import DeepQNetwork
 from dqn.decay_functions import linear_epsilon_decay, exponential_epsilon_decay
 
-# use a non-display backend. no, i don't know what this means.
+# use a non-display backend. Honestly not sure of the purpose
 matplotlib.use('Agg')
 sys.stdout.flush()
 
@@ -108,13 +108,13 @@ if run_id is None:
 
 file_name = f"weights_{run_id}"
 
-if (file_name in os.listdir(os.getcwd() + "/outputs") and not overwrite):
+if (file_name in os.listdir(os.getcwd() + "/outputs/saved_weights") and not overwrite):
     print(f"File {file_name} already exists. Saving as {file_name}_{random_id} instead")
     output_name = f"{file_name}_{random_id}"
 else:
     print(f"Saving weights as weights_{run_id}")
     output_name = file_name
 
-torch.save(trained_dqn.state_dict(), f"./outputs/{output_name}")
+torch.save(trained_dqn.state_dict(), f"./outputs/saved_weights/{output_name}")
 
 sys.exit(1)

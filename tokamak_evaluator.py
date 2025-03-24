@@ -18,7 +18,7 @@ import sys
 import scenarios
 
 from dqn.dqn import DeepQNetwork
-from dqn.evaluation import evaluate_model_by_trial, generate_dtmc_file
+from dqn.evaluation import evaluate_model_by_trial, generate_dtmc_file, generate_mdp_file
 
 # use a non-display backend. no, i don't know what this means.
 matplotlib.use('Agg')
@@ -34,6 +34,7 @@ if (not load_weights_file):
 render = input_dict["render_evaluation"].lower() == "y"
 
 scenario = getattr(scenarios, input_dict["scenario"], None)
+
 try:
     mdpt = importlib.import_module(f"system_logic.{input_dict['system_logic']}")
 except ModuleNotFoundError:
@@ -62,11 +63,10 @@ plt.ion()
 n_actions = env.action_space.n
 state_tensor, info = env.reset()
 n_observations = len(state_tensor)
-
-
-loaded_weights = torch.load(os.getcwd() + "/outputs/" + load_weights_file)
+print(f"Looking for /inputs/{load_weights_file}")
+loaded_weights = torch.load(os.getcwd() + "/inputs/" + load_weights_file)
 nodes_per_layer = len(loaded_weights["hidden_layers.0.weight"])
-num_hidden_layers = int((len(loaded_weights.keys()) - 4)/2)  # -4 accounts for input and output weights and biases
+num_hidden_layers = int((len(loaded_weights.keys()) - 4) / 2)  # -4 accounts for input and output weights and biases
 
 policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 
@@ -86,8 +86,13 @@ if int(input_dict["num_evaluation_episodes"]) > 0:
     plt.xlabel("Total env steps")
     plt.savefig(f"outputs/trial_{load_weights_file.replace('/', '_')}.svg")
 
-print("Generate DTMC file...")
-generate_dtmc_file(os.getcwd() + "/outputs/" + load_weights_file, env, mdpt, f"dtmc_of_{load_weights_file}")
+
+if (input_dict["evaluation_type"] == "mdp"):
+    print("Generating MDP file")
+    generate_mdp_file(os.getcwd() + "/outputs/storm_files/" + load_weights_file, env, mdpt, f"dtmc_of_{load_weights_file}")
+elif (input_dict["evaluation_type"] == "dtmc"):
+    print("Generating DTMC file")
+    generate_dtmc_file(os.getcwd() + "/outputs/storm_files/" + load_weights_file, env, mdpt, f"mdp_of_{load_weights_file}")
 
 verification_property = "Rmax=?[F \"done\"]"
 

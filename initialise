@@ -40,6 +40,10 @@ fi
 mkdir $ROOTDIR/outputs
 mkdir $ROOTDIR/outputs/plots
 mkdir $ROOTDIR/outputs/checkpoints
+mkdir $ROOTDIR/outputs/storm_files
+mkdir $ROOTDIR/outputs/saved_weights
+
+mkdir $ROOTDIR/inputs/
 
 fi
 

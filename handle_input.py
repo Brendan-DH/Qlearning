@@ -21,8 +21,8 @@ def get_input_dict():
         "epsilon_min": 0.05,
         "min_epsilon_time": 0,
         "max_epsilon_time": 0,
-        "alpha": 1e-3,
-        "gamma": 0.5,
+        "alpha": 0.05,
+        "gamma": 0.8,
         "num_training_episodes": 300,
         "tau": 0.005,
         "use_pseudorewards": "n",
@@ -32,14 +32,15 @@ def get_input_dict():
         "buffer_size": 50000,
         "checkpoint_frequency": 50,
         "batch_size": 256,
+        "evaluation_type": "mdp",
         "render_evaluation": "n",
         "num_evaluation_episodes": 100,
         "overwrite_saved_weights": "n"
     }
 
-    if ("default_inputs.in" not in os.listdir(os.getcwd())):
-        print(f"Saving default inputs to {os.getcwd()}'/default_inputs.in'")
-        with open("default_inputs.in", "w") as file:
+    if ("default_inputs.in" not in os.listdir(os.getcwd() + "/inputs")):
+        print(f"Saving default inputs to '{os.getcwd()}/inputs/default_inputs.in'")
+        with open("inputs/default_inputs.in", "w") as file:
             file.write("# default input parameters for tokamak_trainer.py\n")
             for key, value in input_dict.items():
                 file.write(f"{key} = {value}\n")
