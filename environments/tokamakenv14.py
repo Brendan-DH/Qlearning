@@ -270,10 +270,11 @@ class TokamakEnv14(gym.Env):
     def pseudoreward_function(self, state_tensor):
         # defining a pseudoreward function that roughly describes the proximity to the `completed' state
         pr = self.size * self.num_robots * 2  # initialising to a high value
+        print("init", pr)
         for i in range(self.num_robots):
             rob_position = state_tensor[i * 2].item()
             goal_min_mod_dist = self.size + 1  # store the mod distance to closest goal
-            rob_min_mod_dist = self.size + 1  # store the mod distance to closest goal
+            rob_min_mod_dist = self.size + 1  # store the mod distance to closest robot
 
             for j in range(self.num_robots):
                 if i == j:
@@ -284,18 +285,24 @@ class TokamakEnv14(gym.Env):
                 rob_min_mod_dist = min(rob_min_mod_dist, rob_mod_dist)  # update the smaller of the two
 
             pr += 0.2 * rob_min_mod_dist  # give a small bonus for being farther away from nearest robot
+            print(f"robot {i} prox bonus", 0.2 * rob_min_mod_dist)
 
             for j in range(self.num_goals):
-                goal_active = state_tensor[(self.num_robots * 2) + (i * 5) + 1].item()
-                goal_checked = state_tensor[(self.num_robots * 2) + (i * 5) + 2].item()
-                if (not goal_active and goal_checked):
+                goal_active = state_tensor[(self.num_robots * 2) + (j * 5) + 1].item()
+                goal_checked = state_tensor[(self.num_robots * 2) + (j * 5) + 2].item()
+                if (goal_active == 0 and goal_checked == 1):
                     pr += self.size + 2  # bonus for completing a goal; ensures PR always increases when goals completed
+                    print(f"robot{i} goal {j} complete bonus", self.size + 2)
                 else:
                     goal_position = state_tensor[(self.num_robots * 2) + (j * 5)].item()
                     naive_dist = abs(rob_position - goal_position)  # non-mod distance
                     goal_mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
                     goal_min_mod_dist = min(goal_mod_dist, goal_min_mod_dist)  # update the smaller of the two
+
+            print(f"robot {i} goal penalty", goal_min_mod_dist)
             pr -= goal_min_mod_dist  # subtract the distance 'penalty' from total possible reward
+
+        print("final pr ", pr)
 
         return pr
 
