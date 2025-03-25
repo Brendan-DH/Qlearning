@@ -234,12 +234,12 @@ def t_model(env, state_tensor, action_no):
     rel_action = action_no % env.unwrapped.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
     # use the appropriate function to get the probability and state array for each possible action type:
-    if (rel_action == 1 or rel_action == 2):
-        p, s = template_move(env, new_state_tensor, action_no - 1)
+    if (rel_action == 0 or rel_action == 1):
+        p, s = template_move(env, new_state_tensor, action_no)
+    elif (rel_action == 2):
+        p, s = template_complete(env, new_state_tensor, action_no)
     elif (rel_action == 3):
-        p, s = template_complete(env, new_state_tensor, action_no - 1)
-    elif (rel_action == 0):
-        p, s = template_wait(env, new_state_tensor, action_no + 3)
+        p, s = template_wait(env, new_state_tensor, action_no)
     return p, s
 
 
