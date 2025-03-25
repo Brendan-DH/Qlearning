@@ -319,7 +319,6 @@ class TokamakEnv14(gym.Env):
         chosen_state = -1
         for i in range(len(p_tensor)):
             t += p_tensor[i]
-            # print("probs:", t, p_array)
             if (roll < t):
                 chosen_state = i
                 break

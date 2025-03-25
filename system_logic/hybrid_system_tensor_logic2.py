@@ -234,17 +234,16 @@ def t_model(env, state_tensor, action_no):
     rel_action = action_no % env.unwrapped.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
     # use the appropriate function to get the probability and state array for each possible action type:
-    if (rel_action == 0 or rel_action == 1):
-        p, s = template_move(env, new_state_tensor, action_no)
-    elif (rel_action == 2):
-        p, s = template_complete(env, new_state_tensor, action_no)
+    if (rel_action == 1 or rel_action == 2):
+        p, s = template_move(env, new_state_tensor, action_no - 1)
     elif (rel_action == 3):
-        p, s = template_wait(env, new_state_tensor, action_no)
+        p, s = template_complete(env, new_state_tensor, action_no - 1)
+    elif (rel_action == 0):
+        p, s = template_wait(env, new_state_tensor, action_no + 3)
     return p, s
 
 
 def initial_state_logic(env, state_tensor):
-
     state = state_tensor.detach().clone()
 
     for i in range(env.unwrapped.num_robots):
@@ -259,6 +258,7 @@ def initial_state_logic(env, state_tensor):
                 state[(env.unwrapped.num_robots * 2) + (j * 5) + 2] = 1
 
     return state
+
 
 # %%
 
@@ -381,7 +381,8 @@ def state_is_final(env, state_tensor):
         # iterate over goals in state
         # if (state_tensor[f"goal{i} checked"] == 0 or (state_tensor[f"goal{i} checked"] == 1 and state_tensor[f"goal{i} active"] == 1)):
         #     return False
-        if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2] == 0 or (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2] == 1 and state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 1)):
+        if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2] == 0 or (
+                state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2] == 1 and state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 1)):
             return False
 
     return True
