@@ -381,7 +381,7 @@ class TokamakEnv14(gym.Env):
         canvas.fill((255, 255, 255))
 
         # draw all positions
-        angle = 2 * np.pi / self.size
+        angle = - 2 * np.pi / self.size
         tokamak_r = self.window_size / 2 - 40
         for i in range(self.size):
             pygame.draw.circle(canvas, (144, 144, 144), (tokamak_centre[0], tokamak_centre[1]), tokamak_r, width=1)

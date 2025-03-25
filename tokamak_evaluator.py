@@ -70,7 +70,7 @@ num_hidden_layers = int((len(loaded_weights.keys()) - 4) / 2)  # -4 accounts for
 
 policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
 
-print(f"Loading from '/outputs/{load_weights_file}")
+print(f"Loading from /inputs/{load_weights_file}")
 policy_net.load_state_dict(loaded_weights)
 
 if int(input_dict["num_evaluation_episodes"]) > 0:
@@ -86,23 +86,36 @@ if int(input_dict["num_evaluation_episodes"]) > 0:
     plt.xlabel("Total env steps")
     plt.savefig(f"outputs/trial_{load_weights_file.replace('/', '_')}.svg")
 
+storm_dir_contents = os.listdir(os.getcwd() + "/outputs/storm_files")
 
 if (input_dict["evaluation_type"] == "mdp"):
-    print("Generating MDP file")
-    generate_mdp_file(os.getcwd() + "/outputs/storm_files/" + load_weights_file, env, mdpt, f"dtmc_of_{load_weights_file}")
+    output_name = f"mdp_of_{load_weights_file}"
+    verification_property = "Rmin=?[F \"done\"]"
+    if (output_name + ".tra" not in storm_dir_contents
+            or output_name + ".lab" not in storm_dir_contents
+            or output_name + ".transrew" not in storm_dir_contents):
+        print("Generating MDP file")
+        generate_mdp_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
+    else:
+        print(f"Found {output_name} files in outputs/storm_files. Will not generate a new one.")
 elif (input_dict["evaluation_type"] == "dtmc"):
-    print("Generating DTMC file")
-    generate_dtmc_file(os.getcwd() + "/outputs/storm_files/" + load_weights_file, env, mdpt, f"mdp_of_{load_weights_file}")
-
-verification_property = "Rmax=?[F \"done\"]"
+    output_name = f"dtmc_of_{load_weights_file}"
+    verification_property = "Rmax=?[F \"done\"]"
+    if (output_name + ".tra" not in storm_dir_contents
+            or output_name + ".lab" not in storm_dir_contents
+            or output_name + ".transrew" not in storm_dir_contents):
+        print("Generating DTMC file")
+        generate_dtmc_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
+    else:
+        print(f"Found {output_name} files in outputs/storm_files. Will not generation a new one.")
 
 print("Running STORM")
 subprocess.run(["storm",
                 "--explicit",
-                f"outputs/dtmc_of_{load_weights_file}.tra",
-                f"outputs/dtmc_of_{load_weights_file}.lab",
+                f"outputs/storm_files/{output_name}.tra",
+                f"outputs/storm_files/{output_name}.lab",
                 "--transrew",
-                f"outputs/dtmc_of_{load_weights_file}.transrew",
+                f"outputs/storm_files/{output_name}.transrew",
                 "--prop",
                 verification_property])
 

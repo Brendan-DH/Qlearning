@@ -22,7 +22,7 @@ def evaluate_model_by_trial(dqn,
         print("Cannot render on windows...")
         render = False
 
-    env.set_rendering(render)
+    env.unwrapped.set_rendering(render)
     device = torch.device("cpu")
     print(f"Evaluation running on {device}.")
 
@@ -36,7 +36,7 @@ def evaluate_model_by_trial(dqn,
         else:
             obs_state, info = env.reset()
 
-        states = [env.interpret_state_tensor(env.state_tensor)]
+        states = [env.unwrapped.interpret_state_tensor(env.unwrapped.state_tensor)]
         actions = []
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
         rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
@@ -45,17 +45,17 @@ def evaluate_model_by_trial(dqn,
 
             # calculate action utilities and choose action
             action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
-            blocked = env.blocked_model(env, env.state_tensor)
+            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_tensor)
             action_utilities = torch.where(blocked, -1000, action_utilities)
             action = torch.argmax(action_utilities).item()
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
 
-            states.append(env.interpret_state_tensor(env.state_tensor))
+            states.append(env.unwrapped.interpret_state_tensor(env.unwrapped.state_tensor))
             actions.append(action)
-            robot_no = math.floor(action / env.num_actions)
-            rel_action = rel_actions[action % env.num_actions]
+            # robot_no = math.floor(action / env.unwrapped.num_actions)
+            # rel_action = rel_actions[action % env.unwrapped.num_actions]
 
             obs_state = new_obs_state
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
@@ -96,7 +96,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     exploration_tensor_queue = Queue()
     exploration_observation_queue = Queue()
 
-    exploration_tensor_queue.put(env.state_tensor)  # tensors for full state description
+    exploration_tensor_queue.put(env.unwrapped.state_tensor)  # tensors for full state description
     exploration_observation_queue.put(init_state)  # observations for forward passes
 
     if (not weights_file):
@@ -116,7 +116,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     policy_net.load_state_dict(loaded_weights)
 
     new_id = 0  # an unencountered state will get this id, after which it will be incremented
-    states_id_dict = {str(env.state_tensor): 0}  # dictionary of state dicts to id
+    states_id_dict = {str(env.unwrapped.state_tensor): 0}  # dictionary of state dicts to id
     labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     new_id += 1
@@ -133,7 +133,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
         action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]
-        blocked = env.blocked_model(env, state_tensor)
+        blocked = env.unwrapped.blocked_model(env, state_tensor)
         action_utilities = torch.where(blocked, -1000, action_utilities)
         action = torch.argmax(action_utilities).item()
 
@@ -150,7 +150,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
 
             prob = float(result[0][i].item()) if torch.is_tensor(result[0][i]) else result[0][i]
             result_state_tensor = result[1][i]
-            result_state_dict = env.state_tensor_to_observable(result_state_tensor)
+            result_state_dict = env.unwrapped.state_tensor_to_observable(result_state_tensor)
 
             if (str(result_state_tensor) not in list(states_id_dict.keys())):  # register newly discovered states
                 states_id_dict[str(result_state_tensor)] = new_id
@@ -158,21 +158,21 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
                 exploration_observation_queue.put(result_state_dict)
                 new_id += 1
 
-            if (np.sum([result_state_dict[f"robot{i} clock"] for i in range(env.num_robots)]) == 0):  # assign awards to clock ticks
+            if (np.sum([result_state_dict[f"robot{i} clock"] for i in range(env.unwrapped.num_robots)]) == 0):  # assign awards to clock ticks
                 rewards_array.append(f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(result_state_tensor)]} 1")
 
             # print("prob", prob, type(prob))
             transitions_array.append(f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(result_state_tensor)]} {round(prob, 3)}")  # write the transitions into the file/array
 
-    print(f"\nWriting file to {os.getcwd()}/outputs/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
+    print(f"\nWriting file to {os.getcwd()}/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
 
-    f = open(os.getcwd() + f"/outputs/{output_name}.tra", "w")  # create DTMC file .tra
+    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "w")  # create DTMC file .tra
     f.write("dtmc\n")
     for i in range(len(transitions_array)):
         f.write(transitions_array[i] + "\n")
     f.close()
 
-    f = open(os.getcwd() + f"/outputs/{output_name}.lab", "w")  # create labels file .lab
+    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.lab", "w")  # create labels file .lab
     f.write("""
     #DECLARATION
     init done
@@ -184,7 +184,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
         f.write(labels_list[i])
     f.close()
 
-    f = open(os.getcwd() + f"/outputs/{output_name}.transrew", "w")  # rewards file .transrew
+    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.transrew", "w")  # rewards file .transrew
     for i in range(len(rewards_array)):
         f.write(rewards_array[i] + "\n")
     f.close()
@@ -192,7 +192,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     print(f"Saved policy DTMC as {output_name}.tra.")
 
     # check DTMC for invalid states
-    p_problem_states, unacknowledged_states = check_dtmc(os.getcwd() + f"/outputs/{output_name}.tra")
+    p_problem_states, unacknowledged_states = check_dtmc(os.getcwd() + f"/outputs/storm_files/{output_name}.tra")
 
     if (len(p_problem_states) == 0):
         print("Success: all probabilities sum to 1")
@@ -209,7 +209,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
             print(unacknowledged_states[i])
 
 
-def generate_mdp_file(weights_file, env, system_logic, output_name="dtmc"):
+def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
     # load the DQN
 
     n_actions = env.action_space.n
@@ -221,7 +221,7 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="dtmc"):
     exploration_tensor_queue = Queue()
     exploration_observation_queue = Queue()
 
-    exploration_tensor_queue.put(env.state_tensor)  # tensors for full state description
+    exploration_tensor_queue.put(env.unwrapped.state_tensor)  # tensors for full state description
     exploration_observation_queue.put(init_state)  # observations for forward passes
 
     if (not weights_file):
@@ -241,17 +241,18 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="dtmc"):
     policy_net.load_state_dict(loaded_weights)
 
     new_id = 0  # an unencountered state will get this id, after which it will be incremented
-    states_id_dict = {str(env.state_tensor): 0}  # dictionary of state dicts to id
+    states_id_dict = {str(env.unwrapped.state_tensor): 0}  # dictionary of state dicts to id
     labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     new_id += 1
     transitions_array = []
     rewards_array = []
     max_utility = 0
+    extra_states_counter = 0
 
     while (not exploration_tensor_queue.empty()):
 
-        print(f"\rStates in exploration queue: {' ' * (10 - len(str(exploration_tensor_queue.qsize())))}{exploration_tensor_queue.qsize()}", end="")
+        print(f"\rStates in exploration queue: {' ' * (10 - len(str(exploration_tensor_queue.qsize())))}{exploration_tensor_queue.qsize()} (Total #decisions: {extra_states_counter})", end="")
 
         state_tensor = exploration_tensor_queue.get()
         obs_state = exploration_observation_queue.get()
@@ -259,7 +260,7 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="dtmc"):
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
         action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]
-        blocked = env.blocked_model(env, state_tensor)
+        blocked = env.unwrapped.blocked_model(env, state_tensor)
         action_utilities = torch.where(blocked, -1000, action_utilities)
         # action = torch.argmax(action_utilities).item()
 
@@ -268,10 +269,9 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="dtmc"):
         results = [system_logic.t_model(env, state_tensor, action1)]
         # max_utility = max(max_utility, utilities[0])
         if (utilities[0] > max_utility):
-            print(f"new max utility {utilities[0]} scaled: {0.25 * utilities[0]}")
             max_utility = utilities[0]
         if (utilities[1] >= 0.97 * utilities[0] and utilities[1] > 0.75 * max_utility):
-            # print(utilities) if new_id % 100 == 0 else False
+            extra_states_counter += 1
             results.append(system_logic.t_model(env, state_tensor, action2))
 
         # label end states
@@ -286,7 +286,7 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="dtmc"):
 
                 prob = float(result[0][i].item()) if torch.is_tensor(result[0][i]) else result[0][i]
                 result_state_tensor = result[1][i]
-                result_state_dict = env.state_tensor_to_observable(result_state_tensor)
+                result_state_dict = env.unwrapped.state_tensor_to_observable(result_state_tensor)
 
                 if (str(result_state_tensor) not in list(states_id_dict.keys())):  # register newly discovered states
                     states_id_dict[str(result_state_tensor)] = new_id
@@ -294,22 +294,22 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="dtmc"):
                     exploration_observation_queue.put(result_state_dict)
                     new_id += 1
 
-                if (np.sum([result_state_dict[f"robot{i} clock"] for i in range(env.num_robots)]) == 0):  # assign awards to clock ticks
+                if (np.sum([result_state_dict[f"robot{i} clock"] for i in range(env.unwrapped.num_robots)]) == 0):  # assign awards to clock ticks
                     if f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(result_state_tensor)]} 1" not in rewards_array:
                         rewards_array.append(f"{states_id_dict[str(state_tensor)]} {a} {states_id_dict[str(result_state_tensor)]} 1")
 
                 # print("prob", prob, type(prob))
                 transitions_array.append(f"{states_id_dict[str(state_tensor)]} {a} {states_id_dict[str(result_state_tensor)]} {round(prob, 3)}")  # write the transitions into the file/array
 
-    print(f"\nWriting file to {os.getcwd()}/outputs/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
+    print(f"\nWriting file to {os.getcwd()}/outputs/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
 
-    f = open(os.getcwd() + f"/outputs/{output_name}.tra", "w")  # create DTMC file .tra
+    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "w")  # create DTMC file .tra
     f.write("mdp\n")
     for i in range(len(transitions_array)):
         f.write(transitions_array[i] + "\n")
     f.close()
 
-    f = open(os.getcwd() + f"/outputs/{output_name}.lab", "w")  # create labels file .lab
+    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.lab", "w")  # create labels file .lab
     f.write("""
     #DECLARATION
     init done
@@ -321,15 +321,15 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="dtmc"):
         f.write(labels_list[i])
     f.close()
 
-    f = open(os.getcwd() + f"/outputs/{output_name}.transrew", "w")  # rewards file .transrew
+    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.transrew", "w")  # rewards file .transrew
     for i in range(len(rewards_array)):
         f.write(rewards_array[i] + "\n")
     f.close()
 
-    print(f"Saved policy DTMC as {output_name}.tra.")
+    print(f"Saved policy MDP as {output_name}.tra.")
 
     # check DTMC for invalid states
-    p_problem_states, unacknowledged_states = check_dtmc(os.getcwd() + f"/outputs/{output_name}.tra")
+    p_problem_states, unacknowledged_states = check_dtmc(os.getcwd() + f"/outputs/storm_files/{output_name}.tra")
 
     if (len(p_problem_states) == 0):
         print("Success: all probabilities sum to 1")

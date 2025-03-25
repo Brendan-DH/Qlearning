@@ -20,8 +20,8 @@ def generate_system_parameters(ihfs_dir=os.getcwd() + "/ihfs", robot_locations=N
         size = len(ihfs)
         print(f"Num segments: {size}")
         print(f"Max/min value segment: {np.argmax(ihfs['norm. hf'])}/{np.argmin(ihfs['norm. hf'])}")
-        completion_prob = list((1 - ihfs['norm. hf'] * 0.8).values)
-        discovery_prob = list((ihfs['norm. hf'] * 0.95).values)
+        completion_prob = list((1 - ihfs['norm. hf'] * 0.9).values)
+        discovery_prob = list((ihfs['norm. hf'] * 0.80).values)
 
         sys_param = system_parameters(
             size=size,

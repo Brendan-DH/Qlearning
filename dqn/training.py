@@ -15,7 +15,7 @@ from dqn.dqn_collections import FiniteDict
 from dqn.memory import PriorityMemory
 from dqn.decay_functions import exponential_epsilon_decay
 from dqn.optimisation import optimise_model_with_importance_sampling
-
+import warnings
 
 def train_model(
         env,  # gymnasium environment
@@ -75,23 +75,24 @@ def train_model(
     epsilons = np.empty(num_episodes)
     episode_durations = np.empty(num_episodes)
     rewards = np.empty(num_episodes)
-    optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    with warnings.catch_warnings(action="ignore"):
+        optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     policy_net.to(torch.device("cpu"))
     target_net.to(torch.device("cpu"))
 
     with open(os.getcwd() + f"/outputs/env_desc_{run_id}.txt", "w") as file:
-        json.dump(env.state, file)
+        json.dump(env.unwrapped.state, file)
 
     print(f"""
-            Commensing training.
-            Optimisation Device: {optimiser_device}
-            Number of CUDA devices: {torch.cuda.device_count()}
-            Environment: {env.unwrapped.spec.id}
-            Run Id: {run_id}
-            ----
+        Commensing training.
+        Optimisation Device: {optimiser_device}
+        Environment: {env.unwrapped.spec.id}
+        Run Id: {run_id}
+        ----
 
-            Environment description: saved to outputs/env_desc_{run_id}.txt
-          """)
+        Environment description: saved to outputs/env_desc_{run_id}.txt
+        """)
 
     # Initialisation of NN apparatus
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
@@ -105,7 +106,6 @@ def train_model(
         file.write("# no data yet...")
 
     obs_state, info = env.reset()  # reset to init
-    # state tree reset optimisation
 
     gamma_tensor = torch.tensor(gamma, device=optimiser_device)
 
@@ -154,7 +154,7 @@ def train_model(
 
         # Initialise the first state
         if (use_pseudorewards):
-            phi_sprime = env.pseudoreward_function(env.state_tensor)  # phi_sprime is the pseudoreward of the new state
+            phi_sprime = env.unwrapped.pseudoreward_function(env.unwrapped.state_tensor)  # phi_sprime is the pseudoreward of the new state
         ep_reward = 0
 
         # Navigate the environment
@@ -167,7 +167,7 @@ def train_model(
             # calculate action utilities and choose action
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
             action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
-            blocked = env.blocked_model(env, env.state_tensor)
+            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_tensor)
             action_utilities = torch.where(blocked, -1000, action_utilities)
 
             if(torch.all(blocked)):
@@ -190,7 +190,7 @@ def train_model(
             # calculate pseudoreward
             if (use_pseudorewards):
                 phi = phi_sprime
-                phi_sprime = env.pseudoreward_function(env.state_tensor)
+                phi_sprime = env.unwrapped.pseudoreward_function(env.unwrapped.state_tensor)
                 pseudoreward = (gamma * phi_sprime - phi)
             else:
                 pseudoreward = 0
