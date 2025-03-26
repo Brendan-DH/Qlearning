@@ -295,6 +295,10 @@ class TokamakEnv14(gym.Env):
                     print(f"robot{i} goal {j} complete bonus", self.size + 2)
                 else:
                     goal_position = state_tensor[(self.num_robots * 2) + (j * 5)].item()
+                    # have to check here if there is another robot between the two - difficult
+                    # for k in range(self.num_robots):
+                    #     other_robot_pos = state_tensor[k * 2].item()
+                    #     if other_robot_pos in ...
                     naive_dist = abs(rob_position - goal_position)  # non-mod distance
                     goal_mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
                     goal_min_mod_dist = min(goal_mod_dist, goal_min_mod_dist)  # update the smaller of the two
