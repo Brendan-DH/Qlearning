@@ -312,6 +312,49 @@ def r_model(env, state_tensor, action, next_state_tensor):
 
 # %%
 
+def pseudoreward_function(env, state_tensor):
+    # defining a pseudoreward function that roughly describes the proximity to the `completed' state
+    pr = env.unwrapped.size * env.unwrapped.num_robots * 2  # initialising to a high value
+    for i in range(env.unwrapped.num_robots):
+        rob_position = state_tensor[i * 2].item()
+        goal_min_mod_dist = env.unwrapped.size + 1  # store the mod distance to closest goal
+        rob_min_mod_dist = env.unwrapped.size + 1  # store the mod distance to closest robot
+
+        for j in range(env.unwrapped.num_robots):
+            if i == j:
+                continue
+            other_robot_pos = state_tensor[j * 2].item()
+            naive_dist = abs(rob_position - other_robot_pos)  # non-mod distance
+            rob_mod_dist = min(naive_dist, env.unwrapped.size - naive_dist)  # to account for cyclical space
+            rob_min_mod_dist = min(rob_min_mod_dist, rob_mod_dist)  # update the smaller of the two
+
+        pr += 0.2 * rob_min_mod_dist  # give a small bonus for being farther away from nearest robot
+
+        for j in range(env.unwrapped.num_goals):
+            goal_is_CW = False
+            goal_active = state_tensor[(env.unwrapped.num_robots * 2) + (j * 5) + 1].item()
+            goal_checked = state_tensor[(env.unwrapped.num_robots * 2) + (j * 5) + 2].item()
+            if (goal_active == 0 and goal_checked == 1):
+                pr += env.unwrapped.size + 2  # bonus for completing a goal; ensures PR always increases when goals completed
+            else:
+                goal_position = state_tensor[(env.unwrapped.num_robots * 2) + (j * 5)].item()
+                naive_dist = abs(rob_position - goal_position)  # non-mod distance
+                goal_mod_dist = min(naive_dist, env.unwrapped.size - naive_dist)  # to account for cyclical space
+                if (goal_mod_dist == naive_dist):
+                    # then the goal is CW
+                    goal_is_CW = True
+                for k in range(env.unwrapped.num_robots):
+                    other_robot_pos = state_tensor[k * 2].item()
+                    if (goal_is_CW and rob_position < other_robot_pos <= goal_position) or (not goal_is_CW and (rob_position < other_robot_pos < 0 or 0 <= other_robot_pos <= goal_position)):
+                        # this goal is blocked off, so the distance is reversed to be in the other direction (presumed unblocked; not necessarily true but I hope should approximate)
+                        goal_mod_dist = env.unwrapped.size - goal_mod_dist
+
+                goal_min_mod_dist = min(goal_mod_dist, goal_min_mod_dist)  # update the smaller of the two
+
+        pr -= goal_min_mod_dist  # subtract the distance 'penalty' from total possible reward
+
+    return pr
+
 
 """
 This block defines which actions are blocked in each state

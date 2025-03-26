@@ -329,22 +329,22 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
     print(f"Saved policy MDP as {output_name}.tra.")
 
     # check DTMC for invalid states
-    p_problem_states, unacknowledged_states = check_dtmc(os.getcwd() + f"/outputs/storm_files/{output_name}.tra")
-
-    if (len(p_problem_states) == 0):
-        print("Success: all probabilities sum to 1")
-    else:
-        print("Error! Some outgoing probabilities do not sum to 1\nstate | total p")
-        for i in range(len(p_problem_states)):
-            print(f"{p_problem_states[i][0]} | {p_problem_states[i][1]}")
-
-    if (len(unacknowledged_states) == 0):
-        print("Success: all states included in transition structure")
-    else:
-        print("Error! Some encountered states have no outgoing transitions!\nStates:")
-        for i in range(len(unacknowledged_states)):
-            print(unacknowledged_states[i])
-
+    # p_problem_states, unacknowledged_states = check_dtmc(os.getcwd() + f"/outputs/storm_files/{output_name}.tra")
+    #
+    # if (len(p_problem_states) == 0):
+    #     print("Success: all probabilities sum to 1")
+    # else:
+    #     print("Error! Some outgoing probabilities do not sum to 1\nstate | total p")
+    #     for i in range(len(p_problem_states)):
+    #         print(f"{p_problem_states[i][0]} | {p_problem_states[i][1]}")
+    #
+    # if (len(unacknowledged_states) == 0):
+    #     print("Success: all states included in transition structure")
+    # else:
+    #     print("Error! Some encountered states have no outgoing transitions!\nStates:")
+    #     for i in range(len(unacknowledged_states)):
+    #         print(unacknowledged_states[i])
+    #
 
 def check_dtmc(filepath, verbose=False):
     p_outs = {}

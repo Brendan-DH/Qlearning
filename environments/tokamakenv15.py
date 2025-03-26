@@ -43,7 +43,7 @@ class TensorSpace(gym.Space):
         return f"TensorSpace(shape={self._shape}, dtype={self._dtype})"
 
 
-class TokamakEnv14(gym.Env):
+class TokamakEnv15(gym.Env):
     metadata = {"render_modes": [], "render_fps": 4}
 
     # def set_parameters(size, num_active, num_goals, goal_locations):
@@ -57,6 +57,7 @@ class TokamakEnv14(gym.Env):
                  transition_model,
                  blocked_model,
                  reward_model,
+                 pseudoreward_function,
                  initial_state_logic=None,
                  training=True,
                  render=False,
@@ -69,6 +70,7 @@ class TokamakEnv14(gym.Env):
         self.transition_model = transition_model
         self.reward_model = reward_model
         self.blocked_model = blocked_model
+        self.pseudoreward_function = pseudoreward_function
         self.runstates = []
         self.statetree = []
         self.render = render
@@ -84,8 +86,6 @@ class TokamakEnv14(gym.Env):
             state[f"goal{i} checked"] = system_parameters.goal_checked[i]  # 1 = goal location has been visited
             state[f"goal{i} discovery probability"] = system_parameters.goal_discovery_probabilities[i]  # p that goal is present
             state[f"goal{i} completion probability"] = system_parameters.goal_completion_probabilities[i]  # p that goal is completed in 1 attempt
-
-        # state["elapsed ticks"] = system_parameters.elapsed_ticks
 
         self.state = state.copy()
         self.initial_state = state.copy()
@@ -246,7 +246,6 @@ class TokamakEnv14(gym.Env):
         info = {}
         info["elapsed steps"] = self.elapsed_steps
         info["elapsed ticks"] = self.elapsed_ticks
-        # info["pseudoreward"] = self.pseudoreward_function()
         return info
 
     # def query_state_action_pair(self, state, action):
@@ -268,44 +267,7 @@ class TokamakEnv14(gym.Env):
         return self.get_obs(), info
 
     def pseudoreward_function(self, state_tensor):
-        # defining a pseudoreward function that roughly describes the proximity to the `completed' state
-        pr = self.size * self.num_robots * 2  # initialising to a high value
-        print("init", pr)
-        for i in range(self.num_robots):
-            rob_position = state_tensor[i * 2].item()
-            goal_min_mod_dist = self.size + 1  # store the mod distance to closest goal
-            rob_min_mod_dist = self.size + 1  # store the mod distance to closest robot
-
-            for j in range(self.num_robots):
-                if i == j:
-                    continue
-                other_robot_pos = state_tensor[j * 2].item()
-                naive_dist = abs(rob_position - other_robot_pos)  # non-mod distance
-                rob_mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
-                rob_min_mod_dist = min(rob_min_mod_dist, rob_mod_dist)  # update the smaller of the two
-
-            pr += 0.2 * rob_min_mod_dist  # give a small bonus for being farther away from nearest robot
-            print(f"robot {i} prox bonus", 0.2 * rob_min_mod_dist)
-
-            for j in range(self.num_goals):
-                goal_is_CW = False
-                goal_active = state_tensor[(self.num_robots * 2) + (j * 5) + 1].item()
-                goal_checked = state_tensor[(self.num_robots * 2) + (j * 5) + 2].item()
-                if (goal_active == 0 and goal_checked == 1):
-                    pr += self.size + 2  # bonus for completing a goal; ensures PR always increases when goals completed
-                    print(f"robot{i} goal {j} complete bonus", self.size + 2)
-                else:
-                    goal_position = state_tensor[(self.num_robots * 2) + (j * 5)].item()
-                    naive_dist = abs(rob_position - goal_position)  # non-mod distance
-                    goal_mod_dist = min(naive_dist, self.size - naive_dist)  # to account for cyclical space
-                    goal_min_mod_dist = min(goal_mod_dist, goal_min_mod_dist)  # update the smaller of the two
-
-            print(f"robot {i} goal penalty", goal_min_mod_dist)
-            pr -= goal_min_mod_dist  # subtract the distance 'penalty' from total possible reward
-
-        print("final pr ", pr)
-
-        return pr
+        raise NotImplementedError("No pseudoreward function has been supplied.")
 
     def transition_model(self, state, action_no):
         raise NotImplementedError("The transistion model of this environment is not defined.")
@@ -361,10 +323,6 @@ class TokamakEnv14(gym.Env):
             return self.render_frame()
 
     def render_frame(self, state, inEnv=False):
-
-        # note: the -np.pi is to keep the segments consistent with the jorek interpreter
-
-        # print(self.blocked_model(self, state))
 
         if (self.render_ticks_only):
             for i in range(self.num_robots):
