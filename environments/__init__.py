@@ -15,3 +15,5 @@
 # from gymnasium.envs.tokamak.tokamaktemplater5 import TokamakTemplater5
 
 from gymnasium.envs.tokamak.tokamakenv14 import TokamakEnv14
+from gymnasium.envs.tokamak.tokamakenv15 import TokamakEnv15
+

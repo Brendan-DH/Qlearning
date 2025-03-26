@@ -154,7 +154,7 @@ def train_model(
 
         # Initialise the first state
         if (use_pseudorewards):
-            phi_sprime = env.unwrapped.pseudoreward_function(env.unwrapped.state_tensor)  # phi_sprime is the pseudoreward of the new state
+            phi_sprime = env.unwrapped.pseudoreward_function(env, env.unwrapped.state_tensor)  # phi_sprime is the pseudoreward of the new state
         ep_reward = 0
 
         # Navigate the environment
@@ -190,7 +190,7 @@ def train_model(
             # calculate pseudoreward
             if (use_pseudorewards):
                 phi = phi_sprime
-                phi_sprime = env.unwrapped.pseudoreward_function(env.unwrapped.state_tensor)
+                phi_sprime = env.unwrapped.pseudoreward_function(env, env.unwrapped.state_tensor)
                 pseudoreward = (gamma * phi_sprime - phi)
             else:
                 pseudoreward = 0
