@@ -9,13 +9,17 @@ import importlib
 def get_input_dict():
 
     input_dict = {
-        "environment": "Tokamak-v14",
+        "environment": "Tokamak-v15",
         "run_id": None,
-        "evaluation_weights_file": None,
         "scenario": None,
         "system_logic": "hybrid_system_tensor_logic",
         "nodes_per_layer": 256,
         "num_hidden_layers": 6,
+        "batch_size": 256,
+        "buffer_size": 50000,
+        "memory_sort_frequency": 5,
+        "num_training_episodes": 300,
+        "max_steps": 200,
         "epsilon_decay_type": "exponential",
         "epsilon_max": 0.95,
         "epsilon_min": 0.05,
@@ -23,19 +27,15 @@ def get_input_dict():
         "max_epsilon_time": 0,
         "alpha": 0.05,
         "gamma": 0.8,
-        "num_training_episodes": 300,
         "tau": 0.005,
         "use_pseudorewards": "n",
         "plot_frequency": 20,
-        "memory_sort_frequency": 5,
-        "max_steps": 200,
-        "buffer_size": 50000,
         "checkpoint_frequency": 50,
-        "batch_size": 256,
-        "evaluation_type": "mdp",
+        "overwrite_saved_weights": "n",
+        "evaluation_weights_file": None,
         "render_evaluation": "n",
         "num_evaluation_episodes": 100,
-        "overwrite_saved_weights": "n"
+        "evaluation_type": "mdp"
     }
 
     if ("default_inputs.in" not in os.listdir(os.getcwd() + "/inputs")):

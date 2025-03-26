@@ -19,6 +19,7 @@ import scenarios
 from dqn.training import train_model
 from dqn.dqn import DeepQNetwork
 from dqn.decay_functions import linear_epsilon_decay, exponential_epsilon_decay
+from system_logic.hybrid_system_tensor_logic import pseudoreward_function
 
 # use a non-display backend. Honestly not sure of the purpose
 matplotlib.use('Agg')
@@ -53,6 +54,7 @@ env = gym.make(env_to_use,
                transition_model=mdpt.t_model,
                reward_model=mdpt.r_model,
                blocked_model=mdpt.b_model,
+               pseudoreward_function = mdpt.pseudoreward_function,
                initial_state_logic=mdpt.initial_state_logic,
                training=True,
                render=False)
