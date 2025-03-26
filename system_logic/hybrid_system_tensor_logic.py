@@ -314,9 +314,6 @@ def r_model(env, state_tensor, action, next_state_tensor):
     return reward
 
 
-# %%
-
-
 def pseudoreward_function(env, state_tensor):
     # defining a pseudoreward function that roughly describes the proximity to the `completed' state
     pr = env.unwrapped.size * env.unwrapped.num_robots * 2  # initialising to a high value

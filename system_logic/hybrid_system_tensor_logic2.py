@@ -340,15 +340,6 @@ def pseudoreward_function(env, state_tensor):
                 goal_position = state_tensor[(env.unwrapped.num_robots * 2) + (j * 5)].item()
                 naive_dist = abs(rob_position - goal_position)  # non-mod distance
                 goal_mod_dist = min(naive_dist, env.unwrapped.size - naive_dist)  # to account for cyclical space
-                if (goal_mod_dist == naive_dist):
-                    # then the goal is CW
-                    goal_is_CW = True
-                for k in range(env.unwrapped.num_robots):
-                    other_robot_pos = state_tensor[k * 2].item()
-                    if (goal_is_CW and rob_position < other_robot_pos <= goal_position) or (not goal_is_CW and (rob_position < other_robot_pos < 0 or 0 <= other_robot_pos <= goal_position)):
-                        # this goal is blocked off, so the distance is reversed to be in the other direction (presumed unblocked; not necessarily true but I hope should approximate)
-                        goal_mod_dist = env.unwrapped.size - goal_mod_dist
-
                 goal_min_mod_dist = min(goal_mod_dist, goal_min_mod_dist)  # update the smaller of the two
 
         pr -= goal_min_mod_dist  # subtract the distance 'penalty' from total possible reward
