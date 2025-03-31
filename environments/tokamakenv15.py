@@ -57,7 +57,7 @@ class TokamakEnv15(gym.Env):
                  transition_model,
                  blocked_model,
                  reward_model,
-                 pseudoreward_function,
+                 pseudoreward_function=None,
                  initial_state_logic=None,
                  training=True,
                  render=False,

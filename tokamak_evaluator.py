@@ -19,6 +19,7 @@ import scenarios
 
 from dqn.dqn import DeepQNetwork
 from dqn.evaluation import evaluate_model_by_trial, generate_dtmc_file, generate_mdp_file
+from system_logic.hybrid_system_tensor_logic import pseudoreward_function
 
 # use a non-display backend. no, i don't know what this means.
 matplotlib.use('Agg')

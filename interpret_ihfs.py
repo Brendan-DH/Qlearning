@@ -5,11 +5,12 @@ import numpy as np
 import pandas as pd
 from dqn.dqn_collections import system_parameters
 import matplotlib.pyplot as plt
+
 plt.rcParams['font.family'] = 'serif'
 
 
-def sigmoid(x,k=1,L=1):
-    return 1/(1+np.exp(-k*x))
+def sigmoid(x, k=1, L=1):
+    return 1 / (1 + np.exp(-k * x))
 
 
 def generate_system_parameters(ihfs_dir=os.getcwd() + "/ihfs", robot_locations=None):
@@ -26,15 +27,15 @@ def generate_system_parameters(ihfs_dir=os.getcwd() + "/ihfs", robot_locations=N
         size = len(ihfs)
         print(f"Num segments: {size}")
         print(f"Max/min value segment: {np.argmax(ihfs['norm. hf'])}/{np.argmin(ihfs['norm. hf'])}")
-        completion_prob = list(1-(ihfs['norm. hf'].values * 0.9))
-        discovery_prob = list(sigmoid(ihfs['norm. hf'].values, 5)*0.9)
+        completion_prob = list(1 - (ihfs['norm. hf'].values * 0.9))
+        discovery_prob = list(sigmoid(ihfs['norm. hf'].values, 5) * 0.9)
 
         plt.figure()
         plt.plot(discovery_prob, label="Discovery probability")
         plt.plot(completion_prob, label="Completion probability")
         plt.plot(ihfs["norm. hf"], label="Normalised heat")
         plt.xlabel("Segment")
-        plt.xticks(range(0,size))
+        plt.xticks(range(0, size))
         plt.grid()
         plt.legend()
         plt.title(rects_name)
@@ -50,7 +51,7 @@ def generate_system_parameters(ihfs_dir=os.getcwd() + "/ihfs", robot_locations=N
             goal_checked=[0 for i in range(size)],
             elapsed_ticks=0,
         )
-        print("system parameters:\n", sys_param)
+        print(f"{rects_name}=", sys_param)
         parameter_dictionary[rects_name] = sys_param
 
         print("\n", end="")
@@ -58,4 +59,6 @@ def generate_system_parameters(ihfs_dir=os.getcwd() + "/ihfs", robot_locations=N
     return parameter_dictionary
 
 
-generate_system_parameters()
+param_dict = generate_system_parameters()
+
+print(param_dict)
