@@ -121,6 +121,7 @@ def template_wait(env, state_tensor, action_no):
     """
 
     robot_no = int(torch.floor_divide(action_no, env.unwrapped.num_actions).item())
+    # print(f"{robot_no} waiting")
     new_state = clock_effect(env, state_tensor, robot_no)
 
     return (torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False),
@@ -277,10 +278,7 @@ This block defines the rewards model of the system
 def r_model(env, state_tensor, action, next_state_tensor):
     reward = 0
 
-    # rewards for blocked actions
-    # this is necessary to stop the total rewards shooting up when blocked actions are taken
-    # mostly a diagnostic thing... I think
-    #
+    # # Disincentivise robots from being on the same tile as one another
     # for i in range(env.unwrapped.num_robots):
     #     for j in range(env.unwrapped.num_robots):
     #         if i == j:
@@ -289,6 +287,9 @@ def r_model(env, state_tensor, action, next_state_tensor):
     #             if (state_tensor[i * 2].item() == state_tensor[j * 2].item()):
     #                 reward -= 50
 
+    # rewards for blocked actions
+    # this is necessary to stop the total rewards shooting up when blocked actions are taken
+    # mostly a diagnostic thing... I think
     if (env.unwrapped.blocked_model(env, state_tensor)[action] == 1):
         return 0
 
@@ -360,8 +361,8 @@ Essentially, this is an auxiliary part of the transition model
 
 def b_model(env, state_tensor):
     blocked_actions = np.zeros(env.action_space.n)
-    for i in range(0, env.unwrapped.num_robots):
-        blocked_actions[(i * env.unwrapped.num_actions) + 3] = 1
+    # for i in range(0, env.unwrapped.num_robots):
+    #     blocked_actions[(i * env.unwrapped.num_actions) + 3] = 1
 
     for i in range(env.unwrapped.num_robots):
         # print(state_tensor)
