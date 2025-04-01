@@ -6,7 +6,7 @@ import scenarios
 import importlib
 
 
-def get_input_dict():
+def get_input_dict(input_dir="/inputs", print_inputs=True):
 
     input_dict = {
         "environment": "Tokamak-v15",
@@ -38,9 +38,10 @@ def get_input_dict():
         "evaluation_type": "mdp"
     }
 
-    if ("default_inputs.in" not in os.listdir(os.getcwd() + "/inputs")):
-        print(f"Saving default inputs to '{os.getcwd()}/inputs/default_inputs.in'")
-        with open("inputs/default_inputs.in", "w") as file:
+    # this block prints out the default values if it doesn't detect them in "input_dir"
+    if ("default_inputs.in" not in os.listdir(os.getcwd() + input_dir)):
+        print(f"Saving default inputs to '{os.getcwd()}/{input_dir}/default_inputs.in'")
+        with open(f"{input_dir}/default_inputs.in", "w") as file:
             file.write("# default input parameters for tokamak_trainer.py\n")
             for key, value in input_dict.items():
                 file.write(f"{key} = {value}\n")
@@ -48,21 +49,22 @@ def get_input_dict():
 
     # get input from stdin
     print("Attempting to read input file.")
-    stdin = sys.stdin
-    if (select.select([sys.stdin,],[],[],0.0)[0]):
+    stdin = sys.stdin # get the input file from the standard input
+    if (select.select([sys.stdin,],[],[],0.0)[0]):  # checks to make sure there IS any input
         for line in stdin:
-            if (line[0] == "#" or len(line) == 0):
+            if (line[0] == "#" or len(line) == 0 or line.strip() == ""):  # skip comments and empty lines
                 continue
             key, value = line.replace(" ", "").strip().split("=")
             if (key in input_dict.keys()):
-                input_dict[key] = value
+                input_dict[key] = value  # overwrite the default value with what you read
             else:
                 print(f"Warning: input variable '{key}' not understood, skipping.")
     else:
         print("No input file specified, exiting.")
         sys.exit(1)
 
-    dict_string = '\n'.join('{0}: {1}'.format(k, v)  for k,v in input_dict.items())
-    print(f"Input dictionary:\n----\n{dict_string}\n----\n")
+    if print_inputs:
+        dict_string = '\n'.join('{0}: {1}'.format(k, v)  for k,v in input_dict.items())
+        print(f"Input dictionary:\n----\n{dict_string}\n----\n")
 
     return input_dict

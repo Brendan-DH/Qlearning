@@ -20,9 +20,10 @@ the mdp translation functionaltiy.
 
 """
 import math
-
+import sys
 import numpy as np
 import torch
+
 
 global_device = "cpu"
 # %%
@@ -105,8 +106,8 @@ def template_complete(env, state_tensor, action_no):
             state2[(env.unwrapped.num_robots * 2) + (i * 5) + 1] = 1
             state2 = clock_effect(env, state2, robot_no)  # at this point, goals have been inspected
 
-            if (num_robots_present > 1):
-                prob1 = np.sqrt(prob1)
+            if (num_robots_present == 2):
+                prob1 = prob1 ** (0.33)
                 prob2 = 1 - prob1
 
             return ([prob1, prob2], torch.stack([state1, state2]))
@@ -232,10 +233,9 @@ def t_model(env, state_tensor, action_no):
     robot_no = int(torch.floor_divide(action_no, env.unwrapped.num_actions).item())
 
     if (env.unwrapped.blocked_model(env, new_state_tensor)[action_no] == 1):
-        new_state = clock_effect(env, new_state_tensor, robot_no)
-        p = torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False)
-        s = torch.tensor([new_state], device=global_device, dtype=torch.float32, requires_grad=False)
-        return p, s
+        new_state_tensor = clock_effect(env, new_state_tensor, robot_no)
+        return (torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False),
+                new_state_tensor.unsqueeze(0))
 
     rel_action = action_no % env.unwrapped.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
@@ -310,7 +310,7 @@ def r_model(env, state_tensor, action, next_state_tensor):
         if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 1 and next_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 0):
             reward += 1000
 
-    if (state_is_final(env, state_tensor)):
+    if (state_is_final(env, next_state_tensor)):
         reward += 10000
 
     return reward
@@ -337,7 +337,6 @@ def pseudoreward_function(env, state_tensor):
         pr += 0.2 * rob_min_mod_dist  # give a small bonus for being farther away from nearest robot
 
         for j in range(env.unwrapped.num_goals):
-            goal_is_CW = False
             goal_active = state_tensor[(env.unwrapped.num_robots * 2) + (j * 5) + 1].item()
             goal_checked = state_tensor[(env.unwrapped.num_robots * 2) + (j * 5) + 2].item()
             if (goal_active == 0 and goal_checked == 1):
@@ -350,7 +349,7 @@ def pseudoreward_function(env, state_tensor):
 
         pr -= goal_min_mod_dist  # subtract the distance 'penalty' from total possible reward
 
-    return pr
+    return pr * 0.01
 
 
 """
@@ -380,8 +379,9 @@ def b_model(env, state_tensor):
             for m in range(env.unwrapped.num_robots):
                 if i == m:
                     continue
-                elif active_robot_loc == state_tensor[m * 2] - 1 or active_robot_loc == state_tensor[m * 2] + 1:
+                elif abs(min(active_robot_loc - state_tensor[m * 2], env.unwrapped.size - (active_robot_loc - state_tensor[m * 2]))) == 1:
                     other_robot_adjacent = True
+                    break
 
             if not other_robot_adjacent:
                 for k in range(env.unwrapped.num_goals):

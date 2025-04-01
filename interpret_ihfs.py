@@ -21,13 +21,13 @@ def generate_system_parameters(ihfs_dir=os.getcwd() + "/ihfs", robot_locations=N
 
     for i in range(len(directory)):
         filename = directory[i]
-        rects_name = re.findall(r"-(.*?)\.", filename)[0]
+        rects_name = re.findall(r"-(.*?)\.", filename)[0]+"_hard"
         print(f"Name: {rects_name}")
         ihfs = pd.read_pickle(ihfs_dir + "/" + filename)
         size = len(ihfs)
         print(f"Num segments: {size}")
         print(f"Max/min value segment: {np.argmax(ihfs['norm. hf'])}/{np.argmin(ihfs['norm. hf'])}")
-        completion_prob = list(1 - (ihfs['norm. hf'].values * 0.9))
+        completion_prob = list(1 - sigmoid(ihfs['norm. hf'].values * 0.9, 4))
         discovery_prob = list(sigmoid(ihfs['norm. hf'].values, 5) * 0.9)
 
         plt.figure()
@@ -40,6 +40,7 @@ def generate_system_parameters(ihfs_dir=os.getcwd() + "/ihfs", robot_locations=N
         plt.legend()
         plt.title(rects_name)
         plt.savefig(f"outputs/plots/{rects_name}_scenario.svg")
+        plt.savefig(f"outputs/plots/{rects_name}_scenario.png")
 
         sys_param = system_parameters(
             size=size,
