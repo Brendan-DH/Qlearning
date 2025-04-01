@@ -2,7 +2,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import sys
 
 
 def plot_status(episode_durations, rewards, epsilons):

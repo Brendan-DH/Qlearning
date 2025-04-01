@@ -280,14 +280,14 @@ def r_model(env, state_tensor, action, next_state_tensor):
     # rewards for blocked actions
     # this is necessary to stop the total rewards shooting up when blocked actions are taken
     # mostly a diagnostic thing... I think
-
-    for i in range(env.unwrapped.num_robots):
-        for j in range(env.unwrapped.num_robots):
-            if i == j:
-                continue
-            else:
-                if (state_tensor[i * 2].item() == state_tensor[j * 2].item()):
-                    reward -= 50
+    #
+    # for i in range(env.unwrapped.num_robots):
+    #     for j in range(env.unwrapped.num_robots):
+    #         if i == j:
+    #             continue
+    #         else:
+    #             if (state_tensor[i * 2].item() == state_tensor[j * 2].item()):
+    #                 reward -= 50
 
     if (env.unwrapped.blocked_model(env, state_tensor)[action] == 1):
         return 0
