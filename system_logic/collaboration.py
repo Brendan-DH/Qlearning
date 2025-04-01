@@ -302,8 +302,8 @@ def r_model(env, state_tensor, action, next_state_tensor):
             if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2] != next_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2]):
                 reward += 100
 
-    if (rel_action != 3):  # everything other than waiting costs a bit
-        reward -= 10
+    if (rel_action == 3):  # everything other than waiting costs a bit
+        reward += 5
 
     # rewards for completing goals
     for i in range(env.unwrapped.num_goals):
@@ -350,7 +350,7 @@ def pseudoreward_function(env, state_tensor):
 
         pr -= goal_min_mod_dist  # subtract the distance 'penalty' from total possible reward
 
-    return pr * 0.01
+    return pr * 0.1
 
 
 """
