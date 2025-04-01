@@ -118,4 +118,4 @@ else:
 
 torch.save(trained_dqn.state_dict(), f"./outputs/saved_weights/{output_name}")
 
-sys.exit(1)
+sys.exit(0)

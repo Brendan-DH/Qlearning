@@ -300,11 +300,11 @@ def r_model(env, state_tensor, action, next_state_tensor):
         for i in range(env.unwrapped.num_goals):
             # check if goal went from unchecked to checked
             if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2] != next_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2]):
-                reward += 100
+                reward += 300
 
     if (rel_action == 3):  # everything other than waiting costs a bit
         reward += 5
-    if(rel_action == 2):
+    if (rel_action == 2):
         reward += 100
 
     # rewards for completing goals
