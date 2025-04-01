@@ -53,6 +53,10 @@ def evaluate_model_by_trial(dqn,
             new_obs_state, reward, terminated, truncated, info = env.step(action)
 
             states.append(env.unwrapped.interpret_state_tensor(env.unwrapped.state_tensor))
+            print(f"Action: {rel_actions[action%env.unwrapped.num_actions]} on robot {math.floor(action/env.unwrapped.num_actions)}\n"
+                  f"Reward: {reward}\n"
+                  f"Blocked: {env.unwrapped.blocked_model(env, env.state_tensor)}\n"
+                  f"Action ultilities: {action_utilities}")
             actions.append(action)
             # robot_no = math.floor(action / env.unwrapped.num_actions)
             # rel_action = rel_actions[action % env.unwrapped.num_actions]

@@ -303,7 +303,8 @@ def r_model(env, state_tensor, action, next_state_tensor):
                 reward += 300
 
     if (rel_action == 3):  # everything other than waiting costs a bit
-        reward += 5
+        reward += 0.5
+
     if (rel_action == 2):
         reward += 100
 
@@ -313,7 +314,7 @@ def r_model(env, state_tensor, action, next_state_tensor):
         if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 1 and next_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 0):
             reward += 1000
 
-    if (state_is_final(env, state_tensor) or state_is_final(env, next_state_tensor)):
+    if (state_is_final(env, next_state_tensor)):
         reward += 10000
 
     return reward

@@ -16,6 +16,7 @@ from dqn.memory import PriorityMemory
 from dqn.decay_functions import exponential_epsilon_decay
 from dqn.optimisation import optimise_model_with_importance_sampling
 import warnings
+import math
 
 def train_model(
         env,  # gymnasium environment
@@ -161,6 +162,7 @@ def train_model(
         recent_state_capacity = 5
         recent_states = deque([], maxlen=recent_state_capacity)
         # recent_states.appendleft(str(obs_state.values()))
+        rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
         for t in count():
 
@@ -198,6 +200,10 @@ def train_model(
             # calculate reward
             reward = reward + pseudoreward  # torch.tensor([reward + pseudoreward], device=device, dtype=torch.float32)
             ep_reward += reward
+
+            # print(f"Action: {rel_actions[action%env.unwrapped.num_actions]} on robot {math.floor(action/env.unwrapped.num_actions)}\n"
+            #       f"Reward: {reward}\n"
+            #       f"Blocked: {env.unwrapped.blocked_model(env, env.state_tensor)}")
 
             # work out if the run is over
             done = terminated or truncated or (t > max_steps)
