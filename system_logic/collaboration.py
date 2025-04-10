@@ -24,7 +24,6 @@ import sys
 import numpy as np
 import torch
 
-
 global_device = "cpu"
 # %%
 
@@ -95,13 +94,13 @@ def template_complete(env, state_tensor, action_no):
         # if (state_tensor[f"goal{i} location"] == state_tensor[f"robot{robot_no} location"]):
         if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5)] == state_tensor[robot_no * 2]):
             # goal is successfully completed
-            prob1 = state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 4]
+            prob1 = state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 4].item()
             state1 = state_tensor.detach().clone()
             state1[(env.unwrapped.num_robots * 2) + (i * 5) + 1] = 0
             state1 = clock_effect(env, state1, robot_no)  # at this point, goals have been inspected
 
             # failure to complete goal
-            prob2 = round(1 - state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 4].item(), 5)  # this rounding may cause problems!!!!!
+            prob2 = 1 - prob1
             state2 = state_tensor.detach().clone()
             state2[(env.unwrapped.num_robots * 2) + (i * 5) + 1] = 1
             state2 = clock_effect(env, state2, robot_no)  # at this point, goals have been inspected
@@ -184,10 +183,8 @@ def discovery_effect(env, state_tensor, robot_no):
     for i in range(env.unwrapped.num_goals):
         gloc = state_tensor[(env.unwrapped.num_robots * 2) + (i * 5)].item()
         rloc = state_tensor[(robot_no * 2)].item()  # made a change here were an extra loop over num_robots appeared to do nothing
-        # print("locations", gloc, rloc)
         if (gloc == rloc):  # this requires a CPU transfer so is expensive
             goal_index = i
-            #             print(f"goal index: {i}")
             break
 
     if (goal_index == -1):  # no goals here; return the original state dict
@@ -207,12 +204,12 @@ def discovery_effect(env, state_tensor, robot_no):
         state_tensor[(env.unwrapped.num_robots * 2) + (goal_index * 5) + 2] = 1
 
         # a goal was discovered
-        prob1 = state_tensor[(env.unwrapped.num_robots * 2) + (goal_index * 5) + 3]
+        prob1 = state_tensor[(env.unwrapped.num_robots * 2) + (goal_index * 5) + 3].item()
         state1 = state_tensor.detach().clone()
         state1[(env.unwrapped.num_robots * 2) + (goal_index * 5) + 1] = 1
 
         # no goal was found here
-        prob2 = round(1 - state_tensor[(env.unwrapped.num_robots * 2) + (goal_index * 5) + 3].item(), 5)  # this rounding may cause problems!!!!!
+        prob2 = 1 - prob1
         state2 = state_tensor.detach().clone()
         state2[(env.unwrapped.num_robots * 2) + (goal_index * 5) + 1] = 0
 
@@ -276,24 +273,18 @@ This block defines the rewards model of the system
 
 
 def r_model(env, state_tensor, action, next_state_tensor):
-    reward = 0
-
-    # # Disincentivise robots from being on the same tile as one another
-    # for i in range(env.unwrapped.num_robots):
-    #     for j in range(env.unwrapped.num_robots):
-    #         if i == j:
-    #             continue
-    #         else:
-    #             if (state_tensor[i * 2].item() == state_tensor[j * 2].item()):
-    #                 reward -= 50
-
     # rewards for blocked actions
     # this is necessary to stop the total rewards shooting up when blocked actions are taken
     # mostly a diagnostic thing... I think
     if (env.unwrapped.blocked_model(env, state_tensor)[action] == 1):
+        print("returning a reward for a blocked action")
         return 0
 
     rel_action = action % env.unwrapped.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
+    if (rel_action == 3):
+        reward = 0
+    else:
+        reward = -0.2
 
     # reward for checking a goal by moving onto its position
     if (rel_action < 2):
@@ -302,20 +293,14 @@ def r_model(env, state_tensor, action, next_state_tensor):
             if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2] != next_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2]):
                 reward += 300
 
-    if (rel_action == 3):  # everything other than waiting costs a bit
-        reward += 0.5
-
-    if (rel_action == 2):
-        reward += 100
-
     # rewards for completing goals
     for i in range(env.unwrapped.num_goals):
-        # check if any goals have been accomplished
         if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 1 and next_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 0):
             reward += 1000
 
+    # reward for having moved into a terminal state
     if (state_is_final(env, next_state_tensor)):
-        reward += 10000
+        reward += 100000
 
     return reward
 

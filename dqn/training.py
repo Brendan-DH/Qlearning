@@ -188,6 +188,7 @@ def train_model(
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
+            # print(f"step {t} reward {reward} ")
 
             # calculate pseudoreward
             if (use_pseudorewards):
@@ -201,9 +202,10 @@ def train_model(
             reward = reward + pseudoreward  # torch.tensor([reward + pseudoreward], device=device, dtype=torch.float32)
             ep_reward += reward
 
-            # print(f"Action: {rel_actions[action%env.unwrapped.num_actions]} on robot {math.floor(action/env.unwrapped.num_actions)}\n"
-            #       f"Reward: {reward}\n"
-            #       f"Blocked: {env.unwrapped.blocked_model(env, env.state_tensor)}")
+            print(f"Step {t}\n"
+                  f"Action: {rel_actions[action%env.unwrapped.num_actions]} on robot {math.floor(action/env.unwrapped.num_actions)}\n"
+                  f"Reward: {reward}\n"
+                  f"Blocked: {env.unwrapped.blocked_model(env, env.state_tensor)}")
 
             # work out if the run is over
             done = terminated or truncated or (t > max_steps)
