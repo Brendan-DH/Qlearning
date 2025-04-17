@@ -35,7 +35,6 @@ class PriorityMemory(object):
             return
 
         items = [self.memory.pop() for i in range(len(self.memory))]  # pop everything?
-        # print(items)
         items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
         self.memory = deque(items, maxlen=self.capacity)
 
@@ -51,8 +50,7 @@ class PriorityMemory(object):
         # print("Iterating over bounds...")
         for i in range(len(bounds)):  # iterate over segments
             prob_in_segment = 0
-            for j in range(start,
-                           start + self.capacity):  # the (inclusive) start is the (exclusive) end of the previous bound
+            for j in range(start, start + self.capacity):  # the (inclusive) start is the (exclusive) end of the previous bound
                 priority = 1 / (j + 1)  # wary of div by 0
                 prob_in_segment += (priority ** priority_coefficient) * self.prob_divisor
                 if (prob_in_segment >= (1 / batch_size)):
