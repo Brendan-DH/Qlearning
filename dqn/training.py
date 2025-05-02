@@ -169,10 +169,9 @@ def train_model(
             # calculate action utilities and choose action
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
             action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
-            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_tensor)
-            action_utilities = torch.where(blocked, -1000, action_utilities)
 
-            if(torch.all(blocked)):
+            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_tensor)
+            if (torch.all(blocked)):
                 print("WARNING: all actions were blocked. Continuing to next episode.")
                 print(f"Offending state: {obs_state}")
                 break
@@ -181,14 +180,14 @@ def train_model(
                 sample = env.action_space.sample()
                 while blocked[sample] == 1:
                     sample = env.action_space.sample()
-                action = sample  # torch.tensor([[sample]], device=device, dtype=torch.long)  # this will be expensive
+                action = sample
             else:
-                # action = action_utilities.max(1)[1].view(1, 1)
                 action = torch.argmax(action_utilities).item()
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
-            # print(f"step {t} reward {reward} ")
+            if (epsilon < 0.01):
+                print(f"Action: {rel_actions[action%env.unwrapped.num_actions]} on robot {math.floor(action/env.unwrapped.num_actions)}\nReward: {reward}\nStep: {t}")
 
             # calculate pseudoreward
             if (use_pseudorewards):
@@ -201,11 +200,6 @@ def train_model(
             # calculate reward
             reward = reward + pseudoreward  # torch.tensor([reward + pseudoreward], device=device, dtype=torch.float32)
             ep_reward += reward
-
-            print(f"Step {t}\n"
-                  f"Action: {rel_actions[action%env.unwrapped.num_actions]} on robot {math.floor(action/env.unwrapped.num_actions)}\n"
-                  f"Reward: {reward}\n"
-                  f"Blocked: {env.unwrapped.blocked_model(env, env.state_tensor)}")
 
             # work out if the run is over
             done = terminated or truncated or (t > max_steps)

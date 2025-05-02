@@ -16,4 +16,5 @@
 
 from gymnasium.envs.tokamak.tokamakenv14 import TokamakEnv14
 from gymnasium.envs.tokamak.tokamakenv15 import TokamakEnv15
+from gymnasium.envs.tokamak.tokamakenv16 import TokamakEnv16
 

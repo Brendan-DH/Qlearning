@@ -69,12 +69,19 @@ n_actions = env.action_space.n
 obs_state, info = env.reset()
 n_observations = len(obs_state)
 
-policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
+
+def block_illegal_actions(action_utilities):
+    blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_tensor)
+    x = torch.where(blocked, -100000, action_utilities)
+    return x
+
+
+policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
 
 run_id = input_dict["run_id"]
 overwrite = input_dict["overwrite_saved_weights"].lower() == "y"
 
-target_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
+target_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
 target_net.load_state_dict(policy_net.state_dict())
 trained_dqn, dur, re, eps = train_model(env,
                                         policy_net,

@@ -69,7 +69,14 @@ loaded_weights = torch.load(os.getcwd() + "/inputs/" + load_weights_file)
 nodes_per_layer = len(loaded_weights["hidden_layers.0.weight"])
 num_hidden_layers = int((len(loaded_weights.keys()) - 4) / 2)  # -4 accounts for input and output weights and biases
 
-policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
+
+def block_illegal_actions(action_utilities):
+    blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_tensor)
+    x = torch.where(blocked, -100000, action_utilities)
+    return x
+
+
+policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
 
 print(f"Loading from /inputs/{load_weights_file}")
 policy_net.load_state_dict(loaded_weights)

@@ -15,16 +15,9 @@ def optimise_model_with_importance_sampling(policy_dqn,
                                             batch_size,
                                             priority_coefficient,
                                             weighting_coefficient):
-    # optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if len(replay_memory.memory) < batch_size or len(replay_memory.bounds) == 0:
-        # print(f"memory not yet ready {len(replay_memory.memory)}/{batch_size} | {len(replay_memory.bounds)}")
         return
-
-    # print("Attempting to optimise...")
-
-    # policy_dqn = nn.parallel.DistributedDataParallel(policy_dqn).to(optimiser_device)
-    # target_dqn = nn.parallel.DistributedDataParallel(target_dqn).to(optimiser_device)
 
     policy_dqn = policy_dqn.to(optimiser_device)
     target_dqn = target_dqn.to(optimiser_device)
@@ -57,12 +50,6 @@ def optimise_model_with_importance_sampling(policy_dqn,
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=torch.device(optimiser_device), dtype=torch.bool)
 
     # collection of non-final states
-    # with torch.no_grad():
-    #     non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
-    #     state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
-
-    # with torch.no_grad():
-
     non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
     state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
 
@@ -81,13 +68,11 @@ def optimise_model_with_importance_sampling(policy_dqn,
     with torch.no_grad():
         next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0]
     expected_state_action_values = (next_state_values * gamma_tensor) + reward_batch
-    # print("expected_state_action_values.device", expected_state_action_values.device)
 
     # Compute loss. Times by weight of transition
     criterion = nn.SmoothL1Loss(reduction="none")  # (Huber loss)
     loss_vector = criterion(state_action_values, expected_state_action_values.unsqueeze(1)) * weights
     loss = torch.mean(loss_vector)
-    #     print("loss_vector.device, loss.device ", loss_vector.device, loss.device)
 
     # optimise the model
     # optimiser_device_check(optimiser)

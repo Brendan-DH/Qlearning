@@ -45,25 +45,14 @@ def evaluate_model_by_trial(dqn,
 
             # calculate action utilities and choose action
             action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
-            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_tensor)
-            action_utilities = torch.where(blocked, -1000, action_utilities)
             action = torch.argmax(action_utilities).item()
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
 
             states.append(env.unwrapped.interpret_state_tensor(env.unwrapped.state_tensor))
-            if(action%env.unwrapped.num_actions==3):
-                print(f"Action: {rel_actions[action%env.unwrapped.num_actions]} on robot {math.floor(action/env.unwrapped.num_actions)}\n")
 
-            # print(f"Action: {rel_actions[action%env.unwrapped.num_actions]} on robot {math.floor(action/env.unwrapped.num_actions)}\n"
-            #       f"Reward: {reward}\n"
-            #       f"Blocked: {env.unwrapped.blocked_model(env, env.state_tensor)}\n"
-            #       f"Action ultilities: {action_utilities}")
             actions.append(action)
-            # robot_no = math.floor(action / env.unwrapped.num_actions)
-            # rel_action = rel_actions[action % env.unwrapped.num_actions]
-
             obs_state = new_obs_state
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 

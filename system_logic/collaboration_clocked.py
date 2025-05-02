@@ -47,18 +47,17 @@ def template_move(env, state_tensor, action_no):
     """
 
     # the effect function for moving robot 1 ccw
-    robot_no = int(torch.floor_divide(action_no, env.unwrapped.num_actions).item())
+    robot_no = int(state_tensor[-1].item())
     current_location = state_tensor[robot_no * 2]
-    rel_action = action_no % env.unwrapped.num_actions
 
     # deterministic part of the result:
-    if (rel_action == 0):
+    if (action_no == 0):
         # counter-clockwise
         if (current_location < env.unwrapped.size - 1):
             state_tensor[robot_no * 2] = current_location + 1
         elif (current_location == env.unwrapped.size - 1):  # cycle round
             state_tensor[robot_no * 2] = 0
-    elif (rel_action == 1):
+    elif (action_no == 1):
         # clockwise
         if (current_location > 0):
             state_tensor[robot_no * 2] = current_location - 1
@@ -86,7 +85,9 @@ def template_complete(env, state_tensor, action_no):
 
     """
 
-    robot_no = int(torch.floor_divide(action_no, env.unwrapped.num_actions).item())
+    state_tensor = state_tensor.detach().clone()
+
+    robot_no = int(state_tensor[-1].item())
 
     num_robots_present = np.sum([state_tensor[i * 2] == state_tensor[robot_no * 2] for i in range(env.unwrapped.num_robots)])
 
@@ -119,7 +120,7 @@ def template_wait(env, state_tensor, action_no):
     Allows a robot to wait a tick.
     """
 
-    robot_no = int(torch.floor_divide(action_no, env.unwrapped.num_actions).item())
+    robot_no = int(state_tensor[-1].item())
     # print(f"{robot_no} waiting")
     new_state = clock_effect(env, state_tensor, robot_no)
 
@@ -127,7 +128,7 @@ def template_wait(env, state_tensor, action_no):
             new_state.to(device=global_device, dtype=torch.float32).unsqueeze(0))
 
 
-def clock_effect(env, state_tensor, robot_no):
+def clock_effect(env, state_tensor, *args):
     """
 
     Deals with the clock variables after an action has taken place
@@ -135,25 +136,24 @@ def clock_effect(env, state_tensor, robot_no):
     Inputs:
         env - gymnasium environment
         state - dictionary describing the current state
-        action_no - number of the action to be executed
-
     Outputs:
 
-        new_state - the state dict after the clocks have been advanced
+        new_state - the state dict after the clock has been advanced
 
     """
+    new_state = state_tensor.detach().clone()
+    new_state[-1] = (new_state[-1].item() + 1) % env.unwrapped.num_robots
 
-    state_tensor[(robot_no * 2) + 1] = 1
-    for i in range(env.unwrapped.num_robots):
-        if state_tensor[(i * 2) + 1] == 0:
-            return state_tensor  # if any clocks are not ticked, return
+    # for i in range(env.unwrapped.num_robots):
+    #     if state_tensor[(i * 2) + 1] == 0:
+    #         return state_tensor  # if any clocks are not ticked, return
+    #
+    # # else if all clocks are ticked:
+    # for i in range(env.unwrapped.num_robots):
+    #     state_tensor[(i * 2) + 1] = 0  # set all clocks to 0
+    #     # new_state["elapsed ticks"] += 1
 
-    # else if all clocks are ticked:
-    for i in range(env.unwrapped.num_robots):
-        state_tensor[(i * 2) + 1] = 0  # set all clocks to 0
-        # new_state["elapsed ticks"] += 1
-
-    return state_tensor
+    return new_state
 
 
 def discovery_effect(env, state_tensor, robot_no):
@@ -175,7 +175,9 @@ def discovery_effect(env, state_tensor, robot_no):
 
 
     """
-    # state_tensor = state_tensor.detach().clone()
+    state_tensor = state_tensor.detach().clone()
+
+    # return ([1], [state_tensor])
 
     # deal with the discovery of goals in this location:
     # if there is a goal here, get the index (i.e. which goal it is)
@@ -192,8 +194,8 @@ def discovery_effect(env, state_tensor, robot_no):
         s_tensor = state_tensor.to(device=global_device, dtype=torch.float32).unsqueeze(0)
         return p_tensor, s_tensor  # is this correct?
 
-    # if there is a goal here, has it already been checked?
-    if (state_tensor[(env.unwrapped.num_robots * 2) + (goal_index * 5) + 2] == 1):
+    # if there is a goal here, has it already been checked or is it already active?
+    if (state_tensor[(env.unwrapped.num_robots * 2) + (goal_index * 5) + 2] == 1 or state_tensor[(env.unwrapped.num_robots * 2) + (goal_index * 5) + 1] == 1):
         p_tensor = torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False)
         s_tensor = state_tensor.to(device=global_device, dtype=torch.float32).unsqueeze(0)
         return p_tensor, s_tensor
@@ -228,21 +230,19 @@ def t_model(env, state_tensor, action_no):
     # (i.e. number of robots). could possibly be made dynamic later.
 
     new_state_tensor = state_tensor.detach().clone()
-    robot_no = int(torch.floor_divide(action_no, env.unwrapped.num_actions).item())
-
+    robot_no = int(new_state_tensor[-1].item())
     if (env.unwrapped.blocked_model(env, new_state_tensor)[action_no] == 1):
+        print("Attempted blocked action")
         new_state_tensor = clock_effect(env, new_state_tensor, robot_no)
         return (torch.tensor([1], device=global_device, dtype=torch.float32, requires_grad=False),
                 new_state_tensor.unsqueeze(0))
 
-    rel_action = action_no % env.unwrapped.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
-
     # use the appropriate function to get the probability and state array for each possible action type:
-    if (rel_action == 0 or rel_action == 1):
+    if (action_no == 0 or action_no == 1):
         p, s = template_move(env, new_state_tensor, action_no)
-    elif (rel_action == 2):
+    elif (action_no == 2):
         p, s = template_complete(env, new_state_tensor, action_no)
-    elif (rel_action == 3):
+    elif (action_no == 3):
         p, s = template_wait(env, new_state_tensor, action_no)
     return p, s
 
@@ -272,35 +272,38 @@ This block defines the rewards model of the system
 """
 
 
-def r_model(env, state_tensor, action, next_state_tensor):
+def r_model(env, old_state_tensor, action_no, next_state_tensor):
     # rewards for blocked actions
     # this is necessary to stop the total rewards shooting up when blocked actions are taken
     # mostly a diagnostic thing... I think
-    if (env.unwrapped.blocked_model(env, state_tensor)[action] == 1):
+    if (torch.equal(old_state_tensor, next_state_tensor)):
+        print("Warning, deadlock:", old_state_tensor);
+    if (env.unwrapped.blocked_model(env, old_state_tensor)[action_no] == 1):
         print("returning a reward for a blocked action")
         return 0
 
-    rel_action = action % env.unwrapped.num_actions  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
-    reward=0
-    # if (rel_action == 3):
-    #     reward = 0
-    # else:
-    #     reward = -0.2
+    if (action_no == 3):
+        reward = 0
+    else:
+        reward = -0.2
 
     # reward for checking a goal by moving onto its position
-    if (rel_action < 2):
+    if (action_no < 2):
         for i in range(env.unwrapped.num_goals):
             # check if goal went from unchecked to checked
-            if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2] != next_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2]):
+            if (old_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2] != next_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 2]):
                 reward += 300
 
     # rewards for completing goals
     for i in range(env.unwrapped.num_goals):
-        if (state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 1 and next_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 0):
+        # check if goal went from active to inactive
+        if (old_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 1 and next_state_tensor[(env.unwrapped.num_robots * 2) + (i * 5) + 1] == 0):
+            # print("completed goal")
             reward += 1000
 
     # reward for having moved into a terminal state
     if (state_is_final(env, next_state_tensor)):
+        # print("found a terminal state")
         reward += 100000
 
     return reward
@@ -349,46 +352,45 @@ Essentially, this is an auxiliary part of the transition model
 
 
 def b_model(env, state_tensor):
+
     blocked_actions = np.zeros(env.action_space.n)
-    # for i in range(0, env.unwrapped.num_robots):
-    #     blocked_actions[(i * env.unwrapped.num_actions) + 3] = 1
+    state_dict = env.unwrapped.interpret_state_tensor(state_tensor)
 
-    for i in range(env.unwrapped.num_robots):
-        # print(state_tensor)
-        active_robot_loc = state_tensor[i * 2]
-        if (state_tensor[(i * 2) + 1]):  # clock
-            blocked_actions[i * env.unwrapped.num_actions: (i * env.unwrapped.num_actions) + env.unwrapped.num_actions] = 1  # block these actions
-        else:
+    robot_no = int(state_tensor[-1].item())
+    active_robot_loc = state_tensor[robot_no * 2]
 
-            blocked_actions[(i * env.unwrapped.num_actions)] = get_counter_cw_blocked(env, state_tensor, i)
-            blocked_actions[(i * env.unwrapped.num_actions) + 1] = get_cw_blocked(env, state_tensor, i)
+    blocked_actions[0] = get_counter_cw_blocked(env, state_tensor)
+    blocked_actions[1] = get_cw_blocked(env, state_tensor)
 
-            block_task_completion = True
-            other_robot_adjacent = False
+    block_task_completion = True
+    other_robot_adjacent = False
 
-            for m in range(env.unwrapped.num_robots):
-                if i == m:
-                    continue
-                elif abs(min(active_robot_loc - state_tensor[m * 2], env.unwrapped.size - (active_robot_loc - state_tensor[m * 2]))) == 1:
-                    other_robot_adjacent = True
-                    break
 
-            if not other_robot_adjacent:
-                for k in range(env.unwrapped.num_goals):
-                    if (state_tensor[(env.unwrapped.num_robots * 2) + (k * 5)] == active_robot_loc and state_tensor[(env.unwrapped.num_robots * 2) + (k * 5) + 1] == 1):
-                        block_task_completion = False  # unblock this engage action
-                        break
+    for m in range(env.unwrapped.num_robots):
+        if robot_no == m:
+            continue
+        elif abs(min(active_robot_loc - state_tensor[m * 2], env.unwrapped.size - (active_robot_loc - state_tensor[m * 2]))) == 1:
+            other_robot_adjacent = True
+            break
 
-            blocked_actions[(i * env.unwrapped.num_actions) + 2] = block_task_completion
+    if not other_robot_adjacent:
+        for k in range(env.unwrapped.num_goals):
+            # if (state_dict["goal0 checked"] == 1 and state_dict["goal0 active"] == 0 and k==0):
+            #     print(f"Checking goal 0\n Robot present:{state_tensor[(env.unwrapped.num_robots * 2) + (k * 5)] == active_robot_loc}\nGoal active: {state_tensor[(env.unwrapped.num_robots * 2) + (k * 5) + 1] == 1}")
+            if (state_tensor[(env.unwrapped.num_robots * 2) + (k * 5)] == active_robot_loc and state_tensor[(env.unwrapped.num_robots * 2) + (k * 5) + 1] == 1):
+                if (state_dict["goal0 checked"] == 1 and state_dict["goal0 active"] == 0 and k==0):
+                    print(f"\#######################################################unblocking 2 for robot {state_dict['clock']}")
+                state_dict = env.unwrapped.interpret_state_tensor(state_tensor)
+                block_task_completion = False  # unblock this engage action
+                break
 
-            # if all else are blocked, unblock "wait"
-            # if np.all(blocked_actions[i * env.unwrapped.num_actions: (i * env.unwrapped.num_actions) + env.unwrapped.num_actions] == 1):  # block these actions
-            #     blocked_actions[(i * env.unwrapped.num_actions) + 3] = 0
+    blocked_actions[2] = block_task_completion
 
     return torch.tensor(blocked_actions, dtype=torch.bool, device=global_device, requires_grad=False)
 
 
-def get_counter_cw_blocked(env, state_tensor, robot_no):
+def get_counter_cw_blocked(env, state_tensor):
+    robot_no = int(state_tensor[-1].item())
     moving_robot_loc = state_tensor[robot_no * 2]
     n_robots_on_new_space = 0
 
@@ -401,7 +403,9 @@ def get_counter_cw_blocked(env, state_tensor, robot_no):
     return n_robots_on_new_space >= 2
 
 
-def get_cw_blocked(env, state_tensor, robot_no):
+def get_cw_blocked(env, state_tensor):
+
+    robot_no = int(state_tensor[-1].item())
     moving_robot_loc = state_tensor[robot_no * 2]
     n_robots_on_new_space = 0
 
