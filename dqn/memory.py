@@ -17,6 +17,7 @@ class PriorityMemory(object):
     def push(self, *args):
         """Save a transition"""
         # when a new transition is saved, it should have max priority:
+        # print(*args)
         self.memory.appendleft(DeltaTransition(*args, self.max_priority))  # append at the high-prio part.
         # print("mem size:", len(self.memory))
         if len(self.memory) == self.capacity and not self.warning:
@@ -34,13 +35,15 @@ class PriorityMemory(object):
         if (len(self.memory) < batch_size):
             return
 
-        items = [self.memory.pop() for i in range(len(self.memory))]  # pop everything?
+        items = list(self.memory)
         items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
         self.memory = deque(items, maxlen=self.capacity)
 
         self.max_priority = 1
 
         # the divisor in the P equation
+        # this is rank-based priority; the divisor 1/(sum of all priorities)
+        # latex: \left( \sum_{i=0}^{N-1} \left( \frac{1}{i+1} \right)^\alpha \right)^{-1}
         self.prob_divisor = 1 / np.sum([((1 / (i + 1)) ** priority_coefficient) for i in range(len(items))])
 
         # re-calculate the bounds

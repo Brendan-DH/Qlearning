@@ -31,12 +31,11 @@ def evaluate_model_by_trial(dqn,
     deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
 
     for i in range(num_episodes):
-        if (reset_options):
-            obs_state, info = env.reset(options=reset_options.copy())
-        else:
-            obs_state, info = env.reset()
+        obs_state, info = env.reset()
+        obs_state["episode"] = 300
+        obs_state["epsilon"] = 0
 
-        states = [env.unwrapped.interpret_state_tensor(env.unwrapped.state_tensor)]
+        states = [env.unwrapped.state_dict]
         actions = []
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
         rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
@@ -46,11 +45,14 @@ def evaluate_model_by_trial(dqn,
             # calculate action utilities and choose action
             action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
             action = torch.argmax(action_utilities).item()
+            print(action_utilities)
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
+            new_obs_state["episode"] = 300
+            new_obs_state["epsilon"] = 0
 
-            states.append(env.unwrapped.interpret_state_tensor(env.unwrapped.state_tensor))
+            states.append(env.unwrapped.state_dict)
 
             actions.append(action)
             obs_state = new_obs_state
@@ -89,10 +91,10 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
 
     init_state, info = env.reset()  # ask the DQN what action should be taken here
 
-    exploration_tensor_queue = Queue()
+    exploration_state_queue = Queue()
     exploration_observation_queue = Queue()
 
-    exploration_tensor_queue.put(env.unwrapped.state_tensor)  # tensors for full state description
+    exploration_state_queue.put(env.unwrapped.state_dict)  # state dicts for full state description
     exploration_observation_queue.put(init_state)  # observations for forward passes
 
     if (not weights_file):
@@ -112,18 +114,18 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     policy_net.load_state_dict(loaded_weights)
 
     new_id = 0  # an unencountered state will get this id, after which it will be incremented
-    states_id_dict = {str(env.unwrapped.state_tensor): 0}  # dictionary of state dicts to id
+    states_id_dict = {str(env.unwrapped.state_dict): 0}  # dictionary of state dicts to id
     labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     new_id += 1
     transitions_array = []
     rewards_array = []
 
-    while (not exploration_tensor_queue.empty()):
+    while (not exploration_state_queue.empty()):
 
-        print(f"\rStates in exploration queue: {' ' * (10 - len(str(exploration_tensor_queue.qsize())))}{exploration_tensor_queue.qsize()}", end="")
+        print(f"\rStates in exploration queue: {' ' * (10 - len(str(exploration_state_queue.qsize())))}{exploration_state_queue.qsize()}", end="")
 
-        state_tensor = exploration_tensor_queue.get()
+        state_tensor = exploration_state_queue.get()
         obs_state = exploration_observation_queue.get()
 
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
@@ -150,7 +152,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
 
             if (str(result_state_tensor) not in list(states_id_dict.keys())):  # register newly discovered states
                 states_id_dict[str(result_state_tensor)] = new_id
-                exploration_tensor_queue.put(result_state_tensor)
+                exploration_state_queue.put(result_state_tensor)
                 exploration_observation_queue.put(result_state_dict)
                 new_id += 1
 

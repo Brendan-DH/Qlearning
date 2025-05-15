@@ -16,7 +16,8 @@ import handle_input
 import sys
 import scenarios
 
-from dqn.training import train_model
+import dqn.multiagent_training as ma_training
+import dqn.training as training
 from dqn.dqn import DeepQNetwork
 from dqn.decay_functions import linear_epsilon_decay, exponential_epsilon_decay
 
@@ -70,44 +71,95 @@ obs_state, info = env.reset()
 n_observations = len(obs_state)
 
 
-def block_illegal_actions(action_utilities):
-    blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_tensor)
-    x = torch.where(blocked, -100000, action_utilities)
-    return x
+def sinusoidal_epsilon(episode, base_epsilon):
+    period = 100
+    epsilon_range = 0.15
+    epsilon = base_epsilon + np.sin(episode * (np.pi / period)) * (epsilon_range / 2)
+    if epsilon < 0:
+        epsilon = 0
+    return epsilon
 
-
-policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
 
 run_id = input_dict["run_id"]
 overwrite = input_dict["overwrite_saved_weights"].lower() == "y"
 
-target_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
-target_net.load_state_dict(policy_net.state_dict())
-trained_dqn, dur, re, eps = train_model(env,
-                                        policy_net,
-                                        target_net,
-                                        epsilon_decay_function=lambda ep, e_max, e_min, num_eps: epsilon_function(episode=ep,
-                                                                                                                  epsilon_max=e_max,
-                                                                                                                  epsilon_min=e_min,
-                                                                                                                  num_episodes=num_eps,
-                                                                                                                  max_epsilon_time=float(input_dict["max_epsilon_time"]),
-                                                                                                                  min_epsilon_time=float(input_dict["min_epsilon_time"])),
-                                        epsilon_max=float(input_dict["epsilon_max"]),
-                                        epsilon_min=float(input_dict["epsilon_min"]),
-                                        alpha=float(input_dict["alpha"]),
-                                        gamma=float(input_dict["gamma"]),
-                                        num_episodes=int(input_dict["num_training_episodes"]),
-                                        tau=float(input_dict["tau"]),
-                                        use_pseudorewards=input_dict["use_pseudorewards"].lower() == "y",
-                                        plot_frequency=int(input_dict["plot_frequency"]),
-                                        memory_sort_frequency=int(input_dict["memory_sort_frequency"]),
-                                        max_steps=int(input_dict["max_steps"]),
-                                        buffer_size=int(input_dict["buffer_size"]),
-                                        checkpoint_frequency=int(input_dict["checkpoint_frequency"]),
-                                        batch_size=int(input_dict["batch_size"]),
-                                        run_id=run_id
-                                        )
+multiagent = input_dict["multiagent"] == "y"
+if multiagent:
+    print("Multiagent training")
 
+
+    def block_illegal_actions(action_utilities):
+        blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.clock)
+        x = torch.where(blocked, 0, action_utilities)
+        return x
+        # return action_utilities
+
+
+    policy_net = DeepQNetwork(n_observations + 2, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
+    target_net = DeepQNetwork(n_observations + 2, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
+    target_net.load_state_dict(policy_net.state_dict())
+
+    trained_dqn, dur, re, eps = ma_training.train_model(env,
+                                                        policy_net,
+                                                        target_net,
+                                                        epsilon_decay_function=lambda ep, e_max, e_min, num_eps: epsilon_function(episode=ep,
+                                                                                                                                  epsilon_max=e_max,
+                                                                                                                                  epsilon_min=e_min,
+                                                                                                                                  num_episodes=num_eps,
+                                                                                                                                  max_epsilon_time=float(input_dict["max_epsilon_time"]),
+                                                                                                                                  min_epsilon_time=float(input_dict["min_epsilon_time"])),
+                                                        # epsilon_decay_function=lambda ep, e_max, e_min, num_eps: sinusoidal_epsilon(episode=ep, base_epsilon=e_min),
+                                                        epsilon_max=float(input_dict["epsilon_max"]),
+                                                        epsilon_min=float(input_dict["epsilon_min"]),
+                                                        alpha=float(input_dict["alpha"]),
+                                                        gamma=float(input_dict["gamma"]),
+                                                        num_episodes=int(input_dict["num_training_episodes"]),
+                                                        tau=float(input_dict["tau"]),
+                                                        use_pseudorewards=input_dict["use_pseudorewards"].lower() == "y",
+                                                        plot_frequency=int(input_dict["plot_frequency"]),
+                                                        memory_sort_frequency=int(input_dict["memory_sort_frequency"]),
+                                                        max_steps=int(input_dict["max_steps"]),
+                                                        buffer_size=int(input_dict["buffer_size"]),
+                                                        checkpoint_frequency=int(input_dict["checkpoint_frequency"]),
+                                                        batch_size=int(input_dict["batch_size"]),
+                                                        reward_sharing_coefficient=float(input_dict["reward_sharing_coefficient"]),
+                                                        run_id=run_id
+                                                        )
+else:
+    def block_illegal_actions(action_utilities):
+        blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
+        x = torch.where(blocked, 0, action_utilities)
+        return x
+
+
+    policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
+    target_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
+    target_net.load_state_dict(policy_net.state_dict())
+
+    trained_dqn, dur, re, eps = training.train_model(env,
+                                                     policy_net,
+                                                     target_net,
+                                                     epsilon_decay_function=lambda ep, e_max, e_min, num_eps: epsilon_function(episode=ep,
+                                                                                                                               epsilon_max=e_max,
+                                                                                                                               epsilon_min=e_min,
+                                                                                                                               num_episodes=num_eps,
+                                                                                                                               max_epsilon_time=float(input_dict["max_epsilon_time"]),
+                                                                                                                               min_epsilon_time=float(input_dict["min_epsilon_time"])),
+                                                     epsilon_max=float(input_dict["epsilon_max"]),
+                                                     epsilon_min=float(input_dict["epsilon_min"]),
+                                                     alpha=float(input_dict["alpha"]),
+                                                     gamma=float(input_dict["gamma"]),
+                                                     num_episodes=int(input_dict["num_training_episodes"]),
+                                                     tau=float(input_dict["tau"]),
+                                                     use_pseudorewards=input_dict["use_pseudorewards"].lower() == "y",
+                                                     plot_frequency=int(input_dict["plot_frequency"]),
+                                                     memory_sort_frequency=int(input_dict["memory_sort_frequency"]),
+                                                     max_steps=int(input_dict["max_steps"]),
+                                                     buffer_size=int(input_dict["buffer_size"]),
+                                                     checkpoint_frequency=int(input_dict["checkpoint_frequency"]),
+                                                     batch_size=int(input_dict["batch_size"]),
+                                                     run_id=run_id
+                                                     )
 
 random_id = int(np.random.rand() * 1e6)
 if run_id is None:

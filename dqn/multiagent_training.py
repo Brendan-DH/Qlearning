@@ -18,6 +18,7 @@ from dqn.optimisation import optimise_model_with_importance_sampling
 import warnings
 import math
 
+
 def train_model(
         env,  # gymnasium environment
         policy_net,  # policy network to be trained
@@ -39,6 +40,7 @@ def train_model(
         memory_sort_frequency=100,  # number of episodes between sorting the replay memory
         priority_coefficient=0.5,  # alpha in the sampling probability equation, higher prioritises importance more
         weighting_coefficient=0.7,  # beta in the transition weighting equation, higher ameliorates sampling bias more
+        reward_sharing_coefficient=0.1,  # determines how much reward each robot gets from teammates' actions
         run_id=None
 ):
     """
@@ -73,17 +75,20 @@ def train_model(
     """
 
     # store values for plotting
+    print("reward_sharing_coefficient", reward_sharing_coefficient)
+
     epsilons = np.empty(num_episodes)
     episode_durations = np.empty(num_episodes)
-    rewards = np.empty(num_episodes)
     losses = np.empty(num_episodes)
-
+    rewards = np.empty(num_episodes)
     with warnings.catch_warnings(action="ignore"):
         optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     policy_net.to(torch.device("cpu"))
     target_net.to(torch.device("cpu"))
 
+    # with open(os.getcwd() + f"/outputs/env_desc_{run_id}.txt", "w") as file:
+    #     json.dump(env.unwrapped.state, file)
 
     print(f"""
         Commensing training.
@@ -91,7 +96,6 @@ def train_model(
         Environment: {env.unwrapped.spec.id}
         Run Id: {run_id}
         ----
-
         """)
 
     # Initialisation of NN apparatus
@@ -105,7 +109,7 @@ def train_model(
         file = open(os.getcwd() + "/outputs/diagnostics", "w")
         file.write("# no data yet...")
 
-    obs_state, info = env.reset()  # reset to init
+    _ = env.reset()  # reset to init
 
     gamma_tensor = torch.tensor(gamma, device=optimiser_device)
 
@@ -132,8 +136,6 @@ def train_model(
     for i_episode in range(num_episodes):
         optimisation_time = 0
 
-        # print(f"----------------beginning episode {i_episode}")
-
         # sort out memory
         gc.collect()
         torch.cuda.empty_cache()
@@ -148,11 +150,12 @@ def train_model(
             memory.sort(batch_size, priority_coefficient)
 
         # calculate the new epsilon
-        epsilon_boost = 0.2
         if (plotting_on or checkpoints_on):
             epsilons[i_episode] = base_epsilon
 
         obs_state, info = env.reset()
+        obs_state["epsilon"] = epsilon
+        obs_state["episode"] = i_episode
 
         # Initialise the first state
         if (use_pseudorewards):
@@ -165,15 +168,63 @@ def train_model(
         # recent_states.appendleft(str(obs_state.values()))
         rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
+        latest_observations = np.empty(env.unwrapped.num_robots, dtype=dict)
+        latest_actions = np.zeros(env.unwrapped.num_robots, dtype=int)
+        latest_rewards = np.zeros(env.unwrapped.num_robots, dtype=float)
+
+        latest_env_states = np.empty(env.unwrapped.num_robots, dtype=dict)
+
+        nlc = "\n"
+
         for t in count():
 
-            # print(f"step {t}")
+            robot_no = env.unwrapped.clock
 
-            # calculate action utilities and choose action
+            obs_state = env.unwrapped.get_obs()
+            obs_state["episode"] = i_episode
+            obs_state["epsilon"] = epsilon
+
+            # to resolve this robot's PREVIOUS action, we see how the system has now changed:
+            if (t > env.unwrapped.num_robots):  # does this make sense?
+                prev_trans_s = latest_observations[robot_no]
+                prev_trans_a = latest_actions[robot_no]
+                prev_trans_sprime = obs_state
+                prev_trans_r = (1-reward_sharing_coefficient) * latest_rewards[robot_no] + reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_no])
+                memory.push(torch.tensor(list(prev_trans_s.values()), dtype=torch.float, device="cpu", requires_grad=False),
+                            prev_trans_a,
+                            torch.tensor(list(prev_trans_sprime.values()), dtype=torch.float, device="cpu", requires_grad=False),
+                            prev_trans_r)
+
+                robot_locations = np.empty(env.unwrapped.num_robots)
+                robot_locations[robot_no] = obs_state["my location"]
+                robot_locations[(robot_no + 1) % env.unwrapped.num_robots] = obs_state["teammate1 location"]
+                robot_locations[(robot_no + 2) % env.unwrapped.num_robots] = obs_state["teammate2 location"]
+
+                prev_env_state = latest_env_states[robot_no]
+
+                # env_state_diffs = {k: (f"{prev_env_state[k]} --> {new_env_state[k]}") for k in set(prev_env_state) | set(new_env_state) if prev_env_state[k] != new_env_state[k]}
+                # obs_diffs = {k: (f"{prev_trans_s[k]} --> {prev_trans_sprime[k]}") for k in set(prev_trans_s) | set(prev_trans_sprime) if prev_trans_s[k] != prev_trans_sprime[k]}
+                #
+                # print(f"""
+                # #####
+                # Rewards ({i_episode}/{epsilon})
+                # ----
+                # robot:{robot_no}
+                # obs diffs: {str(obs_diffs).replace(",", nlc)}
+                # env state diffs: {str(env_state_diffs).replace(",", nlc)}
+                # action: {prev_trans_a}
+                # reward: {latest_rewards[robot_no]} + {0.2 * (np.sum(latest_rewards) - latest_rewards[robot_no])} = {prev_trans_r}
+                # ----
+                # All robot rewards: {latest_rewards}
+                # All robot locations: {robot_locations}
+                #
+                #
+                # """)
+
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
             action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
 
-            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
+            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.clock)
             if (torch.all(blocked)):
                 print("WARNING: all actions were blocked. Continuing to next episode.")
                 print(f"Offending state: {obs_state}")
@@ -185,13 +236,28 @@ def train_model(
                     sample = env.action_space.sample()
                 action = sample
             else:
+                action_utilities = torch.where(blocked, -1000, action_utilities)  # can mask these strongly as they aren't used for backprop
                 action = torch.argmax(action_utilities).item()
 
+            # action = torch.argmax(action_utilities).item()
+
             # apply action to environment
+            old_env_state = env.unwrapped.state_dict.copy()
             new_obs_state, reward, terminated, truncated, info = env.step(action)
+            new_env_state = env.unwrapped.state_dict.copy()
+            new_obs_state["epsilon"] = epsilon
+            new_obs_state["episode"] = i_episode
+
+            # now this needs to be the resultant state for the NEXT robot in the order.
+            # the NEXT robot also needs to get its rewards for its previous decision, and a weighted-down reward from the intermediate robot
+            latest_observations[robot_no] = obs_state  # i.e. the thing this robot based its action on
+            latest_rewards[robot_no] = reward
+            latest_actions[robot_no] = action
+
+            latest_env_states[robot_no] = old_env_state
 
             if (epsilon < 0.01):
-                print(f"Action: {rel_actions[action%env.unwrapped.num_actions]} on robot {math.floor(action/env.unwrapped.num_actions)}\nReward: {reward}\nStep: {t}")
+                print(f"Action: {rel_actions[action % env.unwrapped.num_actions]} on robot {math.floor(action / env.unwrapped.num_actions)}\nReward: {reward}\nStep: {t}")
 
             # calculate pseudoreward
             if (use_pseudorewards):
@@ -208,24 +274,39 @@ def train_model(
             # work out if the run is over
             done = terminated or truncated or (t > max_steps)
             if terminated:
-                new_obs_state_tensor = None
-            else:
-                new_obs_state_tensor = torch.tensor(list(new_obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
+                for robot_index in range(env.unwrapped.num_robots):
+                    prev_trans_s = latest_observations[robot_index]
+                    prev_trans_a = latest_actions[robot_index]
+                    prev_trans_r = (1 - reward_sharing_coefficient) * latest_rewards[robot_index] + reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_index])
+                    memory.push(
+                        torch.tensor(list(prev_trans_s.values()), dtype=torch.float, device="cpu", requires_grad=False),
+                        prev_trans_a,
+                        None,  # set to none for masking purposes in optimiser.
+                        prev_trans_r  # reward is still collected for getting here.
+                    )
+                    # env_state_diffs = {k: (f"{prev_env_state[k]} --> {new_env_state[k]}") for k in set(prev_env_state) | set(new_env_state) if prev_env_state[k] != new_env_state[k]}
+                    # obs_diffs = {k: (f"{prev_trans_s[k]} --> {prev_trans_sprime[k]}") for k in set(prev_trans_s) | set(prev_trans_sprime) if prev_trans_s[k] != prev_trans_sprime[k]}
 
-            # move transition to the replay memory
-            memory.push(obs_tensor, action, new_obs_state_tensor, reward)
-            obs_state = new_obs_state
-
-            obs_visits[str(obs_state.values())] += 1  # remember that we have been to this state
-            # maybe I could take the last 5 states, work out how novel they are, and then set the boost based on this
-            recent_states.appendleft(str(obs_state.values()))
-            novelty_rating = np.mean(list(map(obs_visits.data.get, list(recent_states))))  # average visits in last 5 states
-            epsilon = base_epsilon + (1 / novelty_rating) * epsilon_boost
+                    # print(f"""
+                    # #####
+                    # Rewards ({i_episode}/{epsilon})
+                    # ----
+                    # robot:{robot_index}
+                    # origin state: {prev_trans_s}
+                    # resultant state: None (terminated)
+                    # action: {prev_trans_a}
+                    # reward: {latest_rewards[robot_index]} + {reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_index])} = {prev_trans_r}
+                    # ----
+                    # All robot rewards: {latest_rewards}
+                    # All robot locations: {robot_locations}
+                    #
+                    #
+                    # """)
+                # WORK OUT IF THIS IS ACTUALLY OPERATING CORRECTLY
+                # does it make sense for all robots to have their final transitions resolved?
 
             # run optimiser
-            # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
             timer_start = time.time()
-
             loss = optimise_model_with_importance_sampling(policy_net,
                                                            target_net,
                                                            memory,
@@ -236,8 +317,6 @@ def train_model(
                                                            priority_coefficient,
                                                            weighting_coefficient)
             optimisation_time += time.time() - timer_start
-
-            # print("loss", loss)
 
             # Soft-update the target net -- doing this in-place for better efficiency
             with torch.no_grad():
@@ -262,7 +341,7 @@ def train_model(
                                np.vstack((episode_durations, rewards, epsilons)).transpose())
                     torch.save(policy_net.state_dict(), os.getcwd() + f"/outputs/checkpoints/policy_weights_epoch{i_episode}")
                 break
-        # if i_episode > memory_sort_frequency: print(f"Total time for optimisation this episode: {optimisation_time * 1000:.3f}ms")
+        if i_episode > memory_sort_frequency: print(f"Total time for optimisation this episode: {optimisation_time * 1000:.3f}ms")
 
     print(f"Training complete in {int(time.time() - start_time)} seconds.")
     return policy_net, episode_durations, rewards, epsilons

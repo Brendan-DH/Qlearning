@@ -43,7 +43,7 @@ class TensorSpace(gym.Space):
         return f"TensorSpace(shape={self._shape}, dtype={self._dtype})"
 
 
-class TokamakEnv16(gym.Env):
+class TokamakEnv17(gym.Env):
     metadata = {"render_modes": [], "render_fps": 30}
 
     # def set_parameters(size, num_active, num_goals, goal_locations):
@@ -65,7 +65,8 @@ class TokamakEnv16(gym.Env):
 
         # operational parameters
 
-        state = {}
+        self.initial_state_logic = initial_state_logic
+        initial_state_dict = {}
 
         self.transition_model = transition_model
         self.reward_model = reward_model
@@ -77,19 +78,19 @@ class TokamakEnv16(gym.Env):
         self.render_ticks_only = render_ticks_only
         self.frame_counter = 0
 
-        state[f"clock"] = 0
+        initial_state_dict[f"clock"] = 0
         for i in range(len(system_parameters.robot_locations)):
-            state[f"robot{i} location"] = system_parameters.robot_locations[i]
-            state[f"robot{i} clock"] = 0
+            initial_state_dict[f"robot{i} location"] = system_parameters.robot_locations[i]
+            initial_state_dict[f"robot{i} clock"] = 0
         for i in range(len(system_parameters.goal_locations)):
-            state[f"goal{i} location"] = system_parameters.goal_locations[i]
-            state[f"goal{i} active"] = system_parameters.goal_activations[i]  # 1 = goal should be engaged
-            state[f"goal{i} checked"] = system_parameters.goal_checked[i]  # 1 = goal location has been visited
-            state[f"goal{i} discovery probability"] = system_parameters.goal_discovery_probabilities[i]  # p that goal is present
-            state[f"goal{i} completion probability"] = system_parameters.goal_completion_probabilities[i]  # p that goal is completed in 1 attempt
+            initial_state_dict[f"goal{i} location"] = system_parameters.goal_locations[i]
+            initial_state_dict[f"goal{i} active"] = system_parameters.goal_activations[i]  # 1 = goal should be engaged
+            initial_state_dict[f"goal{i} checked"] = system_parameters.goal_checked[i]  # 1 = goal location has been visited
+            initial_state_dict[f"goal{i} discovery probability"] = system_parameters.goal_discovery_probabilities[i]  # p that goal is present
+            initial_state_dict[f"goal{i} completion probability"] = system_parameters.goal_completion_probabilities[i]  # p that goal is completed in 1 attempt
 
-        self.state = state.copy()
-        self.initial_state = state.copy()
+        self.state_dict = initial_state_dict.copy()
+        self.initial_state_dict = initial_state_dict.copy()
 
         self.size = system_parameters.size
         self.elapsed_steps = 0
@@ -99,13 +100,7 @@ class TokamakEnv16(gym.Env):
 
         if initial_state_logic:
             print("Taking care of initial state transitions")
-            state_tensor = initial_state_logic(self, self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu")))
-            self.state_tensor = state_tensor
-            self.initial_state_tensor = state_tensor.detach().clone()
-
-        else:
-            self.state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu"))
-            self.initial_state_tensor = self.construct_state_tensor_from_system_parameters(system_parameters, device=torch.device("cpu"))
+            self.state_dict = initial_state_logic(self, self.state_dict).copy()
 
         # internal/environmental parameters
         self.training = training
@@ -128,11 +123,9 @@ class TokamakEnv16(gym.Env):
             "r2 wait",
         ]
 
-        self.observation_space = TensorSpace(shape=(self.num_robots * 2 + self.num_goals * 5,), dtype=np.float32)
-
         # Define discrete ranges (adjust bounds as needed)
         obs_space = {}
-        obs_space["clock"] = spaces.Discrete(self.num_robots)
+        # obs_space["clock"] = spaces.Discrete(self.num_robots)
         for i in range(self.num_robots):
             obs_space[f"robot{i} location"] = spaces.Discrete(self.size)
             obs_space[f"robot{i} clock"] = spaces.Discrete(2)
@@ -230,21 +223,22 @@ class TokamakEnv16(gym.Env):
 
         return state_tensor
 
-    def get_obs(self):
+    def state_dict_to_observable(self, state_dict):
 
         obs_dict = {}
-        obs_dict["clock"] = int(self.state_tensor[-1].item())
+        # obs_dict["clock"] = int(self.state_tensor[-1].item())
         for i in range(self.num_robots):
-            index = i * 2
-            obs_dict[f"robot{i} location"] = int(self.state_tensor[index].item())
-            obs_dict[f"robot{i} clock"] = int(self.state_tensor[index + 1].item())
+            obs_dict[f"robot{i} location"] = int(state_dict[f"robot{i} location"])
+            obs_dict[f"robot{i} clock"] = int(state_dict[f"robot{i} clock"])
 
         for i in range(self.num_goals):
-            index = self.num_robots * 2 + i * 5
-            obs_dict[f"goal{i} active"] = int(self.state_tensor[index + 1].item())
-            obs_dict[f"goal{i} checked"] = int(self.state_tensor[index + 2].item())
+            obs_dict[f"goal{i} active"] = int(state_dict[f"goal{i} active"])
+            obs_dict[f"goal{i} checked"] = int(state_dict[f"goal{i} checked"])
 
         return obs_dict
+
+    def get_obs(self):
+        return self.state_dict_to_observable(self.state_dict)
 
     def get_info(self):
         info = {}
@@ -256,8 +250,16 @@ class TokamakEnv16(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.state = self.initial_state.copy()
-        self.state_tensor = self.initial_state_tensor.detach().clone()
+        init_copy = self.initial_state_dict.copy()
+
+        for i in range(self.num_robots):
+            init_copy[f"robot{i} location"] = np.random.randint(0, self.size)
+
+        if self.initial_state_logic:
+            # print("init logic")
+            init_copy = self.initial_state_logic(self, init_copy.copy())
+
+        self.state_dict = init_copy
 
         self.elapsed_steps = 0
         self.elapsed_ticks = 0
@@ -265,7 +267,7 @@ class TokamakEnv16(gym.Env):
         info = self.get_info()
 
         if self.render:
-            self.render_frame(self.state, info)
+            self.render_frame(self.state_dict, info)
 
         return self.get_obs(), info
 
@@ -281,57 +283,41 @@ class TokamakEnv16(gym.Env):
     def step(self, action):
 
         self.elapsed_steps += 1
-        old_state = self.state_tensor
-        p_tensor, s_tensor = self.transition_model(self, old_state, action)  # probabilities and states
+        old_state_dict = self.state_dict.copy()
+        p_array, s_array = self.transition_model(self, old_state_dict, old_state_dict["clock"], action)  # probabilities and states
 
         # roll dice to detemine resultant state from possibilities
         roll = np.random.random()
         t = 0
         chosen_state = -1
-        for i in range(len(p_tensor)):
-            t += p_tensor[i]
+        for i in range(len(p_array)):
+            t += p_array[i]
             if (roll < t):
                 chosen_state = i
                 break
 
         if (chosen_state < 0):
-            print(action, p_tensor, s_tensor)
+            print(action, p_array, s_array)
             raise ValueError("Something has gone wrong with choosing the state")
 
         # get the reward for this transition based on the reward model
-        reward = self.reward_model(self, old_state, action, s_tensor[chosen_state])
+        reward = self.reward_model(self, old_state_dict, action, s_array[chosen_state])
         # print(f"blocked: {self.blocked_model(self, old_state)}")
 
-        old_state_dict = self.interpret_state_tensor(old_state)
-        new_state_dict = self.interpret_state_tensor(s_tensor[chosen_state])
-        if (old_state_dict["goal0 checked"] == 1 and old_state_dict["goal0 active"] == 0 and new_state_dict["goal0 active"] == 1):
-            print(f"WARNING: a goal was re-activated:\n"
-                  f"Action:{action}\n"
-                  f"Robot: {old_state_dict['clock']}\n"
-                  f"Robot locations: {old_state_dict['robot0 location']}/{old_state_dict['robot1 location']}/{old_state_dict['robot2 location']}\n"
-                  f"Goal checked before/after:{old_state_dict['goal0 checked']}/{new_state_dict['goal0 checked']}\n"
-                  f"Goal active before/after:{old_state_dict['goal0 active']}/{new_state_dict['goal0 active']}\n"
-                  f"Blocked actions: {self.blocked_model(self, old_state)}\n")
-
         # assume the new state
-        self.state_tensor = s_tensor[chosen_state]
+        self.state_dict = s_array[chosen_state]
         if (self.render):
-            self.render_frame(self.interpret_state_tensor(self.state_tensor), True)
+            self.render_frame(self.state_dict, True)
 
         # set terminated (all goals checked and inactive)
         terminated = True
-        goal_start_tensor_index = self.num_robots * 2
         for i in range(self.num_goals):
-            if (self.state_tensor[goal_start_tensor_index + (i * 5) + 1].item() == 1 or self.state_tensor[goal_start_tensor_index + (i * 5) + 2].item() == 0):
+            if (self.state_dict[f"goal{i} active"] == 1 or self.state_dict[f"goal{i} checked"] == 0):
                 terminated = False
                 break
         info = self.get_info()
 
         return self.get_obs(), reward, terminated, False, info
-
-    def render(self):
-        if self.render_mode == "rgb_array":
-            return self.render_frame()
 
     def render_frame(self, state, inEnv=False):
 

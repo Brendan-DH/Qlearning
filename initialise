@@ -26,7 +26,7 @@ cd $ROOTDIR
 
 if grep -q "Tokamak-v16" $ROOTDIR/gymnasium/envs/__init__.py
 then
-    echo "Environment already registered"  
+    echo "Tokamak-v16: Environment already registered"
 else
 echo "    
 register(
@@ -34,6 +34,34 @@ id='Tokamak-v16',
 entry_point='gymnasium.envs.tokamak.tokamakenv16:TokamakEnv16',
 max_episode_steps=1000,
 )">> $ROOTDIR/gymnasium/envs/__init__.py
+echo "Registered Tokamak-v16"
+fi
+
+if grep -q "TokamakMA-v1" $ROOTDIR/gymnasium/envs/__init__.py
+then
+    echo "Environment already registered"
+else
+echo "
+register(
+id='TokamakMA-v1',
+entry_point='gymnasium.envs.tokamak.tokamakenvMA1:TokamakEnvMA1',
+max_episode_steps=1000,
+)">> $ROOTDIR/gymnasium/envs/__init__.py
+echo "Registered TokamakMA-v1"
+fi
+
+
+if grep -q "Tokamak-v17" $ROOTDIR/gymnasium/envs/__init__.py
+then
+    echo "Environment already registered"
+else
+echo "
+register(
+id='TokamakMA-v1',
+entry_point='gymnasium.envs.tokamak.tokamakenv17:TokamakEnv17',
+max_episode_steps=1000,
+)">> $ROOTDIR/gymnasium/envs/__init__.py
+echo "Registered Tokamak-v17"
 fi
 
 # create outputs directory

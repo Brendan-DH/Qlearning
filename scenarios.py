@@ -69,7 +69,6 @@ rects_id19_case_peaked = system_parameters(
     elapsed_ticks=0,
 )
 
-
 rects_id26 = system_parameters(size=20, robot_locations=[0, 7, 13],
                                goal_locations=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
                                goal_activations=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -218,6 +217,24 @@ rects_id24 = system_parameters(size=20,
                                                              0.7395881946737939, 0.8159470089656397, 0.8814773695252107, 0.8939764341681438, 0.7886738835639681, 0.8416963340692148,
                                                              0.8132536624584364, 0.7251909808944197],
                                elapsed_ticks=0)
+
+test_case = system_parameters(size=20,
+                              robot_locations=[0, 7, 13],
+                              goal_locations=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+                              goal_activations=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                              goal_checked=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                              goal_completion_probabilities=[1 for i in range(0, 20)],
+                              goal_discovery_probabilities=[1 for i in range(0, 20)],
+                              elapsed_ticks=0)
+
+test_case2 = system_parameters(size=20,
+                              robot_locations=[0, 7, 13],
+                              goal_locations=[19, 5, 17],
+                              goal_activations=[0, 0, 0],
+                              goal_checked=[0, 0, 0],
+                              goal_completion_probabilities=[1 for i in range(0, 20)],
+                              goal_discovery_probabilities=[1 for i in range(0, 20)],
+                              elapsed_ticks=0)
 
 rects_id26_hard = system_parameters(size=20, robot_locations=[0, 7, 13], goal_locations=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
                                     goal_activations=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], goal_checked=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
