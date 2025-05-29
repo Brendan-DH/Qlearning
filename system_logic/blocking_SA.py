@@ -251,16 +251,13 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
                     moving_robot_loc - other_robot_loc == -1 or \
                     (moving_robot_loc == 0 and other_robot_loc == env.unwrapped.size - 1) or \
                     (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
-                reward -= 0.5
+                reward -= 0.1
                 break
-            else:
-                reward += 0.05
-        
         
                 
         # reward for checking a goal by moving onto its position
         for i in range(env.unwrapped.num_goals):
-            if (old_state_dict[f"goal{i} checked"] != next_state_dict[f"goal{i} checked"]):
+            if (old_state_dict[f"goal{i} checked"] == 0 and next_state_dict[f"goal{i} checked"] == 1):
                 reward += 0.2
 
     # rewards for attempting goals - more for harder goals
@@ -278,7 +275,7 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
             
     # reward for having moved into a terminal state
     if (state_is_final(env, next_state_dict)):
-        reward += 1
+        reward += 5.0  # reward for completing the task
 
     return reward
 
@@ -389,11 +386,7 @@ def get_cw_blocked(env, state_dict, robot_no):
 
 def state_is_final(env, state_dict):
     for i in range(env.unwrapped.num_goals):
-        # iterate over goals in state
-        # if (state_dict[f"goal{i} checked"] == 0 or (state_dict[f"goal{i} checked"] == 1 and state_dict[f"goal{i} active"] == 1)):
-        #     return False
-        if (state_dict[f"goal{i} checked"] == 0 or (
-                state_dict[f"goal{i} checked"] == 1 and state_dict[f"goal{i} active"] == 1)):
+        if (state_dict[f"goal{i} checked"] == 0 or state_dict[f"goal{i} active"] == 1):
             return False
 
     return True
