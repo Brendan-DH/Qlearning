@@ -128,10 +128,15 @@ if multiagent:
                                                         run_id=run_id
                                                         )
 else:
-    def block_illegal_actions(action_utilities):
-        blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"], device=action_utilities.device)
-        x = torch.where(blocked, 0, action_utilities)
-        return x
+    if not torch.cuda.is_available():
+        def block_illegal_actions(action_utilities):
+            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
+            x = torch.where(blocked, 0, action_utilities)
+            return x
+    else:
+        # we can't use the blocked_model on the GPU because it would sabotage performance with device transfers
+        def block_illegal_actions(action_utilities):
+            return action_utilities
 
 
     policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
