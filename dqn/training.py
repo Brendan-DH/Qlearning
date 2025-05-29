@@ -106,7 +106,10 @@ def train_model(
         """)
 
     # Initialisation of NN apparatus
-    optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
+    if not cuda_enabled:
+        optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
+    else:
+        optimiser = optim.AdamW(policy_net_gpu.parameters(), lr=alpha, amsgrad=True)
 
     memory = PriorityMemory(buffer_size)
     torch.set_grad_enabled(True)
@@ -190,6 +193,8 @@ def train_model(
                     sample = env.action_space.sample()
                 action = sample
             else:
+                # Set action_utilities to 0 where blocked is 1
+                action_utilities[torch.tensor(blocked, dtype=torch.bool)] = 0
                 action = torch.argmax(action_utilities).item()
 
             # apply action to environment

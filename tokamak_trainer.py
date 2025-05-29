@@ -129,10 +129,13 @@ if multiagent:
                                                         )
 else:
     if not torch.cuda.is_available():
+        # def block_illegal_actions(action_utilities):
+        #     blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
+        #     x = torch.where(blocked, 0, action_utilities)
+        #     return x
         def block_illegal_actions(action_utilities):
-            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
-            x = torch.where(blocked, 0, action_utilities)
-            return x
+            return action_utilities
+        
     else:
         # we can't use the blocked_model on the GPU because it would sabotage performance with device transfers
         def block_illegal_actions(action_utilities):
