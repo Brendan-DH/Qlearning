@@ -88,12 +88,14 @@ def train_model(
             if policy_net_gpu is not None:
                 cuda_enabled = True
                 policy_net_gpu.to(optimiser_device)
+                print(f"Sent GPU policy network to {optimiser_device}.")
             else:
                 print("WARNING: No GPU policy network provided, using CPU policy network for training.")
 
     # the target network goes to the GPU and is updated from the GPU policy net if possible
     if cuda_enabled:
-        target_net.to(optimiser_device) 
+        target_net.to(optimiser_device)
+        print(f"Target network moved to {optimiser_device}.")
 
     print(f"""
         Commensing training.
@@ -107,9 +109,12 @@ def train_model(
 
     # Initialisation of NN apparatus
     if not cuda_enabled:
+        print("Creating optimiser for CPU network.")
         optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
     else:
+        print("Creating optimiser for GPU network.")
         optimiser = optim.AdamW(policy_net_gpu.parameters(), lr=alpha, amsgrad=True)
+        
 
     memory = PriorityMemory(buffer_size)
     torch.set_grad_enabled(True)
