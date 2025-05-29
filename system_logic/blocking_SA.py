@@ -269,7 +269,7 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
         num_goals_active = np.sum([next_state_dict[f"goal{i} active"] for i in range(env.unwrapped.num_goals)])
         num_goals_unchecked = np.sum([0 if next_state_dict[f"goal{i} checked"] else 1 for i in range(env.unwrapped.num_goals)])
         if (num_goals_active < env.unwrapped.num_robots and num_goals_unchecked < env.unwrapped.num_robots):
-            return 0.1
+            return 0.05
             
     # reward for having moved into a terminal state
     if (state_is_final(env, next_state_dict)):
