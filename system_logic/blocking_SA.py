@@ -326,8 +326,11 @@ Essentially, this is an auxiliary part of the transition model
 
 def b_model(env, state_dict, robot_no, device="cpu"):
     
+    
     if device == torch.device("cuda"):
         cuda_enabled = True
+    else:
+        cuda_enabled = False
     
     blocked_actions = np.zeros(env.action_space.n) if not cuda_enabled else torch.zeros(env.action_space.n, dtype=torch.bool, device=device)
     active_robot_loc = state_dict[f"robot{robot_no} location"]
