@@ -327,7 +327,7 @@ Essentially, this is an auxiliary part of the transition model
 def b_model(env, state_dict, robot_no, device="cpu"):
     
     
-    if device == torch.device("cuda"):
+    if device != "cpu" and torch.cuda.is_available():
         cuda_enabled = True
     else:
         cuda_enabled = False
