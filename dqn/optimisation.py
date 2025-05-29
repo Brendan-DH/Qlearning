@@ -67,6 +67,9 @@ def optimise_model_with_importance_sampling(policy_dqn,
         q_values = policy_dqn(state_batch)
         state_action_values = q_values.gather(1, action_batch.unsqueeze(1))
     except AttributeError:
+        print("policy_dqn.device:", policy_dqn.device)
+        print("state_batch.device:", state_batch.device)
+        print("optimiser_device:", optimiser_device)
         raise Exception("Something went wrong with gathering the state/action q-values")
 
     # q values of action in the next state

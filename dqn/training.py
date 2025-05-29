@@ -222,7 +222,6 @@ def train_model(
             obs_state = new_obs_state
 
             # run optimiser
-            # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
             timer_start = time.time()
 
             loss = optimise_model_with_importance_sampling(policy_net if not cuda_enabled else policy_net_gpu,
