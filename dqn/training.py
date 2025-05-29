@@ -10,6 +10,7 @@ import time
 import os
 from collections import deque
 
+from dqn.dqn import DeepQNetwork
 from dqn.plotting import plot_status
 from dqn.dqn_collections import FiniteDict
 from dqn.memory import PriorityMemory
@@ -22,6 +23,7 @@ def train_model(
         env,  # gymnasium environment
         policy_net,  # policy network to be trained
         target_net,  # target network to be soft updated
+        policy_net_gpu = None,
         reset_options=None,  # options passed when resetting env
         num_episodes=1000,  # number of episodes for training
         gamma=0.6,  # discount factor
@@ -79,15 +81,24 @@ def train_model(
     losses = np.empty(num_episodes)
 
     with warnings.catch_warnings(action="ignore"):
+        cuda_enabled = False
         optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if optimiser_device.type == "cuda":
+            print(f"Using GPU {torch.cuda.get_device_name(optimiser_device)} for training.")
+            if policy_net_gpu is not None:
+                cuda_enabled = True
+                policy_net_gpu.to(optimiser_device)
+            else:
+                print("WARNING: No GPU policy network provided, using CPU policy network for training.")
 
-    policy_net.to(torch.device("cpu"))
-    target_net.to(torch.device("cpu"))
-
+    # the target network goes to the GPU and is updated from the GPU policy net if possible
+    if cuda_enabled:
+        target_net.to(optimiser_device) 
 
     print(f"""
         Commensing training.
         Optimisation Device: {optimiser_device}
+        Cuda Enabled: {cuda_enabled}
         Environment: {env.unwrapped.spec.id}
         Run Id: {run_id}
         ----
@@ -127,7 +138,6 @@ def train_model(
 
     # Loop over training episodes
     start_time = time.time()
-    obs_visits = FiniteDict(max_size=10000)
 
     for i_episode in range(num_episodes):
         optimisation_time = 0
@@ -215,7 +225,7 @@ def train_model(
             # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
             timer_start = time.time()
 
-            loss = optimise_model_with_importance_sampling(policy_net,
+            loss = optimise_model_with_importance_sampling(policy_net if not cuda_enabled else policy_net_gpu,
                                                            target_net,
                                                            memory,
                                                            optimiser,
@@ -226,12 +236,20 @@ def train_model(
                                                            weighting_coefficient)
             optimisation_time += time.time() - timer_start
 
-            # print("loss", loss)
+            if cuda_enabled:
+                # Update the target network (on GPU) from the GPU policy net
+                with torch.no_grad():
+                    for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net_gpu.parameters()):
+                        target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
+                
+                # Also update the CPU policy net from the GPU policy net
+                policy_net.load_state_dict(policy_net_gpu.state_dict())  
 
-            # Soft-update the target net -- doing this in-place for better efficiency
-            with torch.no_grad():
-                for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net.parameters()):
-                    target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
+            else:
+                # Update the target net (on cpu) from the CPU policy net
+                with torch.no_grad():
+                    for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net.parameters()):
+                        target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
 
             # if done, process data and make plots
             if done:

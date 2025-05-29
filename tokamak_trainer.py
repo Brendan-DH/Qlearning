@@ -134,12 +134,15 @@ else:
 
 
     policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
+    policy_net_gpu = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
     target_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
     target_net.load_state_dict(policy_net.state_dict())
+    policy_net_gpu.load_state_dict(policy_net.state_dict())
 
     trained_dqn, dur, re, eps = training.train_model(env,
                                                      policy_net,
                                                      target_net,
+                                                     policy_net_gpu,
                                                      epsilon_decay_function=lambda ep, e_max, e_min, num_eps: epsilon_function(episode=ep,
                                                                                                                                epsilon_max=e_max,
                                                                                                                                epsilon_min=e_min,

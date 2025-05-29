@@ -19,8 +19,6 @@ def optimise_model_with_importance_sampling(policy_dqn,
     if len(replay_memory.memory) < batch_size or len(replay_memory.bounds) == 0:
         return
 
-    policy_dqn = policy_dqn.to(optimiser_device)
-    target_dqn = target_dqn.to(optimiser_device)
     mem_size = len(replay_memory.memory)
 
     # get the batch of transitions. sample one transition from each of k linear segments
@@ -52,17 +50,17 @@ def optimise_model_with_importance_sampling(policy_dqn,
     r_std = np.std(r_tr)
 
     weights = weights * (1 / max_w)
-    weights = torch.tensor(weights, dtype=torch.float, device=optimiser_device)
+    weights = torch.as_tensor(weights, dtype=torch.float, device=optimiser_device)
 
     # boolean mask of which states are NOT final (final = termination occurs in this state)
-    non_final_mask = torch.tensor(tuple(map(lambda ns: ns is not None, batch.next_state)), device=torch.device(optimiser_device), dtype=torch.bool)
+    non_final_mask = torch.as_tensor(tuple(map(lambda ns: ns is not None, batch.next_state)), device=torch.device(optimiser_device), dtype=torch.bool)
 
     # collection of non-final states
     non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
     state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
 
-    action_batch = torch.tensor(batch.action, requires_grad=False).to(optimiser_device)  # tensor
-    reward_batch = torch.tensor((batch.reward - r_mean) / (r_std + 1e-6), requires_grad=False).to(optimiser_device)  # tensor
+    action_batch = torch.as_tensor(batch.action).to(optimiser_device)  # tensor
+    reward_batch = torch.as_tensor((batch.reward - r_mean) / (r_std + 1e-6)).to(optimiser_device)  # tensor
 
     # the qvalues of actions in this state as according to the policy network
     try:
@@ -83,7 +81,6 @@ def optimise_model_with_importance_sampling(policy_dqn,
     loss = torch.mean(loss_vector).to(optimiser_device)
 
     # optimise the model
-    # optimiser_device_check(optimiser)
     optimiser.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_value_(policy_dqn.parameters(), 1000)  # stops the gradients from becoming too large
@@ -94,8 +91,5 @@ def optimise_model_with_importance_sampling(policy_dqn,
         index = transition_indices[i]
         # the new priority (delta) is the mean loss for this transition (how surprising it was)
         replay_memory.update_priorities(index, torch.mean(loss_vector[i]).item())
-
-    target_dqn.to(torch.device("cpu"))
-    policy_dqn.to(torch.device("cpu"))
 
     return loss.item()
