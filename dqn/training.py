@@ -138,19 +138,17 @@ def train_model(
         gc.collect()
         torch.cuda.empty_cache()
 
-        base_epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
-        epsilon = base_epsilon
+        epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
         if ((i_episode % plot_frequency) == 0):
-            print(f"{i_episode}/{num_episodes} complete, epsilon = {base_epsilon}")
+            print(f"{i_episode}/{num_episodes} complete, epsilon = {epsilon}")
             if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
 
         if (i_episode % int(memory_sort_frequency) == 0):
             memory.sort(batch_size, priority_coefficient)
 
         # calculate the new epsilon
-        epsilon_boost = 0.2
         if (plotting_on or checkpoints_on):
-            epsilons[i_episode] = base_epsilon
+            epsilons[i_episode] = epsilon
 
         obs_state, info = env.reset()
 
@@ -160,9 +158,6 @@ def train_model(
         ep_reward = 0
 
         # Navigate the environment
-        recent_state_capacity = 5
-        recent_states = deque([], maxlen=recent_state_capacity)
-        # recent_states.appendleft(str(obs_state.values()))
         rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
         for t in count():
@@ -215,12 +210,6 @@ def train_model(
             # move transition to the replay memory
             memory.push(obs_tensor, action, new_obs_state_tensor, reward)
             obs_state = new_obs_state
-
-            obs_visits[str(obs_state.values())] += 1  # remember that we have been to this state
-            # maybe I could take the last 5 states, work out how novel they are, and then set the boost based on this
-            recent_states.appendleft(str(obs_state.values()))
-            novelty_rating = np.mean(list(map(obs_visits.data.get, list(recent_states))))  # average visits in last 5 states
-            epsilon = base_epsilon + (1 / novelty_rating) * epsilon_boost
 
             # run optimiser
             # optimise_model(policy_net, target_net, memory, optimiser, gamma, batch_size)
