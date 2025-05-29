@@ -92,6 +92,7 @@ if multiagent:
     def block_illegal_actions(action_utilities):
         blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.clock)
         x = torch.where(blocked, 0, action_utilities)
+        print("devices: ", action_utilities.device, blocked.device)
         return x
         # return action_utilities
 
@@ -128,7 +129,7 @@ if multiagent:
                                                         )
 else:
     def block_illegal_actions(action_utilities):
-        blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
+        blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"], device=action_utilities.device)
         x = torch.where(blocked, 0, action_utilities)
         return x
 

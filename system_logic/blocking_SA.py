@@ -324,8 +324,12 @@ Essentially, this is an auxiliary part of the transition model
 """
 
 
-def b_model(env, state_dict, robot_no):
-    blocked_actions = np.zeros(env.action_space.n)
+def b_model(env, state_dict, robot_no, device="cpu"):
+    
+    if device == torch.device("cuda"):
+        cuda_enabled = True
+    
+    blocked_actions = np.zeros(env.action_space.n) if not cuda_enabled else torch.zeros(env.action_space.n, dtype=torch.bool, device=device)
     active_robot_loc = state_dict[f"robot{robot_no} location"]
 
     blocked_actions[0] = get_counter_cw_blocked(env, state_dict, robot_no)
@@ -350,7 +354,7 @@ def b_model(env, state_dict, robot_no):
     blocked_actions[2] = block_task_completion
 
     # keeping this as a tensor as it makes some masking easier
-    return torch.tensor(blocked_actions, dtype=torch.bool, device=global_device, requires_grad=False)
+    return torch.tensor(blocked_actions, dtype=torch.bool, device=device, requires_grad=False)
 
 
 def get_counter_cw_blocked(env, state_dict, robot_no):
