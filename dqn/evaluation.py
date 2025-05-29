@@ -32,8 +32,6 @@ def evaluate_model_by_trial(dqn,
 
     for i in range(num_episodes):
         obs_state, info = env.reset()
-        obs_state["episode"] = 300
-        obs_state["epsilon"] = 0
 
         states = [env.unwrapped.state_dict]
         actions = []
@@ -49,12 +47,11 @@ def evaluate_model_by_trial(dqn,
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
-            new_obs_state["episode"] = 300
-            new_obs_state["epsilon"] = 0
 
             states.append(env.unwrapped.state_dict)
 
             actions.append(action)
+            
             obs_state = new_obs_state
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 

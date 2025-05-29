@@ -251,7 +251,7 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
                     moving_robot_loc - other_robot_loc == -1 or \
                     (moving_robot_loc == 0 and other_robot_loc == env.unwrapped.size - 1) or \
                     (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
-                reward -= 0.1
+                reward -= 0.5
                 
         # reward for checking a goal by moving onto its position
         for i in range(env.unwrapped.num_goals):
@@ -267,7 +267,8 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
     # reward for staying still if there are few goals remaining
     if (action_no == 3):
         num_goals_active = np.sum([next_state_dict[f"goal{i} active"] for i in range(env.unwrapped.num_goals)])
-        if (num_goals_active < env.unwrapped.num_robots):
+        num_goals_unchecked = np.sum([0 if next_state_dict[f"goal{i} checked"] else 1 for i in range(env.unwrapped.num_goals)])
+        if (num_goals_active < env.unwrapped.num_robots and num_goals_unchecked < env.unwrapped.num_robots):
             return 0.1
             
     # reward for having moved into a terminal state

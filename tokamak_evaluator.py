@@ -71,13 +71,13 @@ num_hidden_layers = int((len(loaded_weights.keys()) - 4) / 2)  # -4 accounts for
 
 
 def block_illegal_actions(action_utilities):
-    blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.clock)
+    blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
     x = torch.where(blocked, -100000, action_utilities)
     return x
     # return action_utilities
 
 
-policy_net = DeepQNetwork(n_observations+2, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
+policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
 
 print(f"Loading from /inputs/{load_weights_file}")
 policy_net.load_state_dict(loaded_weights)
