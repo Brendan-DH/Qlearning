@@ -57,7 +57,8 @@ env = gym.make(env_to_use,
                pseudoreward_function=mdpt.pseudoreward_function,
                initial_state_logic=mdpt.initial_state_logic,
                training=True,
-               render=False)
+               render=input_dict["render_training"].lower() == "y",
+        )
 
 nodes_per_layer = int(input_dict["nodes_per_layer"])  # default 128
 num_hidden_layers = int(input_dict["num_hidden_layers"])

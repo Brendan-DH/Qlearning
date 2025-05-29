@@ -24,28 +24,25 @@ def optimise_model_with_importance_sampling(policy_dqn,
     mem_size = len(replay_memory.memory)
 
     # get the batch of transitions. sample one transition from each of k linear segments
-    # lower = 0
-    # transitions = np.empty(batch_size, dtype=DeltaTransition)
-    # transition_indices = np.empty(batch_size, dtype=int)  # torch.tensor(np.empty(batch_size, dtype=int), device=torch.device("cpu"), requires_grad=False)
-    # weights = np.empty(batch_size, dtype=float)  # torch.empty(batch_size, dtype=torch.float, device=torch.device("cpu"), requires_grad=False)
+    lower = 0
+    transitions = np.empty(batch_size, dtype=DeltaTransition)
+    transition_indices = np.empty(batch_size, dtype=int)  # torch.tensor(np.empty(batch_size, dtype=int), device=torch.device("cpu"), requires_grad=False)
+    weights = np.empty(batch_size, dtype=float)  # torch.empty(batch_size, dtype=torch.float, device=torch.device("cpu"), requires_grad=False)
 
     # loop over the k linear segments
-    # max_w = (mem_size * replay_memory.prob_divisor) ** -weighting_coefficient
-    # for i in range(batch_size):
-    #     # upper = replay_memory.bounds[i]
-    #     # tr_index = random.randint(lower, upper - 1)  # get a random index that falls in the segment
-    #     # transition_indices[i] = tr_index  # must be stored to update the tr delta later
-    #     # transitions[i] = replay_memory.memory[tr_index]
-    #     #
-    #     # tr_priority = 1 / (tr_index + 1)  # priority of the transition (rank-based sampling)
-    #     # p_tr = (tr_priority ** priority_coefficient) * replay_memory.prob_divisor  # the probability of this tr being picked
-    #     # weight = (mem_size * p_tr) ** -weighting_coefficient
-    #     # weights[i] = weight
-    #     # lower = upper
-    #     transitions[i] =
-    #     transition_indices[i] =
+    max_w = (mem_size * replay_memory.prob_divisor) ** -weighting_coefficient
+    for i in range(batch_size):
+        upper = replay_memory.bounds[i]
+        tr_index = random.randint(lower, upper - 1)  # get a random index that falls in the segment
+        transition_indices[i] = tr_index  # must be stored to update the tr delta later
+        transitions[i] = replay_memory.memory[tr_index]
+        
+        tr_priority = 1 / (tr_index + 1)  # priority of the transition (rank-based sampling)
+        p_tr = (tr_priority ** priority_coefficient) * replay_memory.prob_divisor  # the probability of this tr being picked
+        weight = (mem_size * p_tr) ** -weighting_coefficient
+        weights[i] = weight
+        lower = upper
 
-    transitions = replay_memory.sample(batch_size)
     batch = DeltaTransition(*zip(*transitions))
 
     # for calculating reward normalisation:
@@ -54,18 +51,13 @@ def optimise_model_with_importance_sampling(policy_dqn,
     r_mean = np.mean(r_tr)
     r_std = np.std(r_tr)
 
-    # weights = weights * (1 / max_w)
-    # weights = torch.tensor(weights, dtype=torch.float, device=optimiser_device)
+    weights = weights * (1 / max_w)
+    weights = torch.tensor(weights, dtype=torch.float, device=optimiser_device)
 
     # boolean mask of which states are NOT final (final = termination occurs in this state)
     non_final_mask = torch.tensor(tuple(map(lambda ns: ns is not None, batch.next_state)), device=torch.device(optimiser_device), dtype=torch.bool)
 
     # collection of non-final states
-    # state_shape = policy_dqn.input_shape
-    #
-    # non_final_next_states = torch.empty((batch_size, *state_shape), device="cpu")
-    # state_batch = torch.empty((batch_size, *state_shape), device="cpu")
-
     non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
     state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
 
@@ -87,10 +79,8 @@ def optimise_model_with_importance_sampling(policy_dqn,
 
     # Compute loss. Times by weight of transition
     criterion = nn.SmoothL1Loss(reduction="none")  # (Huber loss)
-    loss_vector = criterion(state_action_values, expected_state_action_values.unsqueeze(1))  # * weights.unsqueeze(1)
+    loss_vector = criterion(state_action_values, expected_state_action_values.unsqueeze(1)) * weights.unsqueeze(1)
     loss = torch.mean(loss_vector).to(optimiser_device)
-    # loss = (loss_vector.sum() / weights.sum()).to(optimiser_device)
-    # print("loss", loss)
 
     # optimise the model
     # optimiser_device_check(optimiser)
@@ -100,10 +90,10 @@ def optimise_model_with_importance_sampling(policy_dqn,
     optimiser.step()
 
     # now update the priorities of the transitions that were used
-    # for i in range(len(transition_indices)):  # would it be more efficient to store just delta_i? might require fewer calculations
-    #     index = transition_indices[i]
-    #     # the new priority (delta) is the mean loss for this transition (how surprising it was)
-    #     replay_memory.update_priorities(index, torch.mean(loss_vector[i]).item())
+    for i in range(len(transition_indices)):  # would it be more efficient to store just delta_i? might require fewer calculations
+        index = transition_indices[i]
+        # the new priority (delta) is the mean loss for this transition (how surprising it was)
+        replay_memory.update_priorities(index, torch.mean(loss_vector[i]).item())
 
     target_dqn.to(torch.device("cpu"))
     policy_dqn.to(torch.device("cpu"))

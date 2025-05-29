@@ -15,34 +15,6 @@ import pygame
 import torch
 
 
-class TensorSpace(gym.Space):
-    def __init__(self, shape, dtype=torch.float32):
-        """
-        Custom observation space for PyTorch tensors.
-
-        Args:
-            shape (tuple): Shape of the tensor.
-            dtype (torch.dtype): Data type of the tensor.
-        """
-        # Initialize the parent class with shape and dtype
-        super().__init__(shape, dtype)
-
-        # Store the shape and dtype as instance attributes
-        self._shape = shape
-        self._dtype = dtype
-
-    def sample(self):
-        """Generate a random tensor."""
-        return torch.rand(self._shape, dtype=self._dtype)
-
-    def contains(self, x):
-        """Check if `x` is a valid tensor in this space."""
-        return isinstance(x, torch.Tensor) and x.shape == self._shape and x.dtype == self._dtype
-
-    def __repr__(self):
-        return f"TensorSpace(shape={self._shape}, dtype={self._dtype})"
-
-
 class TokamakEnv17(gym.Env):
     metadata = {"render_modes": [], "render_fps": 30}
 
@@ -125,10 +97,10 @@ class TokamakEnv17(gym.Env):
 
         # Define discrete ranges (adjust bounds as needed)
         obs_space = {}
-        # obs_space["clock"] = spaces.Discrete(self.num_robots)
+        obs_space["clock"] = spaces.Discrete(self.num_robots)
         for i in range(self.num_robots):
             obs_space[f"robot{i} location"] = spaces.Discrete(self.size)
-            obs_space[f"robot{i} clock"] = spaces.Discrete(2)
+            # obs_space[f"robot{i} clock"] = spaces.Discrete(2)
 
         for i in range(self.num_goals):
             obs_space[f"goal{i} active"] = spaces.Discrete(2)
@@ -146,90 +118,90 @@ class TokamakEnv17(gym.Env):
         self.elapsed_ticks = 0
         self.reset()
 
-    def state_tensor_to_observable(self, state_tensor):
+    # def state_tensor_to_observable(self, state_tensor):
 
-        obs_dict = {}
-        obs_dict["clock"] = int(state_tensor[-1].item())
-        for i in range(self.num_robots):
-            index = i * 2
-            obs_dict[f"robot{i} location"] = int(state_tensor[index].item())
-            obs_dict[f"robot{i} clock"] = int(state_tensor[index + 1].item())
+    #     obs_dict = {}
+    #     obs_dict["clock"] = int(state_tensor[-1].item())
+    #     for i in range(self.num_robots):
+    #         index = i * 2
+    #         obs_dict[f"robot{i} location"] = int(state_tensor[index].item())
+    #         obs_dict[f"robot{i} clock"] = int(state_tensor[index + 1].item())
 
-        for i in range(self.num_goals):
-            index = self.num_robots * 2 + i * 5
-            obs_dict[f"goal{i} active"] = int(state_tensor[index + 1].item())
-            obs_dict[f"goal{i} checked"] = int(state_tensor[index + 2].item())
+    #     for i in range(self.num_goals):
+    #         index = self.num_robots * 2 + i * 5
+    #         obs_dict[f"goal{i} active"] = int(state_tensor[index + 1].item())
+    #         obs_dict[f"goal{i} checked"] = int(state_tensor[index + 2].item())
 
-        return obs_dict
+    #     return obs_dict
 
-    def interpret_state_tensor(self, state_tensor):
+    # def interpret_state_tensor(self, state_tensor):
 
-        # function to take the state tensor and translate it into a state dict
-        state_dict = {}
+    #     # function to take the state tensor and translate it into a state dict
+    #     state_dict = {}
 
-        state_dict["clock"] = int(state_tensor[-1].item())
-        for i in range(self.num_robots):
-            index = i * 2
-            state_dict[f"robot{i} location"] = int(state_tensor[index].item())
-            state_dict[f"robot{i} clock"] = int(state_tensor[index + 1].item())
+    #     state_dict["clock"] = int(state_tensor[-1].item())
+    #     for i in range(self.num_robots):
+    #         index = i * 2
+    #         state_dict[f"robot{i} location"] = int(state_tensor[index].item())
+    #         state_dict[f"robot{i} clock"] = int(state_tensor[index + 1].item())
 
-        for i in range(self.num_goals):
-            index = self.num_robots * 2 + i * 5
-            state_dict[f"goal{i} location"] = int(state_tensor[index].item())
-            state_dict[f"goal{i} active"] = int(state_tensor[index + 1].item())
-            state_dict[f"goal{i} checked"] = int(state_tensor[index + 2].item())
-            state_dict[f"goal{i} discovery probability"] = state_tensor[index + 3].item()
-            state_dict[f"goal{i} completion probability"] = state_tensor[index + 4].item()
+    #     for i in range(self.num_goals):
+    #         index = self.num_robots * 2 + i * 5
+    #         state_dict[f"goal{i} location"] = int(state_tensor[index].item())
+    #         state_dict[f"goal{i} active"] = int(state_tensor[index + 1].item())
+    #         state_dict[f"goal{i} checked"] = int(state_tensor[index + 2].item())
+    #         state_dict[f"goal{i} discovery probability"] = state_tensor[index + 3].item()
+    #         state_dict[f"goal{i} completion probability"] = state_tensor[index + 4].item()
 
-        return state_dict
+    #     return state_dict
 
-    def construct_state_tensor_from_system_parameters(self, system_parameters, device=torch.device("cpu")):
+    # def construct_state_tensor_from_system_parameters(self, system_parameters, device=torch.device("cpu")):
 
-        tensor_length = 1 + self.num_robots * 2 + self.num_goals * 5
-        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device, requires_grad=False)
+    #     tensor_length = 1 + self.num_robots * 2 + self.num_goals * 5
+    #     state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device, requires_grad=False)
 
-        state_tensor[-1] = 0
-        for i in range(len(system_parameters.robot_locations)):
-            index = i * 2
-            state_tensor[index] = system_parameters.robot_locations[i]
-            state_tensor[index + 1] = 0
-        for i in range(len(system_parameters.goal_locations)):
-            index = self.num_robots * 2 + i * 5
-            state_tensor[index] = system_parameters.goal_locations[i]
-            state_tensor[index + 1] = system_parameters.goal_activations[i]  # 1 = goal should be engaged
-            state_tensor[index + 2] = system_parameters.goal_checked[i]  # 1 = goal location has been visited
-            state_tensor[index + 3] = system_parameters.goal_discovery_probabilities[i]  # p that goal is present
-            state_tensor[index + 4] = system_parameters.goal_completion_probabilities[i]  # p that goal is completed in 1 attempt
+    #     state_tensor[-1] = 0
+    #     for i in range(len(system_parameters.robot_locations)):
+    #         index = i * 2
+    #         state_tensor[index] = system_parameters.robot_locations[i]
+    #         state_tensor[index + 1] = 0
+    #     for i in range(len(system_parameters.goal_locations)):
+    #         index = self.num_robots * 2 + i * 5
+    #         state_tensor[index] = system_parameters.goal_locations[i]
+    #         state_tensor[index + 1] = system_parameters.goal_activations[i]  # 1 = goal should be engaged
+    #         state_tensor[index + 2] = system_parameters.goal_checked[i]  # 1 = goal location has been visited
+    #         state_tensor[index + 3] = system_parameters.goal_discovery_probabilities[i]  # p that goal is present
+    #         state_tensor[index + 4] = system_parameters.goal_completion_probabilities[i]  # p that goal is completed in 1 attempt
 
-        return state_tensor
+    #     return state_tensor
 
-    def construct_state_tensor_from_dict(self, state_dict, device=torch.device("cpu")):
+    # def construct_state_tensor_from_dict(self, state_dict, device=torch.device("cpu")):
 
-        tensor_length = 1 + self.num_robots * 2 + self.num_goals * 5
-        state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device, requires_grad=False)
+    #     tensor_length = 1 + self.num_robots * 2 + self.num_goals * 5
+    #     state_tensor = torch.empty((tensor_length), dtype=torch.float32, device=device, requires_grad=False)
 
-        state_tensor[-1] = state_dict["clock"]
-        for i in range(self.num_robots):
-            index = i * 2
-            state_tensor[index] = state_dict[f"robot{i} location"]
-            state_tensor[index + 1] = state_dict[f"robot{i} clock"]
-        for i in range(self.num_goals):
-            index = (self.num_robots * 2) + (i * 5)
-            state_tensor[index] = state_dict[f"goal{i} location"]
-            state_tensor[index + 1] = state_dict[f"goal{i} active"]
-            state_tensor[index + 2] = state_dict[f"goal{i} checked"]
-            state_tensor[index + 3] = state_dict[f"goal{i} discovery probability"]
-            state_tensor[index + 4] = state_dict[f"goal{i} completion probability"]
+    #     state_tensor[-1] = state_dict["clock"]
+    #     for i in range(self.num_robots):
+    #         index = i * 2
+    #         state_tensor[index] = state_dict[f"robot{i} location"]
+    #         state_tensor[index + 1] = state_dict[f"robot{i} clock"]
+    #     for i in range(self.num_goals):
+    #         index = (self.num_robots * 2) + (i * 5)
+    #         state_tensor[index] = state_dict[f"goal{i} location"]
+    #         state_tensor[index + 1] = state_dict[f"goal{i} active"]
+    #         state_tensor[index + 2] = state_dict[f"goal{i} checked"]
+    #         state_tensor[index + 3] = state_dict[f"goal{i} discovery probability"]
+    #         state_tensor[index + 4] = state_dict[f"goal{i} completion probability"]
 
-        return state_tensor
+    #     return state_tensor
 
     def state_dict_to_observable(self, state_dict):
 
         obs_dict = {}
-        # obs_dict["clock"] = int(self.state_tensor[-1].item())
+        obs_dict["clock"] = int(state_dict["clock"])
         for i in range(self.num_robots):
             obs_dict[f"robot{i} location"] = int(state_dict[f"robot{i} location"])
-            obs_dict[f"robot{i} clock"] = int(state_dict[f"robot{i} clock"])
+            # obs_dict[f"robot{i} clock"] = int(state_dict[f"robot{i} clock"])
 
         for i in range(self.num_goals):
             obs_dict[f"goal{i} active"] = int(state_dict[f"goal{i} active"])
@@ -323,7 +295,7 @@ class TokamakEnv17(gym.Env):
 
         if (self.render_ticks_only):
             for i in range(self.num_robots):
-                if (state[f"robot{i} clock"] == 1):
+                if (state[f"clock"] > 0):
                     return
 
         if self.window is None:

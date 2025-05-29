@@ -37,13 +37,14 @@ def get_input_dict(input_dir="/inputs", print_inputs=True):
         "evaluation_weights_file": None,
         "render_evaluation": "n",
         "num_evaluation_episodes": 100,
-        "evaluation_type": "mdp"
+        "evaluation_type": "mdp",
+        "render_training": "n",
     }
 
     # this block prints out the default values if it doesn't detect them in "input_dir"
     if ("default_inputs.in" not in os.listdir(os.getcwd() + input_dir)):
-        print(f"Saving default inputs to '{os.getcwd()}/{input_dir}/default_inputs.in'")
-        with open(f"{input_dir}/default_inputs.in", "w") as file:
+        print(f"Saving default inputs to '{os.getcwd() + input_dir}/default_inputs.in'")
+        with open(f"{os.getcwd() + input_dir}/default_inputs.in", "w") as file:
             file.write("# default input parameters for tokamak_trainer.py\n")
             for key, value in input_dict.items():
                 file.write(f"{key} = {value}\n")
