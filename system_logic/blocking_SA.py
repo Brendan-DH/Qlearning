@@ -329,6 +329,7 @@ def b_model(env, state_dict, robot_no, device="cpu"):
     
     if device != "cpu" and torch.cuda.is_available():
         cuda_enabled = True
+        print(f"Using CUDA on device: {torch.cuda.get_device_name(0)}")
     else:
         cuda_enabled = False
     
