@@ -243,16 +243,16 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
     reward = 0
 
     if (action_no == 0 or action_no == 1):
-        # penalty for being in another robot's way
-        moving_robot_loc = next_state_dict[f"robot{robot_no} location"]
-        for i in range(env.unwrapped.num_robots):
-            other_robot_loc = next_state_dict[f"robot{i} location"]
-            if moving_robot_loc - other_robot_loc == 1 or \
-                    moving_robot_loc - other_robot_loc == -1 or \
-                    (moving_robot_loc == 0 and other_robot_loc == env.unwrapped.size - 1) or \
-                    (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
-                reward -= 0.1
-                break
+        # # penalty for being in another robot's way
+        # moving_robot_loc = next_state_dict[f"robot{robot_no} location"]
+        # for i in range(env.unwrapped.num_robots):
+        #     other_robot_loc = next_state_dict[f"robot{i} location"]
+        #     if moving_robot_loc - other_robot_loc == 1 or \
+        #             moving_robot_loc - other_robot_loc == -1 or \
+        #             (moving_robot_loc == 0 and other_robot_loc == env.unwrapped.size - 1) or \
+        #             (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
+        #         reward -= 0.1
+        #         break
         
                 
         # reward for checking a goal by moving onto its position
@@ -265,17 +265,10 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
         for i in range(env.unwrapped.num_goals):
             prob = old_state_dict[f"goal{i} completion probability"]
             reward += 0.2  + 0.4*(1 - 1 / (1 + np.exp(-7 * (prob - 0.5))))
-
-    # reward for staying still if there are few goals remaining
-    if (action_no == 3):
-        num_goals_active = np.sum([next_state_dict[f"goal{i} active"] for i in range(env.unwrapped.num_goals)])
-        num_goals_unchecked = np.sum([0 if next_state_dict[f"goal{i} checked"] else 1 for i in range(env.unwrapped.num_goals)])
-        if (num_goals_active < robot_no and num_goals_unchecked < robot_no):
-            return 0.05
             
     # reward for having moved into a terminal state
     if (state_is_final(env, next_state_dict)):
-        reward += 5.0  # reward for completing the task
+        reward += 1  # reward for completing the task
 
     return reward
 
@@ -328,29 +321,27 @@ Essentially, this is an auxiliary part of the transition model
 
 
 def b_model(env, state_dict, robot_no):
-    blocked_actions = np.zeros(env.action_space.n)
-    active_robot_loc = state_dict[f"robot{robot_no} location"]
+    
+    blocked_actions = np.empty(env.action_space.n)
 
     blocked_actions[0] = get_counter_cw_blocked(env, state_dict, robot_no)
     blocked_actions[1] = get_cw_blocked(env, state_dict, robot_no)
-
-    block_task_completion = True
-    other_robot_adjacent = False
-
-    for m in range(env.unwrapped.num_robots):
-        if robot_no == m:
-            continue
-        elif abs(min(active_robot_loc - state_dict[f"robot{m} location"], env.unwrapped.size - (active_robot_loc - state_dict[f"robot{m} location"]))) == 1:
-            other_robot_adjacent = True
-            break
-
-    if not other_robot_adjacent:
-        for k in range(env.unwrapped.num_goals):
-            if (state_dict[f"goal{k} location"] == active_robot_loc and state_dict[f"goal{k} active"] == 1):
-                block_task_completion = False  # unblock this engage action
-                break
-
-    blocked_actions[2] = block_task_completion
+    
+    num_goals_active = np.sum([state_dict[f"goal{i} active"] for i in range(env.unwrapped.num_goals)])
+    num_goals_unchecked = np.sum([0 if state_dict[f"goal{i} checked"] else 1 for i in range(env.unwrapped.num_goals)])
+    
+    # unblock wait if either side is blocked
+    if (blocked_actions[0] and blocked_actions[1] or \
+        num_goals_active < robot_no and num_goals_unchecked < robot_no):
+        blocked_actions[3] = 0
+    else:
+        blocked_actions[3] = 1
+        
+    # block engage if either side is blocked
+    if blocked_actions[0] or blocked_actions[1]:
+        blocked_actions[2] = 1
+    else:
+        blocked_actions[2] = 0 
 
     # keeping this as a tensor as it makes some masking easier
     return torch.tensor(blocked_actions, dtype=torch.bool, device=global_device, requires_grad=False)

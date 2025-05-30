@@ -16,6 +16,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
                                             batch_size,
                                             priority_coefficient,
                                             weighting_coefficient):
+    
     if len(replay_memory.memory) < batch_size or len(replay_memory.bounds) == 0:
         return
 
@@ -86,7 +87,7 @@ def optimise_model_with_importance_sampling(policy_dqn,
     # optimise the model
     optimiser.zero_grad()
     loss.backward()
-    torch.nn.utils.clip_grad_value_(policy_dqn.parameters(), 1000)  # stops the gradients from becoming too large
+    torch.nn.utils.clip_grad_value_(policy_dqn.parameters(), 1)  # stops the gradients from becoming too large
     optimiser.step()
 
     # now update the priorities of the transitions that were used
