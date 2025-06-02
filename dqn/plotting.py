@@ -18,7 +18,7 @@ def plot_status(episode_durations, rewards, epsilons, losses):
     bot_ax.set_ylim(0, 1)
     bot_ax.set_yticks(np.linspace(0, 1, 21))
 
-    losses_ax.set_ylim(0, min(np.percentile(losses, 90), 10))
+    # losses_ax.set_ylim(0, min(np.percentile(losses, 90), 10))
 
     upper_ax.set_ylabel("Reward")
     mid_ax.set_xlabel('Episode')

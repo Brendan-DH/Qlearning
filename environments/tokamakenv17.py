@@ -223,10 +223,7 @@ class TokamakEnv17(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         init_copy = self.initial_state_dict.copy()
-
-        for i in range(self.num_robots):
-            init_copy[f"robot{i} location"] = np.random.randint(0, self.size)
-
+        
         if self.initial_state_logic:
             # print("init logic")
             init_copy = self.initial_state_logic(self, init_copy.copy())
@@ -256,7 +253,7 @@ class TokamakEnv17(gym.Env):
 
         self.elapsed_steps += 1
         old_state_dict = self.state_dict.copy()
-        p_array, s_array = self.transition_model(self, old_state_dict, old_state_dict["clock"], action)  # probabilities and states
+        p_array, s_array = self.transition_model(self, old_state_dict, action)  # probabilities and states
 
         # roll dice to detemine resultant state from possibilities
         roll = np.random.random()

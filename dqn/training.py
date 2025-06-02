@@ -24,7 +24,7 @@ def train_model(
         policy_net,  # policy network to be trained
         target_net,  # target network to be soft updated
         policy_net_gpu = None,
-        reset_options=None,  # options passed when resetting env
+        optimisation_frequency=10,  # how often to optimise the model (in steps)
         num_episodes=1000,  # number of episodes for training
         gamma=0.6,  # discount factor
         epsilon_max=0.95,  # max exploration rate
@@ -174,6 +174,7 @@ def train_model(
         if (use_pseudorewards):
             phi_sprime = env.unwrapped.pseudoreward_function(env, env.unwrapped.state_tensor)  # phi_sprime is the pseudoreward of the new state
         ep_reward = 0
+        ep_loss = 0
 
         # Navigate the environment
         rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
@@ -194,12 +195,10 @@ def train_model(
 
             if (np.random.random() < epsilon):
                 sample = env.action_space.sample()
-                while blocked[sample] == 1:
-                    sample = env.action_space.sample()
+                # while blocked[sample] == 1:
+                #     sample = env.action_space.sample()
                 action = sample
             else:
-                # Set action_utilities to 0 where blocked is 1
-                action_utilities[torch.tensor(blocked, dtype=torch.bool)] = 0
                 action = torch.argmax(action_utilities).item()
 
             # apply action to environment
@@ -221,7 +220,7 @@ def train_model(
             ep_reward += reward
 
             # work out if the run is over
-            done = terminated or truncated or (t > max_steps)
+            done = terminated or truncated or (t > max_steps) or blocked[action] == 1
             if terminated:
                 new_obs_state_tensor = None
             else:
@@ -233,37 +232,40 @@ def train_model(
 
             # run optimiser
             timer_start = time.time()
+    
+            if t % optimisation_frequency == 0:
+                # print(f"Optimising model at step {t} of episode {i_episode}...")
+                loss = optimise_model_with_importance_sampling(policy_net if not cuda_enabled else policy_net_gpu,
+                                                            target_net,
+                                                            memory,
+                                                            optimiser,
+                                                            optimiser_device,
+                                                            gamma_tensor,
+                                                            batch_size,
+                                                            priority_coefficient,
+                                                            weighting_coefficient)
+                ep_loss += loss if loss is not None else 0
+                optimisation_time += time.time() - timer_start
 
-            loss = optimise_model_with_importance_sampling(policy_net if not cuda_enabled else policy_net_gpu,
-                                                           target_net,
-                                                           memory,
-                                                           optimiser,
-                                                           optimiser_device,
-                                                           gamma_tensor,
-                                                           batch_size,
-                                                           priority_coefficient,
-                                                           weighting_coefficient)
-            optimisation_time += time.time() - timer_start
+                if cuda_enabled:
+                    # Update the target network (on GPU) from the GPU policy net
+                    with torch.no_grad():
+                        for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net_gpu.parameters()):
+                            target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
+                    
+                    # Also update the CPU policy net from the GPU policy net
+                    policy_net.load_state_dict(policy_net_gpu.state_dict())  
 
-            if cuda_enabled:
-                # Update the target network (on GPU) from the GPU policy net
-                with torch.no_grad():
-                    for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net_gpu.parameters()):
-                        target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
-                
-                # Also update the CPU policy net from the GPU policy net
-                policy_net.load_state_dict(policy_net_gpu.state_dict())  
-
-            else:
-                # Update the target net (on cpu) from the CPU policy net
-                with torch.no_grad():
-                    for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net.parameters()):
-                        target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
+                else:
+                    # Update the target net (on cpu) from the CPU policy net
+                    with torch.no_grad():
+                        for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net.parameters()):
+                            target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
 
             # if done, process data and make plots
             if done:
                 if (plotting_on or checkpoints_on):
-                    losses[i_episode] = loss if loss is not None else 0
+                    losses[i_episode] = ep_loss * (optimisation_frequency/t) if t > 0 else 0 # average loss per optimisation
                     episode_durations[i_episode] = info["elapsed steps"]
                     rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
@@ -282,3 +284,5 @@ def train_model(
 
     print(f"Training complete in {int(time.time() - start_time)} seconds.")
     return policy_net, episode_durations, rewards, epsilons
+
+

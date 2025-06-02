@@ -19,6 +19,7 @@ def get_input_dict(input_dir="/inputs", print_inputs=True):
         "batch_size": 256,
         "buffer_size": 50000,
         "memory_sort_frequency": 5,
+        "optimisation_frequency": 10,
         "num_training_episodes": 300,
         "max_steps": 200,
         "epsilon_decay_type": "exponential",

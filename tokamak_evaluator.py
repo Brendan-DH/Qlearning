@@ -71,9 +71,9 @@ num_hidden_layers = int((len(loaded_weights.keys()) - 4) / 2)  # -4 accounts for
 
 
 def block_illegal_actions(action_utilities):
-    blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
-    x = torch.where(blocked, -100000, action_utilities)
-    return x
+    # blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
+    # x = torch.where(blocked, -100000, action_utilities)
+    return action_utilities
     # return action_utilities
 
 

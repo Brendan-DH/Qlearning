@@ -47,7 +47,6 @@ class PriorityMemory(object):
         self.prob_divisor = 1 / np.sum([((1 / (i + 1)) ** priority_coefficient) for i in range(len(items))])
 
         # re-calculate the bounds
-        # do this very explicitly for now
         bounds = np.zeros(batch_size, dtype=int)
         start = 0
         # print("Iterating over bounds...")

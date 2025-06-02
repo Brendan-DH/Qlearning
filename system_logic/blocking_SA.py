@@ -52,16 +52,12 @@ def template_move(env, state_dict, robot_no, action_no):
     # deterministic part of the result:
     if (action_no == 0):
         # counter-clockwise
-        if (current_location < env.unwrapped.size - 1):
-            state_dict[f"robot{robot_no} location"] = current_location + 1
-        elif (current_location == env.unwrapped.size - 1):  # cycle round
-            state_dict[f"robot{robot_no} location"] = 0
+        state_dict[f"robot{robot_no} location"] = (current_location + 1) % env.unwrapped.size
+            
     elif (action_no == 1):
         # clockwise
-        if (current_location > 0):
-            state_dict[f"robot{robot_no} location"] = current_location - 1
-        elif (current_location == 0):  # cycle round
-            state_dict[f"robot{robot_no} location"] = env.unwrapped.size - 1
+        state_dict[f"robot{robot_no} location"] = (current_location - 1) % env.unwrapped.size
+
     else:
         raise ValueError("Error: invalid action number for movement effect function!")
 
@@ -89,7 +85,7 @@ def template_complete(env, state_dict, robot_no):
 
     for i in range(env.unwrapped.num_goals):
         # if (state_dict[f"goal{i} location"] == state_dict[f"robot{robot_no} location"]):
-        if (state_dict[f"goal{i} location"] == state_dict[f"robot{robot_no} location"]):
+        if ((state_dict[f"goal{i} location"] == state_dict[f"robot{robot_no} location"]) and state_dict[f"goal{i} active"] == 1):
             # goal is successfully completed
             prob1 = state_dict[f"goal{i} completion probability"]
             state1 = state_dict.copy()
@@ -106,7 +102,7 @@ def template_complete(env, state_dict, robot_no):
 
             return ([prob1, prob2], [state1, state2])
 
-    return [], []
+    return [1], [state_dict]
 
 
 def template_wait(env, state_dict, action_no):
@@ -145,15 +141,12 @@ def discovery_effect(env, state_dict):
 
     # deal with the discovery of goals in this location:
     # if there is a goal here, get the index (i.e. which goal it is)
-    goal_index = -1
-    for i in range(env.unwrapped.num_goals):
-        gloc = state_dict[f"goal{i} location"]
-        rloc = state_dict[f"robot{robot_no} location"]  # made a change here were an extra loop over num_robots appeared to do nothing
-        if (gloc == rloc):  # this requires a CPU transfer so is expensive
-            goal_index = i
-            break
+    goal_locations = np.array([state_dict[f"goal{i} location"] for i in range(env.unwrapped.num_goals)])
+    goal_indices = np.argwhere(goal_locations == state_dict[f"robot{robot_no} location"]).flatten()
+    goal_index = goal_indices[0] if len(goal_indices) > 0 else None  # get the first goal index if there is one, otherwise None
+    
 
-    if (goal_index == -1 or state_dict[f"goal{goal_index} checked"] == 1 or state_dict[f"goal{goal_index} active"] == 1):  # no goals here; return the original state dict
+    if (goal_index is None or state_dict[f"goal{goal_index} checked"] == 1 or state_dict[f"goal{goal_index} active"] == 1):  # no goals here; return the original state dict
         p_array = [1]
         s_array = [state_dict]
         return p_array, s_array  # is this correct?
@@ -178,7 +171,7 @@ def discovery_effect(env, state_dict):
 
 # %%
 
-def t_model(env, state_dict, robot_no, action_no):
+def t_model(env, state_dict, action_no):
     """
     Get complete PDF of possible resultant states
     """
@@ -186,8 +179,12 @@ def t_model(env, state_dict, robot_no, action_no):
     # based on the action_no chosen, apply the correct effect function
     # yes, this is very messy and restricts the functionality to the same action_no space
     # (i.e. number of robots). could possibly be made dynamic later.
+    
+    robot_no = state_dict["clock"]
 
     if (b_model(env, state_dict, state_dict["clock"])[action_no] == 1):
+        state_dict = state_dict.copy()
+        state_dict["clock"] = (state_dict["clock"] + 1) % env.unwrapped.num_robots
         return [1], [state_dict]
 
     state_dict = state_dict.copy()
@@ -238,37 +235,39 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
     robot_no = old_state_dict["clock"]
 
     if (b_model(env, old_state_dict, robot_no)[action_no] == 1):
-        return 0
+        return -1
 
     reward = 0
 
     if (action_no == 0 or action_no == 1):
-        # # penalty for being in another robot's way
-        # moving_robot_loc = next_state_dict[f"robot{robot_no} location"]
-        # for i in range(env.unwrapped.num_robots):
-        #     other_robot_loc = next_state_dict[f"robot{i} location"]
-        #     if moving_robot_loc - other_robot_loc == 1 or \
-        #             moving_robot_loc - other_robot_loc == -1 or \
-        #             (moving_robot_loc == 0 and other_robot_loc == env.unwrapped.size - 1) or \
-        #             (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
-        #         reward -= 0.1
-        #         break
-        
+        # penalty for being in another robot's way
+        moving_robot_loc = next_state_dict[f"robot{robot_no} location"]
+        for i in range(env.unwrapped.num_robots):
+            other_robot_loc = next_state_dict[f"robot{i} location"]
+            if abs(moving_robot_loc - other_robot_loc) == 1 or \
+                    (moving_robot_loc == 0 and other_robot_loc == env.unwrapped.size - 1) or \
+                    (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
+                return -0.1
+                
                 
         # reward for checking a goal by moving onto its position
         for i in range(env.unwrapped.num_goals):
             if (old_state_dict[f"goal{i} checked"] == 0 and next_state_dict[f"goal{i} checked"] == 1):
-                reward += 0.2
+                return 0.2
 
     # rewards for attempting goals - more for harder goals
     if (action_no == 2):
         for i in range(env.unwrapped.num_goals):
-            prob = old_state_dict[f"goal{i} completion probability"]
-            reward += 0.2  + 0.4*(1 - 1 / (1 + np.exp(-7 * (prob - 0.5))))
-            
-    # reward for having moved into a terminal state
+            if (old_state_dict[f"goal{i} location"] == old_state_dict[f"robot{robot_no} location"] and
+                old_state_dict[f"goal{i} active"] == 1):
+                prob = old_state_dict[f"goal{i} completion probability"]
+                return 0.1 + 0.4*(1 - 1 / (1 + np.exp(-7 * (prob - 0.5))))
+                # this might actually break things because lower prob rewards are around for longer 
+                # so more rewards can be accumulated
+                
+    # # reward for having moved into a terminal state
     if (state_is_final(env, next_state_dict)):
-        reward += 1  # reward for completing the task
+        return 2     # reward for completing the task
 
     return reward
 
@@ -322,26 +321,35 @@ Essentially, this is an auxiliary part of the transition model
 
 def b_model(env, state_dict, robot_no):
     
-    blocked_actions = np.empty(env.action_space.n)
+    
+    ## the issue seems to be that hard-masking the blocked actions essentially looses generality
+    ## I could add a field to the transition object which tells the optimiser if an action was blocked,
+    ## in which case they would not receive Q from subsequent states, as if they were terminal
+
+
+    
+    blocked_actions = np.zeros(env.action_space.n)
 
     blocked_actions[0] = get_counter_cw_blocked(env, state_dict, robot_no)
     blocked_actions[1] = get_cw_blocked(env, state_dict, robot_no)
     
-    num_goals_active = np.sum([state_dict[f"goal{i} active"] for i in range(env.unwrapped.num_goals)])
-    num_goals_unchecked = np.sum([0 if state_dict[f"goal{i} checked"] else 1 for i in range(env.unwrapped.num_goals)])
+    # num_goals_active = np.sum([state_dict[f"goal{i} active"] for i in range(env.unwrapped.num_goals)])
+    # num_goals_unchecked = np.sum([0 if state_dict[f"goal{i} checked"] else 1 for i in range(env.unwrapped.num_goals)])
+    active_goal_locations = np.array([state_dict[f"goal{i} location"] for i in range(env.unwrapped.num_goals) if state_dict[f"goal{i} active"] == 1])
     
-    # unblock wait if either side is blocked
-    if (blocked_actions[0] and blocked_actions[1] or \
-        num_goals_active < robot_no and num_goals_unchecked < robot_no):
+    # unblock wait if both sides are blocked
+    if (blocked_actions[0] and blocked_actions[1]): \
+        # num_goals_active < robot_no and num_goals_unchecked < robot_no):
         blocked_actions[3] = 0
     else:
         blocked_actions[3] = 1
         
-    # block engage if either side is blocked
-    if blocked_actions[0] or blocked_actions[1]:
-        blocked_actions[2] = 1
-    else:
-        blocked_actions[2] = 0 
+    # # block engage if either side is blocked or if there are no goals to engage with
+    # if not blocked_actions[0] and not blocked_actions[1] and \
+    #     np.any(active_goal_locations == state_dict[f"robot{robot_no} location"]): 
+    #     blocked_actions[2] = 0
+    # else:
+    #     blocked_actions[2] = 1
 
     # keeping this as a tensor as it makes some masking easier
     return torch.tensor(blocked_actions, dtype=torch.bool, device=global_device, requires_grad=False)
