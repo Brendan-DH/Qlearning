@@ -42,8 +42,11 @@ def evaluate_model_by_trial(dqn,
 
             # calculate action utilities and choose action
             action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
+            # block:
+            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
+            action_utilities[blocked == 1] = -np.inf
+            print(env.unwrapped.state_dict["clock"], ": ", action_utilities)
             action = torch.argmax(action_utilities).item()
-            print(action_utilities)
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
@@ -131,6 +134,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
         blocked = env.unwrapped.blocked_model(env, state_tensor)
         action_utilities = torch.where(blocked, -1000, action_utilities)
         action = torch.argmax(action_utilities).item()
+        print(action_utilities, action)
 
         result = system_logic.t_model(env, state_tensor, action)  # get the result of the action from the transition model
 

@@ -58,14 +58,21 @@ def optimise_model_with_importance_sampling(policy_dqn,
 
     # collection of non-final states
     non_final_next_states = torch.cat([s.unsqueeze(0) for s in batch.next_state if s is not None], dim=0).to(optimiser_device)  # tensor
+    non_final_blocks = torch.stack([b for b, ns in zip(batch.blocked, batch.next_state) if ns is not None]).to(optimiser_device)
     state_batch = torch.cat([state.unsqueeze(0) for state in batch.state], dim=0).to(optimiser_device)  # tensor
 
     action_batch = torch.as_tensor(batch.action).to(optimiser_device)  # tensor
+    # blocked_batch = torch.as_tensor(batch.blocked).to(optimiser_device).bool  # tensor
+    blocked_batch = torch.stack(list(batch.blocked)).to(optimiser_device) 
+    # print("blocked_batch shape:", batch.blocked)#, blocked_batch.shape, blocked_batch[0])
     reward_batch = torch.as_tensor((batch.reward - r_mean) / (r_std + 1e-6)).to(optimiser_device)  # tensor
 
     # the qvalues of actions in this state as according to the policy network
     try:
         q_values = policy_dqn(state_batch)
+        q_values = q_values.masked_fill(blocked_batch, -np.inf)
+        # blocked = q_values.gather(1, blocked_batch.unsqueeze(1))  # gather the q-values of the blocked actions
+        # print("blocked shape:", blocked.shape, blocked)
         state_action_values = q_values.gather(1, action_batch.unsqueeze(1))
     except AttributeError:
         print("policy_dqn.device:", policy_dqn.device)
@@ -76,11 +83,24 @@ def optimise_model_with_importance_sampling(policy_dqn,
     # q values of action in the next state
     next_state_values = torch.zeros(batch_size, device=optimiser_device)
     with torch.no_grad():
-        next_state_values[non_final_mask] = target_dqn(non_final_next_states).max(1)[0]
+        next_q_values = target_dqn(non_final_next_states)
+        # might be best removing this mask and actually just masking any transitions which involve 
+        # blocked actions going into the policy network
+        # this seems to mean that the system doesn't learn to avoid states which have blocks
+        # but why? if something is blocked in the next state it should have -inf
+        # is information about the blocked actions actually needed?
+        # maybe because of how the clocks work causing the next physical state be obscured by the clock variable somehow
+        # return to MA?
+        next_q_values = next_q_values.masked_fill(non_final_blocks, -np.inf)
+        next_state_values[non_final_mask] = next_q_values.max(1)[0]
+
     expected_state_action_values = (next_state_values * gamma_tensor) + reward_batch
+    
+    # print(expected_state_action_values.shape, state_action_values.shape)
 
     # Compute loss. Times by weight of transition
     criterion = nn.SmoothL1Loss(reduction="none")  # (Huber loss)
+    # print(state_action_values, expected_state_action_values)
     loss_vector = criterion(state_action_values, expected_state_action_values.unsqueeze(1)) * weights.unsqueeze(1)
     loss = torch.mean(loss_vector).to(optimiser_device)
 

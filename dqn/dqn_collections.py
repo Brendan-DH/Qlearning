@@ -8,7 +8,7 @@ PriorityTransition = namedtuple('PriorityTransition',
                                 ('state', 'action', 'next_state', 'reward', 'priority'))
 
 DeltaTransition = namedtuple('DeltaTransition',
-                             ('state', 'action', 'next_state', 'reward', 'delta'))
+                             ('state', 'action', 'next_state', 'reward', 'blocked', 'delta'))
 
 system_parameters = namedtuple("system_parameters",
                                ("size",

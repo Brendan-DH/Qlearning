@@ -71,7 +71,7 @@ class PriorityMemory(object):
 
     def update_priorities(self, index, delta):
         tr = self.memory[index]
-        self.memory[index] = DeltaTransition(tr.state, tr.action, tr.next_state, tr.reward, delta)
+        self.memory[index] = DeltaTransition(tr.state, tr.action, tr.next_state, tr.reward, tr.blocked, delta)
 
     def __len__(self):
         return len(self.memory)

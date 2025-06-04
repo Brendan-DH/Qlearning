@@ -184,7 +184,7 @@ def t_model(env, state_dict, action_no):
 
     if (b_model(env, state_dict, state_dict["clock"])[action_no] == 1):
         state_dict = state_dict.copy()
-        state_dict["clock"] = (state_dict["clock"] + 1) % env.unwrapped.num_robots
+        # state_dict["clock"] = (state_dict["clock"] + 1) % env.unwrapped.num_robots
         return [1], [state_dict]
 
     state_dict = state_dict.copy()
@@ -235,7 +235,7 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
     robot_no = old_state_dict["clock"]
 
     if (b_model(env, old_state_dict, robot_no)[action_no] == 1):
-        return -1
+        return -0.5
 
     reward = 0
 
@@ -247,13 +247,13 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
             if abs(moving_robot_loc - other_robot_loc) == 1 or \
                     (moving_robot_loc == 0 and other_robot_loc == env.unwrapped.size - 1) or \
                     (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
-                return -0.1
+                reward += -0.1 * robot_no
                 
                 
         # reward for checking a goal by moving onto its position
         for i in range(env.unwrapped.num_goals):
             if (old_state_dict[f"goal{i} checked"] == 0 and next_state_dict[f"goal{i} checked"] == 1):
-                return 0.2
+                reward += 0.2
 
     # rewards for attempting goals - more for harder goals
     if (action_no == 2):
@@ -261,13 +261,14 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
             if (old_state_dict[f"goal{i} location"] == old_state_dict[f"robot{robot_no} location"] and
                 old_state_dict[f"goal{i} active"] == 1):
                 prob = old_state_dict[f"goal{i} completion probability"]
-                return 0.1 + 0.4*(1 - 1 / (1 + np.exp(-7 * (prob - 0.5))))
-                # this might actually break things because lower prob rewards are around for longer 
-                # so more rewards can be accumulated
+                reward = 0.1 + 0.4*(1 - 1 / (1 + np.exp(-7 * (prob - 0.5))))
                 
     # # reward for having moved into a terminal state
     if (state_is_final(env, next_state_dict)):
-        return 2     # reward for completing the task
+        reward = 1     # reward for completing the task
+
+    # if (reward < 0):
+    #     print(f"Negative reward: {reward} for action {action_no} in state {old_state_dict['clock']}")
 
     return reward
 
@@ -338,18 +339,17 @@ def b_model(env, state_dict, robot_no):
     active_goal_locations = np.array([state_dict[f"goal{i} location"] for i in range(env.unwrapped.num_goals) if state_dict[f"goal{i} active"] == 1])
     
     # unblock wait if both sides are blocked
-    if (blocked_actions[0] and blocked_actions[1]): \
-        # num_goals_active < robot_no and num_goals_unchecked < robot_no):
+    if (blocked_actions[0] or blocked_actions[1]):
         blocked_actions[3] = 0
     else:
         blocked_actions[3] = 1
         
-    # # block engage if either side is blocked or if there are no goals to engage with
-    # if not blocked_actions[0] and not blocked_actions[1] and \
-    #     np.any(active_goal_locations == state_dict[f"robot{robot_no} location"]): 
-    #     blocked_actions[2] = 0
-    # else:
-    #     blocked_actions[2] = 1
+    # block engage if either side is blocked or if there are no goals to engage with
+    if not blocked_actions[0] and not blocked_actions[1] and \
+        np.any(active_goal_locations == state_dict[f"robot{robot_no} location"]): 
+        blocked_actions[2] = 0
+    else:
+        blocked_actions[2] = 1
 
     # keeping this as a tensor as it makes some masking easier
     return torch.tensor(blocked_actions, dtype=torch.bool, device=global_device, requires_grad=False)

@@ -188,6 +188,7 @@ def train_model(
             action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
 
             blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
+            action_utilities[blocked == 1] = -np.inf
             if (torch.all(blocked)):
                 print("WARNING: all actions were blocked. Continuing to next episode.")
                 print(f"Offending state: {obs_state}")
@@ -195,8 +196,8 @@ def train_model(
 
             if (np.random.random() < epsilon):
                 sample = env.action_space.sample()
-                # while blocked[sample] == 1:
-                #     sample = env.action_space.sample()
+                while blocked[sample] == 1:
+                    sample = env.action_space.sample()
                 action = sample
             else:
                 action = torch.argmax(action_utilities).item()
@@ -220,14 +221,14 @@ def train_model(
             ep_reward += reward
 
             # work out if the run is over
-            done = terminated or truncated or (t > max_steps) or blocked[action] == 1
+            done = terminated or truncated or (t > max_steps)
             if terminated:
                 new_obs_state_tensor = None
             else:
                 new_obs_state_tensor = torch.tensor(list(new_obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
             # move transition to the replay memory
-            memory.push(obs_tensor, action, new_obs_state_tensor, reward)
+            memory.push(obs_tensor, action, new_obs_state_tensor, reward, blocked)
             obs_state = new_obs_state
 
             # run optimiser
@@ -235,6 +236,7 @@ def train_model(
     
             if t % optimisation_frequency == 0:
                 # print(f"Optimising model at step {t} of episode {i_episode}...")
+                memory.sort() # needed?
                 loss = optimise_model_with_importance_sampling(policy_net if not cuda_enabled else policy_net_gpu,
                                                             target_net,
                                                             memory,
@@ -270,7 +272,7 @@ def train_model(
                     rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
                     f = plot_status(episode_durations[:i_episode], rewards[:i_episode], epsilons[:i_episode], losses[:i_episode])
-                    file_dir = os.getcwd() + f"/outputs/plots/plt_epoch{i_episode}_{run_id}.png"
+                    file_dir = os.getcwd() + f"/outputs/plots/plt_epoch_{run_id}.png"
                     print(f"Saving plot {i_episode} at {file_dir}")
                     f.savefig(file_dir)
                     plt.close(f)

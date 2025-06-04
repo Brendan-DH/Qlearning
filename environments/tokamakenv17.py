@@ -224,6 +224,9 @@ class TokamakEnv17(gym.Env):
         super().reset(seed=seed)
         init_copy = self.initial_state_dict.copy()
         
+        for i in range(self.num_robots):
+            init_copy[f"robot{i} location"] = np.random.randint(0, self.size)
+        
         if self.initial_state_logic:
             # print("init logic")
             init_copy = self.initial_state_logic(self, init_copy.copy())
