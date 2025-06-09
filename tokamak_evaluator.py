@@ -18,7 +18,7 @@ import sys
 import scenarios
 
 from dqn.dqn import DeepQNetwork
-from dqn.evaluation import evaluate_model_by_trial, generate_dtmc_file, generate_mdp_file
+from dqn.evaluation import evaluate_model_by_trial, evaluate_model_by_trial_MA, generate_dtmc_file, generate_mdp_file
 from system_logic.hybrid_system_tensor_logic import pseudoreward_function
 
 # use a non-display backend. no, i don't know what this means.
@@ -69,31 +69,31 @@ loaded_weights = torch.load(os.getcwd() + "/inputs/" + load_weights_file)
 nodes_per_layer = len(loaded_weights["hidden_layers.0.weight"])
 num_hidden_layers = int((len(loaded_weights.keys()) - 4) / 2)  # -4 accounts for input and output weights and biases
 
-
-def block_illegal_actions(action_utilities):
-    # blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
-    # x = torch.where(blocked, -100000, action_utilities)
-    return action_utilities
-    # return action_utilities
-
-
-policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
+multiagent = input_dict["multiagent"].lower() == "y"
+policy_net = DeepQNetwork(n_observations + (1 if multiagent else 0), n_actions, num_hidden_layers, nodes_per_layer)
 
 print(f"Loading from /inputs/{load_weights_file}")
 policy_net.load_state_dict(loaded_weights)
 
 if int(input_dict["num_evaluation_episodes"]) > 0:
-    print("\nEvaluation by trail...")
-    s, a, steps, deadlock_traces = evaluate_model_by_trial(dqn=policy_net,
-                                                           num_episodes=int(input_dict["num_evaluation_episodes"]),
-                                                           env=env,
-                                                           max_steps=int(input_dict["max_steps"]),
-                                                           render=render)
+    if multiagent:
+        s, a, steps, deadlock_traces = evaluate_model_by_trial_MA(dqn=policy_net,
+                                                            num_episodes=int(input_dict["num_evaluation_episodes"]),
+                                                            env=env,
+                                                            max_steps=int(input_dict["max_steps"]),
+                                                            render=render)        
+    else:
+        print("\nEvaluation by trail...")
+        s, a, steps, deadlock_traces = evaluate_model_by_trial(dqn=policy_net,
+                                                            num_episodes=int(input_dict["num_evaluation_episodes"]),
+                                                            env=env,
+                                                            max_steps=int(input_dict["max_steps"]),
+                                                            render=render)
 
-    plt.figure(figsize=(10, 7))
-    plt.hist(x=steps, rwidth=0.95)
-    plt.xlabel("Total env steps")
-    plt.savefig(f"outputs/trial_{load_weights_file.replace('/', '_')}.svg")
+        plt.figure(figsize=(10, 7))
+        plt.hist(x=steps, rwidth=0.95)
+        plt.xlabel("Total env steps")
+        plt.savefig(f"outputs/trial_{load_weights_file.replace('/', '_')}.svg")
 
 storm_dir_contents = os.listdir(os.getcwd() + "/outputs/storm_files")
 

@@ -13,9 +13,9 @@ from collections import deque
 from dqn.dqn import DeepQNetwork
 from dqn.plotting import plot_status
 from dqn.dqn_collections import FiniteDict
-from dqn.memory import PriorityMemory
+from dqn.priority_memory import PriorityMemory
 from dqn.decay_functions import exponential_epsilon_decay
-from dqn.optimisation import optimise_model_with_importance_sampling
+from dqn.optimisation import optimise
 import warnings
 import math
 
@@ -236,8 +236,8 @@ def train_model(
     
             if t % optimisation_frequency == 0:
                 # print(f"Optimising model at step {t} of episode {i_episode}...")
-                memory.sort() # needed?
-                loss = optimise_model_with_importance_sampling(policy_net if not cuda_enabled else policy_net_gpu,
+                # memory.sort() # needed?
+                loss = optimise(policy_net if not cuda_enabled else policy_net_gpu,
                                                             target_net,
                                                             memory,
                                                             optimiser,

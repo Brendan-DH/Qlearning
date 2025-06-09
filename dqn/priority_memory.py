@@ -13,6 +13,7 @@ class PriorityMemory(object):
         self.max_priority = 1
         self.bounds = []
         self.prob_divisor = np.NaN
+        self.memory_type = "priority"
 
     def push(self, *args):
         """Save a transition"""

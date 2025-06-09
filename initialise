@@ -57,7 +57,7 @@ then
 else
 echo "
 register(
-id='TokamakMA-v1',
+id='Tokamak-v17',
 entry_point='gymnasium.envs.tokamak.tokamakenv17:TokamakEnv17',
 max_episode_steps=1000,
 )">> $ROOTDIR/gymnasium/envs/__init__.py

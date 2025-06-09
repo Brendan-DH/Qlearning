@@ -50,7 +50,7 @@ class NoisyLinear(nn.Module):
 
 class DeepQNetwork(nn.Module):
 
-    def __init__(self, n_observations, n_actions, n_hidden_layers, nodes_per_layer, blocking_function=lambda x: x):
+    def __init__(self, n_observations, n_actions, n_hidden_layers, nodes_per_layer):
         super(DeepQNetwork, self).__init__()
         # print()
         self.input_layer = nn.Linear(n_observations, nodes_per_layer)
@@ -62,7 +62,6 @@ class DeepQNetwork(nn.Module):
 
         self.hidden_layers = nn.ModuleList(hidden_layers)
         self.output_layer = nn.Linear(nodes_per_layer, n_actions)
-        self.blocking_function = blocking_function
         self.apply(init_weights)
 
 
@@ -81,8 +80,6 @@ class DeepQNetwork(nn.Module):
             for hidden_layer in self.hidden_layers:
                 x = hidden_layer(x)
             x = self.output_layer(x)
-            x = self.blocking_function(x)
-            # print(x)
             return x
 
         except RuntimeError as e:

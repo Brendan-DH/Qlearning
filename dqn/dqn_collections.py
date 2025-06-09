@@ -2,7 +2,7 @@ from collections import namedtuple, deque, OrderedDict
 
 
 Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+                        ('state', 'action', 'next_state', 'reward', 'blocked'))
 
 PriorityTransition = namedtuple('PriorityTransition',
                                 ('state', 'action', 'next_state', 'reward', 'priority'))

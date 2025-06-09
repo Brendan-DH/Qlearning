@@ -47,6 +47,7 @@ else:
     print(f"Epsilon decay type '{input_dict['epsilon_decay_type']}' not recognised. Exiting.")
     sys.exit(1)
 
+print(input_dict['environment'])
 env_to_use = input_dict["environment"]
 
 env = gym.make(env_to_use,
@@ -88,17 +89,8 @@ multiagent = input_dict["multiagent"] == "y"
 if multiagent:
     print("Multiagent training")
 
-
-    def block_illegal_actions(action_utilities):
-        blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.clock)
-        x = torch.where(blocked, 0, action_utilities)
-        print("devices: ", action_utilities.device, blocked.device)
-        return x
-        # return action_utilities
-
-
-    policy_net = DeepQNetwork(n_observations + 2, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
-    target_net = DeepQNetwork(n_observations + 2, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
+    policy_net = DeepQNetwork(n_observations + 1, n_actions, num_hidden_layers, nodes_per_layer)
+    target_net = DeepQNetwork(n_observations + 1, n_actions, num_hidden_layers, nodes_per_layer)
     target_net.load_state_dict(policy_net.state_dict())
 
     trained_dqn, dur, re, eps = ma_training.train_model(env,
@@ -129,23 +121,10 @@ if multiagent:
                                                         run_id=run_id
                                                         )
 else:
-    if not torch.cuda.is_available():
-        # def block_illegal_actions(action_utilities):
-        #     blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
-        #     x = torch.where(blocked, 0, action_utilities)
-        #     return x
-        def block_illegal_actions(action_utilities):
-            return action_utilities
-        
-    else:
-        # we can't use the blocked_model on the GPU because it would sabotage performance with device transfers
-        def block_illegal_actions(action_utilities):
-            return action_utilities
 
-
-    policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
-    policy_net_gpu = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
-    target_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer, block_illegal_actions)
+    policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
+    policy_net_gpu = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
+    target_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
     target_net.load_state_dict(policy_net.state_dict())
     policy_net_gpu.load_state_dict(policy_net.state_dict())
 
@@ -159,6 +138,7 @@ else:
                                                                                                                                num_episodes=num_eps,
                                                                                                                                max_epsilon_time=float(input_dict["max_epsilon_time"]),
                                                                                                                                min_epsilon_time=float(input_dict["min_epsilon_time"])),
+                                                     optimisation_frequency=int(input_dict["optimisation_frequency"]),
                                                      epsilon_max=float(input_dict["epsilon_max"]),
                                                      epsilon_min=float(input_dict["epsilon_min"]),
                                                      alpha=float(input_dict["alpha"]),

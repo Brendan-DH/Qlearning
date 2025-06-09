@@ -82,6 +82,86 @@ def evaluate_model_by_trial(dqn,
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 
 
+def evaluate_model_by_trial_MA(dqn,
+                            num_episodes,
+                            env,
+                            max_steps,
+                            render=False):
+    print("Evaluating...")
+
+    if ("win" in sys.platform and render):
+        print("Cannot render on windows...")
+        render = False
+
+    env.unwrapped.set_rendering(render)
+    device = torch.device("cpu")
+    print(f"Evaluation running on {device}.")
+
+    steps = np.empty(num_episodes)
+    deadlock_counter = 0
+    deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
+
+    canonical_epsilon = 0.5  # epsilon for multiagent evaluation
+    canonical_episode = 250  # episode for multiagent evaluation
+
+    for i in range(num_episodes):
+        obs_state, info = env.reset()
+        obs_state["epsilon"] = canonical_epsilon
+        # obs_state["episode"] = canonical_episode
+
+        states = [env.unwrapped.state_dict]
+        actions = []
+        obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
+        rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
+
+        for t in count():
+
+            robot_no = env.unwrapped.clock
+
+            # calculate action utilities and choose action
+            action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0] 
+            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, robot_no)
+            action_utilities[blocked == 1] = -np.inf
+            print(robot_no, action_utilities)
+            action = torch.argmax(action_utilities).item()
+
+            # apply action to environment
+            new_obs_state, reward, terminated, truncated, info = env.step(action)
+            new_obs_state["epsilon"] = canonical_epsilon
+            # new_obs_state["episode"] = canonical_episode
+
+            states.append(env.unwrapped.state_dict)
+
+            actions.append(action)
+            
+            obs_state = new_obs_state
+            obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
+
+            done = terminated
+
+            if (render):
+                env.render_frame(states[-1], True)
+
+            if (done or truncated or t > max_steps):
+                if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
+                    print(f"{i}/{num_episodes} episodes complete")
+                break
+
+        if (not done):
+            deadlock_traces.append(states)
+            deadlock_counter += 1
+
+        steps[i] = t
+
+    print("Evaluation complete.")
+    print(
+        f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter == 0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
+    print(f"Percentage converged: {100 - (deadlock_counter * 100 / num_episodes)}")
+
+    return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
+
+
+
 def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     # load the DQN
 
