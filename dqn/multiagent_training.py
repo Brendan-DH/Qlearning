@@ -13,6 +13,7 @@ from collections import deque
 from dqn.plotting import plot_status
 from dqn.dqn_collections import FiniteDict
 from dqn.replay_memory import ReplayMemory
+from dqn.priority_memory import PriorityMemory
 from dqn.decay_functions import exponential_epsilon_decay
 from dqn.optimisation import optimise
 import warnings
@@ -103,7 +104,8 @@ def train_model(
     # Initialisation of NN apparatus
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
 
-    memory = ReplayMemory(buffer_size)
+    # memory = ReplayMemory(buffer_size)
+    memory = PriorityMemory(buffer_size)
     torch.set_grad_enabled(True)
     plotting_on = plot_frequency < num_episodes and plot_frequency != 0
     checkpoints_on = checkpoint_frequency < num_episodes and checkpoint_frequency != 0
@@ -146,7 +148,7 @@ def train_model(
             if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
 
         if (i_episode % int(memory_sort_frequency) == 0) and memory.memory_type == "priority":
-            memory.sort(batch_size, priority_coefficient)
+            memory.sort(batch_size, priority_coefficient, epsilon)
 
         # calculate the new epsilon
         if (plotting_on or checkpoints_on):
@@ -192,55 +194,25 @@ def train_model(
                 prev_trans_sprime = obs_state.copy()
                 prev_trans_r = (1-reward_sharing_coefficient) * latest_rewards[robot_no] + reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_no])
                 prev_blocked_actions = latest_blocked_actions[robot_no].clone()
-
-                # print("pushing to memory")
-                memory.check_memory()
-
-                # if(prev_blocked_actions[prev_trans_a] ==1):
-                #     print(f"WARNING: action {rel_actions} was blocked for robot {robot_no}!!!!!!!!!!!!!!!!!!!")
-                #     print(f"Robot {robot_no}", \
-                #         f"action {prev_trans_a}", \
-                #         f"locations: {prev_trans_s['my location']}", \
-                #         f"{prev_trans_s['teammate1 location']}",\
-                #         f"{prev_trans_s['teammate2 location']}",\
-                #         f"new location: {prev_trans_sprime['my location']}", \
-                #         f"prev_blocked_actions: {prev_blocked_actions}")
                     
+                if (memory.memory_type == "priority"):
 
-                memory.push(torch.tensor(list(prev_trans_s.values()), dtype=torch.float, device="cpu", requires_grad=False),
-                            prev_trans_a,
-                            torch.tensor(list(prev_trans_sprime.values()), dtype=torch.float, device="cpu", requires_grad=False),
-                            prev_trans_r,
-                            prev_blocked_actions
-                            )
+                    memory.push(torch.tensor(list(prev_trans_s.values()), dtype=torch.float, device="cpu", requires_grad=False),
+                                prev_trans_a,
+                                torch.tensor(list(prev_trans_sprime.values()), dtype=torch.float, device="cpu", requires_grad=False),
+                                prev_trans_r,
+                                prev_blocked_actions,
+                                epsilon
+                                )
+                else:
+                    
+                    memory.push(torch.tensor(list(prev_trans_s.values()), dtype=torch.float, device="cpu", requires_grad=False),
+                                prev_trans_a,
+                                torch.tensor(list(prev_trans_sprime.values()), dtype=torch.float, device="cpu", requires_grad=False),
+                                prev_trans_r,
+                                prev_blocked_actions
+                                )
                 
-
-                # robot_locations = np.empty(env.unwrapped.num_robots)
-                # robot_locations[robot_no] = obs_state["my location"]
-                # robot_locations[(robot_no + 1) % env.unwrapped.num_robots] = obs_state["teammate1 location"]
-                # robot_locations[(robot_no + 2) % env.unwrapped.num_robots] = obs_state["teammate2 location"]
-
-                # prev_env_state = latest_env_states[robot_no]
-
-                # env_state_diffs = {k: (f"{prev_env_state[k]} --> {new_env_state[k]}") for k in set(prev_env_state) | set(new_env_state) if prev_env_state[k] != new_env_state[k]}
-                # obs_diffs = {k: (f"{prev_trans_s[k]} --> {prev_trans_sprime[k]}") for k in set(prev_trans_s) | set(prev_trans_sprime) if prev_trans_s[k] != prev_trans_sprime[k]}
-                #
-                # print(f"""
-                # #####
-                # Rewards ({i_episode}/{epsilon})
-                # ----
-                # robot:{robot_no}
-                # obs diffs: {str(obs_diffs).replace(",", nlc)}
-                # env state diffs: {str(env_state_diffs).replace(",", nlc)}
-                # action: {prev_trans_a}
-                # reward: {latest_rewards[robot_no]} + {0.2 * (np.sum(latest_rewards) - latest_rewards[robot_no])} = {prev_trans_r}
-                # ----
-                # All robot rewards: {latest_rewards}
-                # All robot locations: {robot_locations}
-                #
-                #
-                # """)
-
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
             action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
             blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, robot_no)
@@ -312,14 +284,23 @@ def train_model(
                         f"new location: {prev_trans_sprime['my location']}", \
                         f"prev_blocked_actions: {prev_blocked_actions}")
                     
-                
-                memory.push(
-                    torch.tensor(list(prev_trans_s.values()), dtype=torch.float, device="cpu", requires_grad=False),
-                    prev_trans_a,
-                    None,  # set to none for masking purposes in optimiser.
-                    prev_trans_r,  # reward is still collected for getting here.
-                    prev_blocked_actions
-                )
+                if (memory.memory_type == "priority"):
+                    memory.push(
+                        torch.tensor(list(prev_trans_s.values()), dtype=torch.float, device="cpu", requires_grad=False),
+                        prev_trans_a,
+                        None,  # set to none for masking purposes in optimiser.
+                        prev_trans_r,  # reward is still collected for getting here.
+                        prev_blocked_actions,
+                        epsilon
+                    )
+                else:
+                    memory.push(
+                        torch.tensor(list(prev_trans_s.values()), dtype=torch.float, device="cpu", requires_grad=False),
+                        prev_trans_a,
+                        None,  # set to none for masking purposes in optimiser.
+                        prev_trans_r,  # reward is still collected for getting here.
+                        prev_blocked_actions
+                    )
                 
                 # for robot_index in range(env.unwrapped.num_robots):
                 #     prev_trans_s = latest_observations[robot_index]

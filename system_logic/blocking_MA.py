@@ -241,9 +241,9 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
             
     # reward for checking a goal by moving onto its position
     if (action_no == 0 or action_no == 1):
-        for i in range(env.unwrapped.num_goals):
-            if (old_state_dict[f"goal{i} checked"] == 0 and next_state_dict[f"goal{i} checked"] == 1):
-                reward += 0.2
+        robot_location = next_state_dict[f"robot{robot_no} location"]
+        if (old_state_dict[f"goal{robot_location} checked"] == 0 and next_state_dict[f"goal{robot_location} checked"] == 1):
+            reward += 0.5
 
     # rewards for attempting goals - more for harder goals
     if (action_no == 2):

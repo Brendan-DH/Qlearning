@@ -28,7 +28,7 @@ class PriorityMemory(object):
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
 
-    def sort(self, batch_size, priority_coefficient):
+    def sort(self, batch_size, priority_coefficient, epsilon):
         # sort the transitions according to priority, i.e. according to delta
         # higher rank = lower priority, so higher rank should be lower |delta|
         # i.e. lower rank should be higher delta, as such:
@@ -37,6 +37,9 @@ class PriorityMemory(object):
             return
 
         items = list(self.memory)
+        for item in items:
+            if item.epsilon > epsilon + 0.2:
+                item.state.delta = 0
         items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
         self.memory = deque(items, maxlen=self.capacity)
 
@@ -72,7 +75,7 @@ class PriorityMemory(object):
 
     def update_priorities(self, index, delta):
         tr = self.memory[index]
-        self.memory[index] = DeltaTransition(tr.state, tr.action, tr.next_state, tr.reward, tr.blocked, delta)
+        self.memory[index] = DeltaTransition(tr.state, tr.action, tr.next_state, tr.reward, tr.blocked, tr.epsilon, delta)
 
     def __len__(self):
         return len(self.memory)

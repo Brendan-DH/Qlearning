@@ -98,7 +98,6 @@ class TokamakEnvMA1(gym.Env):
         # Define discrete ranges (adjust bounds as needed)
         obs_space = {}
         obs_space["my location"] = spaces.Discrete(self.size)
-        obs_space["my fatigue"] = spaces.Discrete(100)
         # obs_space["current goal difficulty"] = spaces.Box(low=-0.0, high=1.0, shape=(1,), dtype=np.float64)
         for i in range(1, self.num_robots):
             obs_space[f"teammate{i} location"] = spaces.Discrete(self.size)
@@ -106,7 +105,7 @@ class TokamakEnvMA1(gym.Env):
         for i in range(self.num_goals):
             obs_space[f"goal{i} active"] = spaces.Discrete(2)
             obs_space[f"goal{i} checked"] = spaces.Discrete(2)
-
+            
         self.observation_space = spaces.Dict(obs_space)
 
         # actions that the robots can carry out
@@ -124,7 +123,6 @@ class TokamakEnvMA1(gym.Env):
         obs_dict = {}
         rob_loc = int(state_dict[f"robot{robot_no} location"])
         obs_dict["my location"] = rob_loc
-        obs_dict["my fatigue"] = int(state_dict[f"robot{robot_no} fatigue"])
 
         teammate_num = 1
         for i in range(1, self.num_robots):
@@ -169,7 +167,10 @@ class TokamakEnvMA1(gym.Env):
         if self.render:
             self.render_frame(self.state_dict, info)
 
-        return self.get_obs(), info
+        obs = self.get_obs()
+        # print(obs.keys())
+
+        return obs, info
 
     def pseudoreward_function(self, state_tensor):
         raise NotImplementedError("No pseudoreward function has been supplied.")

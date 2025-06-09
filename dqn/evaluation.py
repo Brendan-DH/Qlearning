@@ -101,7 +101,7 @@ def evaluate_model_by_trial_MA(dqn,
     deadlock_counter = 0
     deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
 
-    canonical_epsilon = 0.5  # epsilon for multiagent evaluation
+    canonical_epsilon = 0  # epsilon for multiagent evaluation
     canonical_episode = 250  # episode for multiagent evaluation
 
     for i in range(num_episodes):
@@ -122,7 +122,8 @@ def evaluate_model_by_trial_MA(dqn,
             action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0] 
             blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, robot_no)
             action_utilities[blocked == 1] = -np.inf
-            print(robot_no, action_utilities)
+            if render:
+                print(robot_no, action_utilities)
             action = torch.argmax(action_utilities).item()
 
             # apply action to environment
@@ -157,6 +158,13 @@ def evaluate_model_by_trial_MA(dqn,
     print(
         f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter == 0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
     print(f"Percentage converged: {100 - (deadlock_counter * 100 / num_episodes)}")
+    
+    env.set_rendering(True)  # stop rendering after evaluation
+    for trace in deadlock_traces:
+        print("Deadlock trace:")
+        for r, state in enumerate(trace):
+            env.render_frame(state, False)
+
 
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 

@@ -23,6 +23,12 @@ def optimise(policy_dqn,
     mem_size = len(replay_memory.memory)
     
     if(replay_memory.memory_type == "priority"):
+        
+        if len(replay_memory.bounds) == 0:
+            return None
+            
+        
+        # print(replay_memory.bounds)
 
         # get the batch of transitions. sample one transition from each of k linear segments
         lower = 0
