@@ -236,7 +236,7 @@ def train_model(
     
             if t % optimisation_frequency == 0:
                 # print(f"Optimising model at step {t} of episode {i_episode}...")
-                memory.sort() # needed?
+                
                 loss = optimise_model_with_importance_sampling(policy_net if not cuda_enabled else policy_net_gpu,
                                                             target_net,
                                                             memory,

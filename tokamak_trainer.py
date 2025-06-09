@@ -161,6 +161,7 @@ else:
                                                                                                                                min_epsilon_time=float(input_dict["min_epsilon_time"])),
                                                      epsilon_max=float(input_dict["epsilon_max"]),
                                                      epsilon_min=float(input_dict["epsilon_min"]),
+                                                     optimisation_frequency=int(input_dict["optimisation_frequency"]),
                                                      alpha=float(input_dict["alpha"]),
                                                      gamma=float(input_dict["gamma"]),
                                                      num_episodes=int(input_dict["num_training_episodes"]),

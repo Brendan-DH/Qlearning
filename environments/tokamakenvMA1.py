@@ -201,7 +201,7 @@ class TokamakEnvMA1(gym.Env):
             raise ValueError("Something has gone wrong with choosing the state")
 
         # get the reward for this transition based on the reward model
-        reward = self.reward_model(self, old_state_dict, action, s_array[chosen_state], self.clock)
+        reward = self.reward_model(self, old_state_dict, self.clock, action, s_array[chosen_state])
 
         # assume the new state
         self.state_dict = s_array[chosen_state]

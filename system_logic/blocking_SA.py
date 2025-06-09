@@ -239,17 +239,17 @@ def r_model(env, old_state_dict, action_no, next_state_dict):
 
     reward = 0
 
+    # penalty for being in another robot's way
+    moving_robot_loc = next_state_dict[f"robot{robot_no} location"]
+    for i in range(env.unwrapped.num_robots):
+        other_robot_loc = next_state_dict[f"robot{i} location"]
+        if abs(moving_robot_loc - other_robot_loc) == 1 or \
+                (moving_robot_loc == 0 and other_robot_loc == env.unwrapped.size - 1) or \
+                (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
+            reward += -0.1 * robot_no
+                
+                
     if (action_no == 0 or action_no == 1):
-        # penalty for being in another robot's way
-        moving_robot_loc = next_state_dict[f"robot{robot_no} location"]
-        for i in range(env.unwrapped.num_robots):
-            other_robot_loc = next_state_dict[f"robot{i} location"]
-            if abs(moving_robot_loc - other_robot_loc) == 1 or \
-                    (moving_robot_loc == 0 and other_robot_loc == env.unwrapped.size - 1) or \
-                    (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
-                reward += -0.1 * robot_no
-                
-                
         # reward for checking a goal by moving onto its position
         for i in range(env.unwrapped.num_goals):
             if (old_state_dict[f"goal{i} checked"] == 0 and next_state_dict[f"goal{i} checked"] == 1):
