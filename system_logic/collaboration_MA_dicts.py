@@ -141,7 +141,7 @@ def discovery_effect(env, state_dict):
 
     """
     state_dict = state_dict.copy()
-    robot_no = env.unwrapped.clock
+    robot_no = env.unwrapped.state_dict["clock"]
 
     # deal with the discovery of goals in this location:
     # if there is a goal here, get the index (i.e. which goal it is)

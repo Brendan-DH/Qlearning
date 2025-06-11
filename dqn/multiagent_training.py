@@ -136,8 +136,12 @@ def train_model(
 
     # Loop over training episodes
     start_time = time.time()
-
+    total_optimisation_time = 0
+    period_start_time = time.time()  # start the timer for this episode
+    period_optimisation_time = 0  # time spent optimising this episode
+    
     for i_episode in range(num_episodes):
+        
         
         # sort out memory
         gc.collect()
@@ -179,13 +183,10 @@ def train_model(
         latest_env_states = np.empty(env.unwrapped.num_robots, dtype=dict)
 
         nlc = "\n"
-        
-        period_optimisation_time = 0
-        period_start_time = time.time()
-
+    
         for t in count():
 
-            robot_no = env.unwrapped.clock
+            robot_no = env.unwrapped.state_dict["clock"]
 
             obs_state = env.unwrapped.get_obs()
             obs_state["epsilon"] = epsilon
@@ -253,9 +254,6 @@ def train_model(
 
             latest_env_states[robot_no] = old_env_state
 
-            if (epsilon < 0.01):
-                print(f"Action: {rel_actions[action % env.unwrapped.num_actions]} on robot {math.floor(action / env.unwrapped.num_actions)}\nReward: {reward}\nStep: {t}")
-
             # calculate pseudoreward
             if (use_pseudorewards):
                 phi = phi_sprime
@@ -307,8 +305,8 @@ def train_model(
                     )
                     
             # run optimiser
-            op_start_time = time.time()
             if (t % optimisation_frequency == 0):
+                op_start_time = time.time()
                 loss = optimise(policy_net,
                                 target_net,
                                 memory,
@@ -319,8 +317,10 @@ def train_model(
                                 priority_coefficient,
                                 weighting_coefficient)
                 ep_loss += loss if loss is not None else 0
-                
-            period_optimisation_time += time.time() - op_start_time
+                period_optimisation_time += time.time() - op_start_time
+                # print("time to optimise: ", time.time() - op_start_time)    
+                # print("period_optimisation_time", period_optimisation_time)
+            
 
             # Soft-update the target net -- doing this in-place for better efficiency
             with torch.no_grad():
@@ -336,8 +336,8 @@ def train_model(
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
                     period_time = time.time() - period_start_time
                     print(f"Optimisation took {period_optimisation_time:.2f}s out of {period_time:.2f}s since last plot ({(period_optimisation_time / period_time) * 100:.2f}%).")
-                    period_time = 0
                     period_start_time = time.time()
+                    total_optimisation_time += period_optimisation_time
                     period_optimisation_time = 0
                     f = plot_status(episode_durations[:i_episode], rewards[:i_episode], epsilons[:i_episode], losses[:i_episode])
                     file_dir = os.getcwd() + f"/outputs/plots/plt_{run_id}.png"
@@ -352,5 +352,6 @@ def train_model(
                 break
         # if i_episode > memory_sort_frequency: print(f"Total time for optimisation this episode: {optimisation_time * 1000:.3f}ms")
 
-    print(f"Training complete in {int(time.time() - start_time)} seconds.")
+    training_time = time.time() - start_time
+    print(f"Training complete in {int(training_time)} seconds, of which {int(total_optimisation_time)}s ({(total_optimisation_time/training_time) * 100:.2f}%) was spent on optimisation.")
     return policy_net, episode_durations, rewards, epsilons

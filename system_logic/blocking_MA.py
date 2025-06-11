@@ -192,6 +192,9 @@ def t_model(env, state_dict, robot_no, action_no):
         p, s = template_complete(env, state_dict, robot_no)
     elif (action_no == 3):
         p, s = template_wait(env, state_dict, robot_no)
+        
+    for state in s:
+        state["clock"] = (state_dict["clock"] + 1) % env.unwrapped.num_robots  # increment the clock in each resultant state
 
     return p, s
 
@@ -238,7 +241,6 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
                 (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
             reward += -0.05
             
-            
     # reward for checking a goal by moving onto its position
     if (action_no == 0 or action_no == 1):
         robot_location = next_state_dict[f"robot{robot_no} location"]
@@ -251,7 +253,7 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
             if (old_state_dict[f"goal{i} location"] == old_state_dict[f"robot{robot_no} location"] and
                 old_state_dict[f"goal{i} active"] == 1):
                 prob = old_state_dict[f"goal{i} completion probability"]
-                reward = 0.1 + 0.4*(1 - 1 / (1 + np.exp(-7 * (prob - 0.5))))
+                reward = 0.5 + 0.2*(1 - 1 / (1 + np.exp(-7 * (prob - 0.5))))
                 
     # # reward for having moved into a terminal state
     if (state_is_final(env, next_state_dict)):

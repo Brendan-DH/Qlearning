@@ -205,9 +205,6 @@ def train_model(
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
 
-            if (epsilon < 0.01):
-                print(f"Action: {rel_actions[action%env.unwrapped.num_actions]} on robot {math.floor(action/env.unwrapped.num_actions)}\nReward: {reward}\nStep: {t}")
-
             # calculate pseudoreward
             if (use_pseudorewards):
                 phi = phi_sprime

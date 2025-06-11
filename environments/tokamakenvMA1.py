@@ -46,12 +46,11 @@ class TokamakEnvMA1(gym.Env):
         self.statetree = []
         self.render = render
 
-        self.clock = 0
         self.frame_counter = 0
 
+        initial_state_dict["clock"] = 0  # the clock is the index of the robot that is currently active
         for i in range(len(system_parameters.robot_locations)):
             initial_state_dict[f"robot{i} location"] = system_parameters.robot_locations[i]
-            initial_state_dict[f"robot{i} fatigue"] = 0
         for i in range(len(system_parameters.goal_locations)):
             initial_state_dict[f"goal{i} location"] = system_parameters.goal_locations[i]
             initial_state_dict[f"goal{i} active"] = system_parameters.goal_activations[i]  # 1 = goal should be engaged
@@ -136,9 +135,24 @@ class TokamakEnvMA1(gym.Env):
             obs_dict[f"goal{i} checked"] = int(state_dict[f"goal{i} checked"])
 
         return obs_dict
+    
+    def state_vector_to_dict(self, state_vector):
+        state_dict = {}
+        state_dict["clock"] = int(state_vector[0])
+        for i in range(self.num_robots):
+            state_dict[f"robot{i} location"] = int(state_vector[i +1])
+
+        for i in range(self.num_goals):
+            state_dict[f"goal{i} location"] = int(state_vector[self.num_robots + i])
+            state_dict[f"goal{i} active"] = int(state_vector[[self.num_robots + i + 1]])
+            state_dict[f"goal{i} checked"] = int(state_vector[[self.num_robots + i + 2]])
+            state_dict[f"goal{i} discovery probability"] = float(state_vector[[self.num_robots + i + 3 ]])
+            state_dict[f"goal{i} completion probability"] = float(state_vector[[self.num_robots + i + 4]])
+
+        return state_dict
 
     def get_obs(self):
-        return self.state_dict_to_observable(self.state_dict, self.clock)
+        return self.state_dict_to_observable(self.state_dict, self.state_dict["clock"])
 
     def get_info(self):
         info = {}
@@ -185,7 +199,7 @@ class TokamakEnvMA1(gym.Env):
 
         self.elapsed_steps += 1
         old_state_dict = self.state_dict.copy()
-        p_array, s_array = self.transition_model(self, old_state_dict, self.clock, action)  # probabilities and states
+        p_array, s_array = self.transition_model(self, old_state_dict, old_state_dict["clock"], action)  # probabilities and states
 
         # roll dice to detemine resultant state from possibilities
         roll = np.random.random()
@@ -202,14 +216,12 @@ class TokamakEnvMA1(gym.Env):
             raise ValueError("Something has gone wrong with choosing the state")
 
         # get the reward for this transition based on the reward model
-        reward = self.reward_model(self, old_state_dict, self.clock, action, s_array[chosen_state])
+        reward = self.reward_model(self, old_state_dict, old_state_dict["clock"], action, s_array[chosen_state])
 
         # assume the new state
         self.state_dict = s_array[chosen_state]
         if (self.render):
             self.render_frame(self.state_dict, True)
-
-        self.clock = (self.clock + 1) % self.num_robots
 
         # set terminated (all goals checked and inactive)
         terminated = True
@@ -284,7 +296,7 @@ class TokamakEnvMA1(gym.Env):
         # draw robots
         for i in range(self.num_robots):
             pos = state[f"robot{i} location"]
-            if (self.clock == i):
+            if (self.state_dict["clock"] == i):
                 colour = (0, 200, 200)
             else:
                 colour = (0, 0, 255)

@@ -8,6 +8,7 @@ import sys
 from collections import deque, OrderedDict
 from dqn.dqn import DeepQNetwork
 from queue import Queue
+import time
 
 
 def evaluate_model_by_trial(dqn,
@@ -101,8 +102,7 @@ def evaluate_model_by_trial_MA(dqn,
     deadlock_counter = 0
     deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
 
-    canonical_epsilon = 0  # epsilon for multiagent evaluation
-    canonical_episode = 250  # episode for multiagent evaluation
+    canonical_epsilon = 0.0 # epsilon for multiagent evaluation
 
     for i in range(num_episodes):
         obs_state, info = env.reset()
@@ -116,7 +116,7 @@ def evaluate_model_by_trial_MA(dqn,
 
         for t in count():
 
-            robot_no = env.unwrapped.clock
+            robot_no = env.unwrapped.state_dict["clock"]
 
             # calculate action utilities and choose action
             action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0] 
@@ -174,16 +174,18 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     # load the DQN
 
     n_actions = env.action_space.n
-    obs_state, info = env.reset()
-    n_observations = len(obs_state)
+    init_obs, info = env.reset()  # ask the DQN what action should be taken here
+    init_obs["epsilon"] = 0  # set epsilon to 0 for exploration
 
-    init_state, info = env.reset()  # ask the DQN what action should be taken here
+    exploration_state_queue = deque()
+    exploration_observation_queue = deque()
 
-    exploration_state_queue = Queue()
-    exploration_observation_queue = Queue()
-
-    exploration_state_queue.put(env.unwrapped.state_dict)  # state dicts for full state description
-    exploration_observation_queue.put(init_state)  # observations for forward passes
+    exploration_state_queue.appendleft(env.unwrapped.state_dict)  # state dicts for full state description
+    # print("States in exploration_state_queue:")
+    # queue_states = list(exploration_state_queue.queue)
+    # for idx, state in enumerate(queue_states):
+    #     print(f"{idx}: {state}")
+    exploration_observation_queue.appendleft(init_obs)  # observations for forward passes
 
     if (not weights_file):
         print("No weights file specified, exiting.")
@@ -198,60 +200,70 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
         print(f"Weights file {weights_file} not found, exiting.")
         sys.exit(1)
 
+    n_observations = len(init_obs)
     policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
     policy_net.load_state_dict(loaded_weights)
 
-    new_id = 0  # an unencountered state will get this id, after which it will be incremented
-    states_id_dict = {str(env.unwrapped.state_dict): 0}  # dictionary of state dicts to id
-    labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
+    new_id = 1  # an unencountered state will get this id, after which it will be incremented
+    states_id_dict = {str(env.unwrapped.state_dict.values()): 0}  # dictionary of state dicts to id
+    labels_set = {"1 init\n"}  # set of state labels ([id] [label] )
 
     new_id += 1
     transitions_array = []
     rewards_array = []
+    clock = 0
+    start_time  = time.time()
 
-    while (not exploration_state_queue.empty()):
+    while (not len(exploration_state_queue)==0):
+        # print("EXPLORATION STEP")
+        display_string = f'{len((exploration_state_queue))} -- Total states encountered: {new_id}'
+        print(f"\r[{int(time.time()-start_time)}s] States in exploration queue: {' '*(50 - len(display_string))}{display_string}", end="")
 
-        print(f"\rStates in exploration queue: {' ' * (10 - len(str(exploration_state_queue.qsize())))}{exploration_state_queue.qsize()}", end="")
-
-        state_tensor = exploration_state_queue.get()
-        obs_state = exploration_observation_queue.get()
+        state_dict = exploration_state_queue.pop()
+        obs_state = exploration_observation_queue.pop()
+        obs_state["epsilon"] = 0  # set epsilon to 0 for exploration
 
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
         action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]
-        blocked = env.unwrapped.blocked_model(env, state_tensor)
-        action_utilities = torch.where(blocked, -1000, action_utilities)
+        blocked = env.unwrapped.blocked_model(env, state_dict, state_dict["clock"])
+        action_utilities = torch.where(blocked, -np.inf, action_utilities)
         action = torch.argmax(action_utilities).item()
-        print(action_utilities, action)
 
-        result = system_logic.t_model(env, state_tensor, action)  # get the result of the action from the transition model
+        # state_dict = env.unwrapped.state_vector_to_dict(state_vector)
+        robot_no = state_dict["clock"]
+        result = system_logic.t_model(env, state_dict, robot_no, action)  # get the result of the action from the transition model
 
         # label end states
-        all_done = system_logic.state_is_final(env, state_tensor)
+        all_done = system_logic.state_is_final(env, state_dict)
         if (all_done):
-            labels_set.add(f"{states_id_dict[str(state_tensor)]} done\n")  # label end states
-            transitions_array.append(f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(state_tensor)]} 1")  # end states loop to themselves (formality):
-            continue  # continue as we don't care about other transitions from end states
-
+            labels_set.add(f"{states_id_dict[str(state_dict.values())]} done\n")  # label end states
+            transitions_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(state_dict.values())]} 1")  # end states loop to themselves (formality):
+            continue  # continue as we don't care about other transitions from end states  
+        
         for i in range(len(result[0])):  # iterate over result states:
 
-            prob = float(result[0][i].item()) if torch.is_tensor(result[0][i]) else result[0][i]
-            result_state_tensor = result[1][i]
-            result_state_dict = env.unwrapped.state_tensor_to_observable(result_state_tensor)
+            prob = result[0][i]
+            result_state_dict = result[1][i]
+            # print(result_state_dict["clock"])
 
-            if (str(result_state_tensor) not in list(states_id_dict.keys())):  # register newly discovered states
-                states_id_dict[str(result_state_tensor)] = new_id
-                exploration_state_queue.put(result_state_tensor)
-                exploration_observation_queue.put(result_state_dict)
+            # print(prob, result_state_dict["robot0 location"])
+
+            if (str(result_state_dict.values()) not in list(states_id_dict.keys())):  # register newly discovered states
+                states_id_dict[str(result_state_dict.values())] = new_id
+                exploration_state_queue.append(result_state_dict)
+                exploration_observation_queue.append(env.unwrapped.state_dict_to_observable(result_state_dict,result_state_dict["clock"]))
                 new_id += 1
 
-            if (np.sum([result_state_dict[f"robot{i} clock"] for i in range(env.unwrapped.num_robots)]) == 0):  # assign awards to clock ticks
-                rewards_array.append(f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(result_state_tensor)]} 1")
+            if (result_state_dict["clock"] == int(env.unwrapped.num_robots-1)):  # assign awards to clock ticks
+                rewards_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} 1")
 
             # print("prob", prob, type(prob))
-            transitions_array.append(f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(result_state_tensor)]} {round(prob, 3)}")  # write the transitions into the file/array
+            transitions_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} {round(prob, 3)}")  # write the transitions into the file/array
+            
+        clock = (clock+1) % env.unwrapped.num_robots  # increment clock for the next state
 
-    print(f"\nWriting file to {os.getcwd()}/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
+    print(f"\nWriting file to {os.getcwd()}/outputs/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
 
     f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "w")  # create DTMC file .tra
     f.write("dtmc\n")
@@ -303,13 +315,15 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
     obs_state, info = env.reset()
     n_observations = len(obs_state)
 
-    init_state, info = env.reset()  # ask the DQN what action should be taken here
+    init_obs, info = env.reset()  # ask the DQN what action should be taken here
 
-    exploration_tensor_queue = Queue()
+    exploration_queue = Queue()
     exploration_observation_queue = Queue()
 
-    exploration_tensor_queue.put(env.unwrapped.state_tensor)  # tensors for full state description
-    exploration_observation_queue.put(init_state)  # observations for forward passes
+    state_vector = env.unwrapped.state_dict.values()
+
+    exploration_queue.put(state_vector)  # tensors for full state description
+    exploration_observation_queue.put(init_obs)  # observations for forward passes
 
     if (not weights_file):
         print("No weights file specified, exiting.")
@@ -328,7 +342,7 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
     policy_net.load_state_dict(loaded_weights)
 
     new_id = 0  # an unencountered state will get this id, after which it will be incremented
-    states_id_dict = {str(env.unwrapped.state_tensor): 0}  # dictionary of state dicts to id
+    states_id_dict = {str(env.unwrapped.state_dict.values()): 0}  # dictionary of state dicts to id
     labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     new_id += 1
@@ -337,18 +351,18 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
     max_utility = 0
     extra_states_counter = 0
 
-    while (not exploration_tensor_queue.empty()):
+    while (not exploration_queue.empty()):
 
-        print(f"\rStates in exploration queue: {' ' * (10 - len(str(exploration_tensor_queue.qsize())))}{exploration_tensor_queue.qsize()} (Total #decisions: {extra_states_counter})", end="")
+        print(f"\rStates in exploration queue: {' ' * (10 - len(str(exploration_queue.qsize())))}{exploration_queue.qsize()} (Total #decisions: {extra_states_counter})", end="")
 
-        state_tensor = exploration_tensor_queue.get()
+        state_tensor = exploration_queue.get()
         obs_state = exploration_observation_queue.get()
 
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
         action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]
         blocked = env.unwrapped.blocked_model(env, state_tensor)
-        action_utilities = torch.where(blocked, -1000, action_utilities)
+        action_utilities = torch.where(blocked, -np.inf, action_utilities)
         # action = torch.argmax(action_utilities).item()
 
         utilities, actions = action_utilities.topk(2)
@@ -377,7 +391,7 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
 
                 if (str(result_state_tensor) not in list(states_id_dict.keys())):  # register newly discovered states
                     states_id_dict[str(result_state_tensor)] = new_id
-                    exploration_tensor_queue.put(result_state_tensor)
+                    exploration_queue.put(result_state_tensor)
                     exploration_observation_queue.put(result_state_dict)
                     new_id += 1
 

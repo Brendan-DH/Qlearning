@@ -142,7 +142,7 @@ def discovery_effect(env, state_tensor):
 
     """
     state_tensor = state_tensor.detach().clone()
-    robot_no = env.unwrapped.clock
+    robot_no = env.unwrapped.state_dict["clock"]
 
     # return ([1], [state_tensor])
 

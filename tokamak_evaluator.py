@@ -110,13 +110,14 @@ if (input_dict["evaluation_type"] == "mdp"):
 elif (input_dict["evaluation_type"] == "dtmc"):
     output_name = f"dtmc_of_{load_weights_file}"
     verification_property = "Rmax=?[F \"done\"]"
-    if (output_name + ".tra" not in storm_dir_contents
-            or output_name + ".lab" not in storm_dir_contents
-            or output_name + ".transrew" not in storm_dir_contents):
-        print("Generating DTMC file")
-        generate_dtmc_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
-    else:
-        print(f"Found {output_name} files in outputs/storm_files. Will not generation a new one.")
+    generate_dtmc_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
+    # if (output_name + ".tra" not in storm_dir_contents
+    #         or output_name + ".lab" not in storm_dir_contents
+    #         or output_name + ".transrew" not in storm_dir_contents):
+    #     print("Generating DTMC file")
+    #     generate_dtmc_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
+    # else:
+    #     print(f"Found {output_name} files in outputs/storm_files. Will not generation a new one.")
 
 print("Running STORM")
 subprocess.run(["storm",
