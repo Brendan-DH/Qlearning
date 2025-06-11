@@ -6,7 +6,7 @@ from dqn.dqn_collections import DeltaTransition
 
 class PriorityMemory(object):
 
-    def __init__(self, capacity):
+    def __init__(self, capacity, epsilon_window=1):
         self.capacity = capacity
         self.warning = False
         self.memory = deque([], maxlen=capacity)  # this could be a tensor
@@ -14,6 +14,9 @@ class PriorityMemory(object):
         self.bounds = []
         self.prob_divisor = np.NaN
         self.memory_type = "priority"
+        self.epsilon_window = epsilon_window  # the epsilon window for the epsilon-greedy policy
+        
+        print(f"Initialised priority memory with capacity {self.capacity} and epsilon window {self.epsilon_window}")
 
     def push(self, *args):
         """Save a transition"""
@@ -38,7 +41,7 @@ class PriorityMemory(object):
 
         items = list(self.memory)
         for item in items:
-            if item.epsilon > epsilon + 0.2:
+            if item.epsilon > epsilon + self.epsilon_window:
                 item.state.delta = 0
         items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
         self.memory = deque(items, maxlen=self.capacity)

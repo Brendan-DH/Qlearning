@@ -105,6 +105,7 @@ if multiagent:
                                                         # epsilon_decay_function=lambda ep, e_max, e_min, num_eps: sinusoidal_epsilon(episode=ep, base_epsilon=e_min),
                                                         epsilon_max=float(input_dict["epsilon_max"]),
                                                         epsilon_min=float(input_dict["epsilon_min"]),
+                                                        epsilon_window=float(input_dict["epsilon_window"]),
                                                         optimisation_frequency=int(input_dict["optimisation_frequency"]),
                                                         alpha=float(input_dict["alpha"]),
                                                         gamma=float(input_dict["gamma"]),

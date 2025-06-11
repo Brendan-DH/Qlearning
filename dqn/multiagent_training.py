@@ -30,6 +30,7 @@ def train_model(
         gamma=0.6,  # discount factor
         epsilon_max=0.95,  # max exploration rate
         epsilon_min=0.05,  # min exploration rate
+        epsilon_window=1,
         epsilon_decay_function=None,  # will be exponential if not set.
         alpha=1e-3,  # learning rate for policy DeepQNetwork
         tau=0.005,  # soft update rate for ap DeepQNetwork
@@ -105,7 +106,7 @@ def train_model(
     optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
 
     # memory = ReplayMemory(buffer_size)
-    memory = PriorityMemory(buffer_size)
+    memory = PriorityMemory(buffer_size, epsilon_window)
     torch.set_grad_enabled(True)
     plotting_on = plot_frequency < num_episodes and plot_frequency != 0
     checkpoints_on = checkpoint_frequency < num_episodes and checkpoint_frequency != 0
@@ -178,6 +179,9 @@ def train_model(
         latest_env_states = np.empty(env.unwrapped.num_robots, dtype=dict)
 
         nlc = "\n"
+        
+        period_optimisation_time = 0
+        period_start_time = time.time()
 
         for t in count():
 
@@ -301,41 +305,9 @@ def train_model(
                         prev_trans_r,  # reward is still collected for getting here.
                         prev_blocked_actions
                     )
-                
-                # for robot_index in range(env.unwrapped.num_robots):
-                #     prev_trans_s = latest_observations[robot_index]
-                #     prev_trans_a = latest_actions[robot_index]
-                #     prev_trans_r = (1 - reward_sharing_coefficient) * latest_rewards[robot_index] + reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_index])
-                #     prev_blocked_actions = latest_blocked_actions[robot_index]
-                #     memory.push(
-                #         torch.tensor(list(prev_trans_s.values()), dtype=torch.float, device="cpu", requires_grad=False),
-                #         prev_trans_a,
-                #         None,  # set to none for masking purposes in optimiser.
-                #         prev_trans_r,  # reward is still collected for getting here.
-                #         prev_blocked_actions
-                #     )
-                    # env_state_diffs = {k: (f"{prev_env_state[k]} --> {new_env_state[k]}") for k in set(prev_env_state) | set(new_env_state) if prev_env_state[k] != new_env_state[k]}
-                    # obs_diffs = {k: (f"{prev_trans_s[k]} --> {prev_trans_sprime[k]}") for k in set(prev_trans_s) | set(prev_trans_sprime) if prev_trans_s[k] != prev_trans_sprime[k]}
-
-                    # print(f"""
-                    # #####
-                    # Rewards ({i_episode}/{epsilon})
-                    # ----
-                    # robot:{robot_index}
-                    # origin state: {prev_trans_s}
-                    # resultant state: None (terminated)
-                    # action: {prev_trans_a}
-                    # reward: {latest_rewards[robot_index]} + {reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_index])} = {prev_trans_r}
-                    # ----
-                    # All robot rewards: {latest_rewards}
-                    # All robot locations: {robot_locations}
-                    #
-                    #
-                    # """)
-                # WORK OUT IF THIS IS ACTUALLY OPERATING CORRECTLY
-                # does it make sense for all robots to have their final transitions resolved?
-
+                    
             # run optimiser
+            op_start_time = time.time()
             if (t % optimisation_frequency == 0):
                 loss = optimise(policy_net,
                                 target_net,
@@ -347,6 +319,8 @@ def train_model(
                                 priority_coefficient,
                                 weighting_coefficient)
                 ep_loss += loss if loss is not None else 0
+                
+            period_optimisation_time += time.time() - op_start_time
 
             # Soft-update the target net -- doing this in-place for better efficiency
             with torch.no_grad():
@@ -360,8 +334,13 @@ def train_model(
                     episode_durations[i_episode] = info["elapsed steps"]
                     rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
+                    period_time = time.time() - period_start_time
+                    print(f"Optimisation took {period_optimisation_time:.2f}s out of {period_time:.2f}s this period ({(period_optimisation_time / period_time) * 100:.2f}%)")
+                    period_time = 0
+                    period_start_time = time.time()
+                    period_optimisation_time = 0
                     f = plot_status(episode_durations[:i_episode], rewards[:i_episode], epsilons[:i_episode], losses[:i_episode])
-                    file_dir = os.getcwd() + f"/outputs/plots/plt_epoch_{run_id}.png"
+                    file_dir = os.getcwd() + f"/outputs/plots/plt_{run_id}.png"
                     print(f"Saving plot {i_episode} at {file_dir}")
                     f.savefig(file_dir)
                     plt.close(f)
