@@ -335,7 +335,7 @@ def train_model(
                     rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
                     period_time = time.time() - period_start_time
-                    print(f"Optimisation took {period_optimisation_time:.2f}s out of {period_time:.2f}s this period ({(period_optimisation_time / period_time) * 100:.2f}%)")
+                    print(f"Optimisation took {period_optimisation_time:.2f}s out of {period_time:.2f}s since last plot ({(period_optimisation_time / period_time) * 100:.2f}%).")
                     period_time = 0
                     period_start_time = time.time()
                     period_optimisation_time = 0
