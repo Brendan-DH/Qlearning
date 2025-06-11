@@ -9,6 +9,7 @@ from collections import deque, OrderedDict
 from dqn.dqn import DeepQNetwork
 from queue import Queue
 import time
+import system_logic.blocking_MA as system_logic
 
 
 def evaluate_model_by_trial(dqn,
@@ -83,6 +84,44 @@ def evaluate_model_by_trial(dqn,
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 
 
+def recursive_explore(state_dict, env, policy_net, gamma, depth=0, max_depth=5):
+    
+    # calculate the expected rewards for the next n steps
+    reward = 0
+    robot_no = state_dict["clock"]  # get the robot number from the state dict
+    current_state = state_dict.copy()
+    Q_values = np.empty(env.action_space.n)
+    blocked = env.unwrapped.blocked_model(env, current_state, robot_no)  # check if the current state is blocked
+    for a in range(env.action_space.n):
+        if blocked[a]:  # if the action is blocked, skip it
+            Q_values[a] = -np.inf
+            continue
+        
+        Q = 0
+        probs, result_states = env.unwrapped.transition_model(env, current_state, robot_no, a)  # get the result of the action from the transition model
+        for i in range(len(result_states)):  # iterate over result states:
+            reward = env.unwrapped.reward_model(env, current_state, robot_no, a, result_states[i]) # get the reward for this state
+            if (system_logic.state_is_final(env, result_states[i])):  
+                reward = 100
+            if depth < max_depth:
+                _, subsequent_Q = recursive_explore(result_states[i], env, policy_net, gamma, depth + 1, max_depth) # recursively explore the next states
+            else:
+                obs = env.unwrapped.state_dict_to_observable(result_states[i], robot_no)
+                obs["epsilon"] = 0  # set epsilon to 0 for exploration
+                q_values = policy_net.forward(torch.tensor(list(obs.values()), dtype=torch.float).unsqueeze(0))[0]
+                q_values = torch.where(env.unwrapped.blocked_model(env, result_states[i], robot_no), -np.inf, q_values)
+                subsequent_Q = torch.max(q_values).item()
+                
+                
+            Q += probs[i]*(reward + gamma*subsequent_Q)  # accumulate the expected rewards
+            
+        Q_values[a] = Q  # store the Q value for this action
+        
+    action = np.argmax(Q_values)  # choose the action with the highest Q value
+    if (depth == 0):
+        print(state_dict["clock"], "Q values:", Q_values, "action:", action)
+    return action, Q_values[action]  # return the action and its Q value
+
 def evaluate_model_by_trial_MA(dqn,
                             num_episodes,
                             env,
@@ -110,7 +149,7 @@ def evaluate_model_by_trial_MA(dqn,
         # obs_state["episode"] = canonical_episode
 
         states = [env.unwrapped.state_dict]
-        actions = []
+        
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
         rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
@@ -119,12 +158,14 @@ def evaluate_model_by_trial_MA(dqn,
             robot_no = env.unwrapped.state_dict["clock"]
 
             # calculate action utilities and choose action
-            action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0] 
-            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, robot_no)
-            action_utilities[blocked == 1] = -np.inf
-            if render:
-                print(robot_no, action_utilities)
-            action = torch.argmax(action_utilities).item()
+            # action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0] 
+            # blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, robot_no)
+            # action_utilities[blocked == 1] = -np.inf
+            # if render:
+            #     print(robot_no, action_utilities)
+            # action = torch.argmax(action_utilities).item()
+
+            action, q = recursive_explore(env.unwrapped.state_dict, env, dqn, gamma=0.75, depth=0, max_depth=5)  # get the action from the policy network
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
@@ -133,7 +174,7 @@ def evaluate_model_by_trial_MA(dqn,
 
             states.append(env.unwrapped.state_dict)
 
-            actions.append(action)
+            # actions.append(action)
             
             obs_state = new_obs_state
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
