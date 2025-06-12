@@ -91,7 +91,7 @@ def optimise(policy_dqn,
         # print("blocked shape:", blocked.shape, blocked)
         state_action_values = q_values.gather(1, action_batch.unsqueeze(1))
         # print(q_values[0], blocked_batch[0], action_batch[0], state_action_values[0])
-    except AttributeError, RuntimeError as e:
+    except AttributeError or RuntimeError as e:
         print("policy_dqn.device:", policy_dqn.device)
         print("state_batch.device:", state_batch.device)
         print("optimiser_device:", optimiser_device)
