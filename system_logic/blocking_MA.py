@@ -179,9 +179,9 @@ def t_model(env, state_dict, robot_no, action_no):
     # yes, this is very messy and restricts the functionality to the same action_no space
     # (i.e. number of robots). could possibly be made dynamic later.
 
-    if (b_model(env, state_dict, robot_no)[action_no] == 1):
-        state_dict = state_dict.copy()
-        return [1], [state_dict]
+    # if (b_model(env, state_dict, robot_no)[action_no] == 1):
+    #     state_dict = state_dict.copy()
+    #     return [1], [state_dict]
 
     state_dict = state_dict.copy()
 
@@ -325,7 +325,7 @@ def b_model(env, state_dict, robot_no):
     # num_goals_unchecked = np.sum([0 if state_dict[f"goal{i} checked"] else 1 for i in range(env.unwrapped.num_goals)])
     active_goal_locations = np.array([state_dict[f"goal{i} location"] for i in range(env.unwrapped.num_goals) if state_dict[f"goal{i} active"] == 1])
     
-    # unblock wait if both sides are blocked
+    # unblock wait if either side is blocked
     if (blocked_actions[0] or blocked_actions[1]):
         blocked_actions[3] = 0
     else:

@@ -89,6 +89,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False):
 
     steps = np.empty(num_episodes)
     deadlock_counter = 0
+    broken_deadlock_counter = 0
     deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
 
     canonical_epsilon = 0.0  # epsilon for multiagent evaluation
@@ -101,18 +102,26 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False):
         states = [env.unwrapped.state_dict]
         actions = []
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
-        rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
+        deadlock_breaker = [False] * env.unwrapped.num_robots  # deadlock breaker for each robot
+        last_origin_observations = np.empty(3, dtype=dict)  # last observation for each robot
+        
         for t in count():
             robot_no = env.unwrapped.state_dict["clock"]
 
-            # calculate action utilities and choose action
-            action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]
-            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, robot_no)
-            action_utilities[blocked == 1] = -np.inf
-            if render:
-                print(robot_no, action_utilities)
-            action = torch.argmax(action_utilities).item()
+            if deadlock_breaker[robot_no]:
+                broken_deadlock_counter += 1
+                action = 3  # wait if no change in observation
+                deadlock_breaker = [False] * env.unwrapped.num_robots
+
+            else:
+                # calculate action utilities and choose action
+                action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]
+                blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
+                action_utilities = torch.where(blocked, -np.inf, action_utilities)
+                if render:
+                    print(robot_no, action_utilities)
+                action = torch.argmax(action_utilities).item()
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
@@ -120,10 +129,14 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False):
             # new_obs_state["episode"] = canonical_episode
 
             states.append(env.unwrapped.state_dict)
-
+            if(t > env.unwrapped.num_robots and states[-1] in states[-(2*env.unwrapped.num_robots)-1:-1] and action != 2 and action != 3):
+                deadlock_breaker[robot_no] = True 
+                
             actions.append(action)
 
-            obs_state = new_obs_state
+
+            last_origin_observations[robot_no] = obs_state.copy()  # store the last observation for this robot
+            obs_state = new_obs_state.copy()
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
             done = terminated
@@ -140,16 +153,19 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False):
             deadlock_traces.append(states)
             deadlock_counter += 1
 
+
         steps[i] = t
 
     print("Evaluation complete.")
     print(f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter == 0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
     print(f"Percentage converged: {100 - (deadlock_counter * 100 / num_episodes)}")
+    print(f"Deadlock breaker triggered {broken_deadlock_counter} times.")
 
     env.set_rendering(True)  # stop rendering after evaluation
     for trace in deadlock_traces:
         print("Deadlock trace:")
         for r, state in enumerate(trace):
+            print(state["clock"], state["robot0 location"], state["robot1 location"], state["robot2 location"])
             env.render_frame(state, False)
 
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
@@ -199,7 +215,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     rewards_array = []
     clock = 0
     start_time = time.time()
-    print(f"Beginning DTMC construction.")
+    print("Beginning DTMC construction.")
     while not len(exploration_state_queue) == 0:
         # print("EXPLORATION STEP")
         display_string = f"{len((exploration_state_queue))} -- Total states encountered: {new_id + 1}"

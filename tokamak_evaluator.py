@@ -95,8 +95,9 @@ if input_dict["evaluation_type"] == "mdp":
         print(f"Found {output_name} files in outputs/storm_files. Will not generate a new one.")
 elif input_dict["evaluation_type"] == "dtmc":
     output_name = f"dtmc_of_{load_weights_file}"
-    verification_properties.append('R=?[F "done" || F  "done"]') # the reward for getting git, provided it gets there
-    verification_properties.append('P=?[G !"done"]')
+    verification_properties.append('R=?[F "done" || F  "done"]') # the reward for getting done, provided it gets there
+    verification_properties.append('R=?[F "done"]') # the reward for getting done
+    verification_properties.append('P=?[F "done"]')
     if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
         print("Generating DTMC file")
         generate_dtmc_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)

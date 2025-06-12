@@ -214,7 +214,7 @@ def train_model(
             # obs_state["episode"] = i_episode
 
             # to resolve this robot's PREVIOUS action, we see how the system has now changed:
-            if t > env.unwrapped.num_robots:  # does this make sense?
+            if t > env.unwrapped.num_robots:  
                 prev_trans_s = latest_observations[robot_no].copy()
                 prev_trans_a = latest_actions[robot_no]
                 prev_trans_sprime = obs_state.copy()
