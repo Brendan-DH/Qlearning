@@ -4,49 +4,8 @@ import torch.nn as nn
 
 def init_weights(m):
     if isinstance(m, nn.Linear):
-        torch.nn.init.xavier_uniform(m.weight)
+        torch.nn.init.xavier_uniform_(m.weight)
         m.bias.data.fill_(0.01)
-
-class NoisyLinear(nn.Module):
-    def __init__(self, in_features, out_features, sigma_init=0.017):
-        super(NoisyLinear, self).__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-
-        # Learnable parameters for weights and biases
-        self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
-        self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
-        self.bias_mu = nn.Parameter(torch.empty(out_features))
-        self.bias_sigma = nn.Parameter(torch.empty(out_features))
-
-        # Register buffers for noise
-        self.register_buffer("weight_epsilon", torch.empty(out_features, in_features))
-        self.register_buffer("bias_epsilon", torch.empty(out_features))
-
-        # Initialize parameters
-        self.reset_parameters(sigma_init)
-
-    def reset_parameters(self, sigma_init):
-        # Initialize weights and biases
-        bound = 1 / self.in_features**0.5
-        self.weight_mu.data.uniform_(-bound, bound)
-        self.bias_mu.data.uniform_(-bound, bound)
-
-        # Initialize noise scaling factors
-        self.weight_sigma.data.fill_(sigma_init)
-        self.bias_sigma.data.fill_(sigma_init)
-
-    def forward(self, input):
-        # Sample noise
-        self.weight_epsilon.normal_()
-        self.bias_epsilon.normal_()
-
-        # Compute noisy weights and biases
-        weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
-        bias = self.bias_mu + self.bias_sigma * self.bias_epsilon
-
-        # Perform linear transformation
-        return F.linear(input, weight, bias)
 
 class DeepQNetwork(nn.Module):
 
