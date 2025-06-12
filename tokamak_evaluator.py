@@ -16,9 +16,10 @@ import os
 import handle_input
 import sys
 import scenarios
+import numpy as np
 
 from dqn.dqn import DeepQNetwork
-from dqn.evaluation import evaluate_model_by_trial, evaluate_model_by_trial_MA, generate_dtmc_file, generate_mdp_file
+from dqn.evaluation import evaluate_model_by_trial, evaluate_model_by_trial_MA, generate_dtmc_file, generate_mdp_file, check_dtmc, get_terminal_trace
 from system_logic.hybrid_system_tensor_logic import pseudoreward_function
 
 # use a non-display backend. no, i don't know what this means.
@@ -109,15 +110,28 @@ if (input_dict["evaluation_type"] == "mdp"):
         print(f"Found {output_name} files in outputs/storm_files. Will not generate a new one.")
 elif (input_dict["evaluation_type"] == "dtmc"):
     output_name = f"dtmc_of_{load_weights_file}"
-    verification_property = "Rmax=?[F \"done\"]"
-    generate_dtmc_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
-    # if (output_name + ".tra" not in storm_dir_contents
-    #         or output_name + ".lab" not in storm_dir_contents
-    #         or output_name + ".transrew" not in storm_dir_contents):
-    #     print("Generating DTMC file")
-    #     generate_dtmc_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
-    # else:
-    #     print(f"Found {output_name} files in outputs/storm_files. Will not generation a new one.")
+    verification_property = "P=?[G !\"done\"]"
+    if (output_name + ".tra" not in storm_dir_contents
+            or output_name + ".lab" not in storm_dir_contents
+            or output_name + ".transrew" not in storm_dir_contents):
+        print("Generating DTMC file")
+        generate_dtmc_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
+    else:
+        print(f"Found {output_name} files in outputs/storm_files. Will not generation a new one.")
+
+check_dtmc(f"outputs/storm_files/{output_name}.tra", verbose=True)
+with open(f"outputs/storm_files/{output_name}.lab", "r") as f:
+    for line in f:
+        if "done" in line and not "init" in line:
+            example_terminal_state = line.split()[0]
+            break
+    
+
+trace, reward_trace = get_terminal_trace(f"outputs/storm_files/{output_name}.tra",
+                                         f"outputs/storm_files/{output_name}.transrew",
+                                         example_terminal_state)
+
+print(f"Example terminal trace: {' - '.join(trace)} with reward {np.sum(reward_trace)}.")
 
 print("Running STORM")
 subprocess.run(["storm",

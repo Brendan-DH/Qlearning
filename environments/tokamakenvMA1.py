@@ -167,6 +167,19 @@ class TokamakEnvMA1(gym.Env):
         if(random):
             for i in range(self.num_robots):
                 init_copy[f"robot{i} location"] = np.random.randint(0, self.size)
+            if (np.random.random() < 0.05):
+                for i in range(self.num_goals):
+                    init_copy[f"goal{i} checked"] =1
+                    init_copy[f"goal{i} active"] = 0
+                    chosen_goal = np.random.randint(0, self.num_goals)
+                    init_copy[f"goal{chosen_goal} active"] = 1
+            else:
+                for i in range(self.num_goals):
+                    init_copy[f"goal{i} checked"] = np.random.randint(0, 2)
+                    if init_copy[f"goal{i} checked"] == 1:
+                        init_copy[f"goal{i} active"] = np.random.randint(0, 2)
+                    else:
+                        init_copy[f"goal{i} active"] = 0
 
         if self.initial_state_logic:
             init_copy = self.initial_state_logic(self, init_copy.copy())

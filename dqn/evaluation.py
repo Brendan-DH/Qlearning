@@ -204,23 +204,26 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     policy_net = DeepQNetwork(n_observations, n_actions, num_hidden_layers, nodes_per_layer)
     policy_net.load_state_dict(loaded_weights)
 
-    new_id = 1  # an unencountered state will get this id, after which it will be incremented
+    new_id = 0  # an unencountered state will get this id, after which it will be incremented
     states_id_dict = {str(env.unwrapped.state_dict.values()): 0}  # dictionary of state dicts to id
-    labels_set = {"1 init\n"}  # set of state labels ([id] [label] )
+    keySet = set(states_id_dict.keys())
+    labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     new_id += 1
     transitions_array = []
     rewards_array = []
     clock = 0
     start_time  = time.time()
-
+    print(f"Beginning DTMC construction.")
     while (not len(exploration_state_queue)==0):
         # print("EXPLORATION STEP")
-        display_string = f'{len((exploration_state_queue))} -- Total states encountered: {new_id}'
-        print(f"\r[{int(time.time()-start_time)}s] States in exploration queue: {' '*(50 - len(display_string))}{display_string}", end="")
+        display_string = f'{len((exploration_state_queue))} -- Total states encountered: {new_id+1}'
+        
+        if ((int(time.time() - start_time) % 100 )== 0):
+            print(f"\r[{int(time.time()-start_time)}s] States in exploration queue: {' '*(50 - len(display_string))}{display_string}", end="")
 
-        state_dict = exploration_state_queue.pop()
-        obs_state = exploration_observation_queue.pop()
+        state_dict = exploration_state_queue.popleft()
+        obs_state = exploration_observation_queue.popleft()
         obs_state["epsilon"] = 0  # set epsilon to 0 for exploration
 
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
@@ -249,18 +252,19 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
 
             # print(prob, result_state_dict["robot0 location"])
 
-            if (str(result_state_dict.values()) not in list(states_id_dict.keys())):  # register newly discovered states
+            if (str(result_state_dict.values()) not in keySet):  # register newly discovered states
                 states_id_dict[str(result_state_dict.values())] = new_id
                 exploration_state_queue.append(result_state_dict)
                 exploration_observation_queue.append(env.unwrapped.state_dict_to_observable(result_state_dict,result_state_dict["clock"]))
                 new_id += 1
+                keySet.add(str(result_state_dict.values()))
 
             if (result_state_dict["clock"] == int(env.unwrapped.num_robots-1)):  # assign awards to clock ticks
                 rewards_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} 1")
 
             # print("prob", prob, type(prob))
-            transitions_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} {round(prob, 3)}")  # write the transitions into the file/array
-            
+            transitions_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} {prob}")  # write the transitions into the file/array
+
         clock = (clock+1) % env.unwrapped.num_robots  # increment clock for the next state
 
     print(f"\nWriting file to {os.getcwd()}/outputs/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
@@ -400,7 +404,7 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
                         rewards_array.append(f"{states_id_dict[str(state_tensor)]} {a} {states_id_dict[str(result_state_tensor)]} 1")
 
                 # print("prob", prob, type(prob))
-                transitions_array.append(f"{states_id_dict[str(state_tensor)]} {a} {states_id_dict[str(result_state_tensor)]} {round(prob, 3)}")  # write the transitions into the file/array
+                transitions_array.append(f"{states_id_dict[str(state_tensor)]} {a} {states_id_dict[str(result_state_tensor)]} {prob}")  # write the transitions into the file/array
 
     print(f"\nWriting file to {os.getcwd()}/outputs/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
 
@@ -448,35 +452,102 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
     #
 
 def check_dtmc(filepath, verbose=False):
+    print(f"Checking {filepath} for valid DTMC structure...")
+    
+    success = True
     p_outs = {}
-    accessible_states = set([])
-
+    origin_states = set([]) # states mentioned in structure
+    accessible_states = set([]) # states mentioned in structure
+    
+    accessible_states.add("0")  # add initial state
+    no = 1
+    print("Reading file...") if verbose else None
     with open(filepath) as f:
         header = f.readline()
         assert header.strip() == "dtmc"
         for line in f:
+            no += 1
             s, s_prime, p = line.strip().split(" ")
-            accessible_states.add(s)
+            origin_states.add(s)
             accessible_states.add(s_prime)
-            if (str(s) in p_outs):
-                p_outs[str(s)] += float(p)
+            if (s in p_outs.keys()):
+                p_outs[s] += float(p)
             else:
-                p_outs[str(s)] = float(p)
+                p_outs[s] = float(p)
 
     out_states = list(p_outs.keys())
     out_probabilities = list(p_outs.values())
     p_problem_states = []
     for i in range(len(out_states)):
+        if (i % 100 == 0) and verbose:
+            print(f"\rChecking state transitions sum to 1: {i+1}/{len(out_states)}", end="")
         if (round(out_probabilities[i], 3) != 1.0):  # rounding is needed for numerical issues
             if (verbose):
                 print(f"Error! s={out_states[i]} -> total p={out_probabilities[i]}")
             p_problem_states.append([out_states[i], out_probabilities[i]])
+    
+    if (len(p_problem_states)==0):
+        print("\nAll state transitions sum to 1.") if verbose else None
+    else:
+        success = False
+        
+    print("Checking for inaccesible states...") if verbose else None
+    inaccessible_states = set.difference(origin_states, accessible_states)  # states that are not mentioned in the structure
+    if (len(inaccessible_states) > 0):
+        print(f"Error! {len(inaccessible_states)} inaccessible states found: {inaccessible_states}") if verbose else None
+        success = False
+    else:
+        print("All states are accessible.") if verbose else None
+        
+    # for i, s in enumerate(accessible_states):
+    #     if (i % 100 == 0) and verbose:
+    #         print(f"\rChecking states are accessible: {i+1}/{len(accessible_states)}", end="")
+    #     if s not in out_states:
+    #         if (verbose):
+    #             print(f"Error! s={s} has no outgoing transitions!")
+    #         unacknowledged_states.append(s)
 
-    unacknowledged_states = []
-    for s in accessible_states:
-        if s not in out_states:
-            if (verbose):
-                print(f"Error! s={s} has no outgoing transitions!")
-            unacknowledged_states.append(s)
+    print(f"Check complete: {'SUCCESS' if success else 'FAILURE'}") if verbose else None
+    # return p_problem_states, unacknowledged_states
+    return p_problem_states, []  
 
-    return p_problem_states, unacknowledged_states
+
+def get_terminal_trace(transition_file, reward_file, terminal_state_id):
+    """
+    Reads a file of format "id1 id2 prob" and returns the trace (sequence of state ids)
+    leading to the given terminal_state_id, if possible.
+    """
+    
+    transitions = {}
+    rewards = {}
+    with open(transition_file, "r") as f:
+        header = f.readline()  # skip header
+        for line in f:
+            s, s_prime, p = line.strip().split()
+            if s_prime not in transitions:
+                transitions[s_prime] = []
+            transitions[s_prime].append(s)  # store predecessors for each state
+    with open(reward_file, "r") as f:
+        # header = f.readline()  # skip header
+        for line in f:
+            s, s_prime, r = line.strip().split()
+            if s_prime not in rewards:
+                rewards[s_prime] = int(r)
+    # Backtrack from terminal_state_id to 0
+    trace = [str(terminal_state_id)]
+    reward_trace = [rewards[str(terminal_state_id)]]
+    current = str(terminal_state_id)
+    while current != "0":
+        if current not in transitions or len(transitions[current]) == 0:
+            break
+        # Take the first predecessor (could be multiple, but just pick one)
+        prev = transitions[current][0]
+        trace.append(prev)
+        if (current in rewards.keys()):
+            reward_trace.append(rewards[current])
+        else:
+            reward_trace.append(0)
+        current = prev
+    trace.reverse()
+    reward_trace.reverse()
+    return trace, reward_trace
