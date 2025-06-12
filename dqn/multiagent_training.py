@@ -24,7 +24,7 @@ def train_model(
         env,  # gymnasium environment
         policy_net,  # policy network to be trained
         target_net,  # target network to be soft updated
-        reset_options=None,  # options passed when resetting env
+        policy_net_gpu = None,
         num_episodes=1000,  # number of episodes for training
         optimisation_frequency=10,  # how often to optimise the model (in steps)
         gamma=0.6,  # discount factor
@@ -85,11 +85,22 @@ def train_model(
     episode_durations = np.empty(num_episodes)
     losses = np.empty(num_episodes)
     rewards = np.empty(num_episodes)
+    
     with warnings.catch_warnings(action="ignore"):
+        cuda_enabled = False
         optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if optimiser_device.type == "cuda":
+            print(f"Using GPU {torch.cuda.get_device_name(optimiser_device)} for training.")
+            if policy_net_gpu is not None:
+                cuda_enabled = True
+                policy_net_gpu.to(optimiser_device)
+                print(f"Sent GPU policy network to {optimiser_device}.")
+            else:
+                print("WARNING: No GPU policy network provided, using CPU policy network for training.")
 
-    policy_net.to(torch.device("cpu"))
-    target_net.to(torch.device("cpu"))
+    if cuda_enabled:
+        target_net.to(optimiser_device)
+        print(f"Target network moved to {optimiser_device}.")
 
     # with open(os.getcwd() + f"/outputs/env_desc_{run_id}.txt", "w") as file:
     #     json.dump(env.unwrapped.state, file)
@@ -103,8 +114,13 @@ def train_model(
         """)
 
     # Initialisation of NN apparatus
-    optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
-
+    if not cuda_enabled:
+        print("Creating optimiser for CPU network.")
+        optimiser = optim.AdamW(policy_net.parameters(), lr=alpha, amsgrad=True)
+    else:
+        print("Creating optimiser for GPU network.")
+        optimiser = optim.AdamW(policy_net_gpu.parameters(), lr=alpha, amsgrad=True)
+        
     # memory = ReplayMemory(buffer_size)
     memory = PriorityMemory(buffer_size, epsilon_window)
     torch.set_grad_enabled(True)
@@ -323,10 +339,20 @@ def train_model(
             
 
             # Soft-update the target net -- doing this in-place for better efficiency
-            with torch.no_grad():
-                for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net.parameters()):
-                    target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
+                if cuda_enabled:
+                    # Update the target network (on GPU) from the GPU policy net
+                    with torch.no_grad():
+                        for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net_gpu.parameters()):
+                            target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
+                    
+                    # Also update the CPU policy net from the GPU policy net
+                    policy_net.load_state_dict(policy_net_gpu.state_dict())  
 
+                else:
+                    # Update the target net (on cpu) from the CPU policy net
+                    with torch.no_grad():
+                        for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net.parameters()):
+                            target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
             # if done, process data and make plots
             if done:
                 if (plotting_on or checkpoints_on):
