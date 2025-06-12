@@ -86,11 +86,7 @@ def optimise(policy_dqn,
     try:
         q_values = policy_dqn(state_batch)
         q_values = q_values.masked_fill(blocked_batch, -np.inf)
-
-        # blocked = q_values.gather(1, blocked_batch.unsqueeze(1))  # gather the q-values of the blocked actions
-        # print("blocked shape:", blocked.shape, blocked)
         state_action_values = q_values.gather(1, action_batch.unsqueeze(1))
-        # print(q_values[0], blocked_batch[0], action_batch[0], state_action_values[0])
     except AttributeError or RuntimeError as e:
         print("policy_dqn.device:", policy_dqn.device)
         print("state_batch.device:", state_batch.device)
