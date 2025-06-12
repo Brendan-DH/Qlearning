@@ -89,9 +89,11 @@ multiagent = input_dict["multiagent"] == "y"
 if multiagent:
     print("Multiagent training")
 
-    policy_net = DeepQNetwork(n_observations + 1, n_actions, num_hidden_layers, nodes_per_layer)
-    target_net = DeepQNetwork(n_observations + 1, n_actions, num_hidden_layers, nodes_per_layer)
+    policy_net = DeepQNetwork(n_observations+1, n_actions, num_hidden_layers, nodes_per_layer)
+    policy_net_gpu = DeepQNetwork(n_observations+1, n_actions, num_hidden_layers, nodes_per_layer)
+    target_net = DeepQNetwork(n_observations+1, n_actions, num_hidden_layers, nodes_per_layer)
     target_net.load_state_dict(policy_net.state_dict())
+    policy_net_gpu.load_state_dict(policy_net.state_dict())
 
     trained_dqn, dur, re, eps = ma_training.train_model(env,
                                                         policy_net,
