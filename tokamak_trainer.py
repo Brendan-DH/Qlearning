@@ -98,6 +98,7 @@ if multiagent:
     trained_dqn, dur, re, eps = ma_training.train_model(env,
                                                         policy_net,
                                                         target_net,
+                                                        policy_net_gpu,
                                                         epsilon_decay_function=lambda ep, e_max, e_min, num_eps: epsilon_function(episode=ep,
                                                                                                                                   epsilon_max=e_max,
                                                                                                                                   epsilon_min=e_min,
