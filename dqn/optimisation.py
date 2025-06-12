@@ -89,7 +89,7 @@ def optimise(policy_dqn,
         state_action_values = q_values.gather(1, action_batch.unsqueeze(1))
     except (AttributeError, RuntimeError) as e:
         print("policy_dqn.device:", next(policy_dqn.parameters()).device)
-        print("state_batch.device:", next(state_batch.parameters()).device)
+        print("state_batch.device:", state_batch.device)
         print("optimiser_device:", optimiser_device)
         raise Exception("Something went wrong with gathering the state/action q-values")
 
