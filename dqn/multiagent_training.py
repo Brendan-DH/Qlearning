@@ -89,6 +89,7 @@ def train_model(
     with warnings.catch_warnings(action="ignore"):
         cuda_enabled = False
         optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device: {optimiser_device} with type {optimiser_device.type}")
         if optimiser_device.type == "cuda":
             print(
                 f"Using GPU {torch.cuda.get_device_name(optimiser_device)} for training."
