@@ -82,15 +82,7 @@ def optimise(policy_dqn,
     # print(blocked_batch.shape, blocked_batch, type(blocked_batch))
     
     reward_batch = torch.as_tensor((batch.reward - r_mean) / (r_std + 1e-6)).to(optimiser_device)  # tensor
-    
 
-    # # Check for blocked actions in the batch
-    # blocked_actions = blocked_batch.gather(1, action_batch.unsqueeze(1)).squeeze(1)
-    # if torch.any(blocked_actions):
-    #     print("Warning: Sampled actions that are blocked in their states!")
-    
-
-    # the qvalues of actions in this state as according to the policy network
     try:
         q_values = policy_dqn(state_batch)
         q_values = q_values.masked_fill(blocked_batch, -np.inf)
@@ -99,7 +91,7 @@ def optimise(policy_dqn,
         # print("blocked shape:", blocked.shape, blocked)
         state_action_values = q_values.gather(1, action_batch.unsqueeze(1))
         # print(q_values[0], blocked_batch[0], action_batch[0], state_action_values[0])
-    except AttributeError:
+    except AttributeError, RuntimeError as e:
         print("policy_dqn.device:", policy_dqn.device)
         print("state_batch.device:", state_batch.device)
         print("optimiser_device:", optimiser_device)
