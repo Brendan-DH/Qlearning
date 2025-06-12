@@ -11,15 +11,10 @@ from queue import Queue
 import time
 
 
-def evaluate_model_by_trial(dqn,
-                            num_episodes,
-                            env,
-                            max_steps,
-                            reset_options=None,
-                            render=False):
+def evaluate_model_by_trial(dqn, num_episodes, env, max_steps, reset_options=None, render=False):
     print("Evaluating...")
 
-    if ("win" in sys.platform and render):
+    if "win" in sys.platform and render:
         print("Cannot render on windows...")
         render = False
 
@@ -40,7 +35,6 @@ def evaluate_model_by_trial(dqn,
         rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
         for t in count():
-
             # calculate action utilities and choose action
             action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
             # block:
@@ -55,42 +49,37 @@ def evaluate_model_by_trial(dqn,
             states.append(env.unwrapped.state_dict)
 
             actions.append(action)
-            
+
             obs_state = new_obs_state
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
             done = terminated
 
-            if (render):
+            if render:
                 env.render_frame(states[-1], True)
 
-            if (done or truncated or t > max_steps):
-                if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
+            if done or truncated or t > max_steps:
+                if int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0:
                     print(f"{i}/{num_episodes} episodes complete")
                 break
 
-        if (not done):
+        if not done:
             deadlock_traces.append(states)
             deadlock_counter += 1
 
         steps[i] = t
 
     print("Evaluation complete.")
-    print(
-        f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter == 0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
+    print(f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter == 0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
     print(f"Percentage converged: {100 - (deadlock_counter * 100 / num_episodes)}")
 
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 
 
-def evaluate_model_by_trial_MA(dqn,
-                            num_episodes,
-                            env,
-                            max_steps,
-                            render=False):
+def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False):
     print("Evaluating...")
 
-    if ("win" in sys.platform and render):
+    if "win" in sys.platform and render:
         print("Cannot render on windows...")
         render = False
 
@@ -102,7 +91,7 @@ def evaluate_model_by_trial_MA(dqn,
     deadlock_counter = 0
     deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
 
-    canonical_epsilon = 0.0 # epsilon for multiagent evaluation
+    canonical_epsilon = 0.0  # epsilon for multiagent evaluation
 
     for i in range(num_episodes):
         obs_state, info = env.reset()
@@ -115,11 +104,10 @@ def evaluate_model_by_trial_MA(dqn,
         rel_actions = ["move cc", "move_cw", "engage", "wait"]  # 0=counter-clockwise, 1=clockwise, 2=engage, 3=wait
 
         for t in count():
-
             robot_no = env.unwrapped.state_dict["clock"]
 
             # calculate action utilities and choose action
-            action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0] 
+            action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]
             blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, robot_no)
             action_utilities[blocked == 1] = -np.inf
             if render:
@@ -134,40 +122,37 @@ def evaluate_model_by_trial_MA(dqn,
             states.append(env.unwrapped.state_dict)
 
             actions.append(action)
-            
+
             obs_state = new_obs_state
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
             done = terminated
 
-            if (render):
+            if render:
                 env.render_frame(states[-1], True)
 
-            if (done or truncated or t > max_steps):
-                if (int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0):
+            if done or truncated or t > max_steps:
+                if int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0:
                     print(f"{i}/{num_episodes} episodes complete")
                 break
 
-        if (not done):
+        if not done:
             deadlock_traces.append(states)
             deadlock_counter += 1
 
         steps[i] = t
 
     print("Evaluation complete.")
-    print(
-        f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter == 0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
+    print(f"{'CONVERGENCE SUCCESSFUL' if deadlock_counter == 0 else 'FAILURE'} - Failed to complete {deadlock_counter} times")
     print(f"Percentage converged: {100 - (deadlock_counter * 100 / num_episodes)}")
-    
+
     env.set_rendering(True)  # stop rendering after evaluation
     for trace in deadlock_traces:
         print("Deadlock trace:")
         for r, state in enumerate(trace):
             env.render_frame(state, False)
 
-
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
-
 
 
 def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
@@ -187,7 +172,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     #     print(f"{idx}: {state}")
     exploration_observation_queue.appendleft(init_obs)  # observations for forward passes
 
-    if (not weights_file):
+    if not weights_file:
         print("No weights file specified, exiting.")
         sys.exit(1)
 
@@ -213,14 +198,14 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     transitions_array = []
     rewards_array = []
     clock = 0
-    start_time  = time.time()
+    start_time = time.time()
     print(f"Beginning DTMC construction.")
-    while (not len(exploration_state_queue)==0):
+    while not len(exploration_state_queue) == 0:
         # print("EXPLORATION STEP")
-        display_string = f'{len((exploration_state_queue))} -- Total states encountered: {new_id+1}'
-        
-        if ((int(time.time() - start_time) % 100 )== 0):
-            print(f"\r[{int(time.time()-start_time)}s] States in exploration queue: {' '*(50 - len(display_string))}{display_string}", end="")
+        display_string = f"{len((exploration_state_queue))} -- Total states encountered: {new_id + 1}"
+
+        if (int(time.time() - start_time) % 100) == 0:
+            print(f"\r[{int(time.time() - start_time)}s] States in exploration queue: {' ' * (50 - len(display_string))}{display_string}", end="")
 
         state_dict = exploration_state_queue.popleft()
         obs_state = exploration_observation_queue.popleft()
@@ -239,33 +224,32 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
 
         # label end states
         all_done = system_logic.state_is_final(env, state_dict)
-        if (all_done):
+        if all_done:
             labels_set.add(f"{states_id_dict[str(state_dict.values())]} done\n")  # label end states
             transitions_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(state_dict.values())]} 1")  # end states loop to themselves (formality):
-            continue  # continue as we don't care about other transitions from end states  
-        
-        for i in range(len(result[0])):  # iterate over result states:
+            continue  # continue as we don't care about other transitions from end states
 
+        for i in range(len(result[0])):  # iterate over result states:
             prob = result[0][i]
             result_state_dict = result[1][i]
             # print(result_state_dict["clock"])
 
             # print(prob, result_state_dict["robot0 location"])
 
-            if (str(result_state_dict.values()) not in keySet):  # register newly discovered states
+            if str(result_state_dict.values()) not in keySet:  # register newly discovered states
                 states_id_dict[str(result_state_dict.values())] = new_id
                 exploration_state_queue.append(result_state_dict)
-                exploration_observation_queue.append(env.unwrapped.state_dict_to_observable(result_state_dict,result_state_dict["clock"]))
+                exploration_observation_queue.append(env.unwrapped.state_dict_to_observable(result_state_dict, result_state_dict["clock"]))
                 new_id += 1
                 keySet.add(str(result_state_dict.values()))
 
-            if (result_state_dict["clock"] == int(env.unwrapped.num_robots-1)):  # assign awards to clock ticks
+            if result_state_dict["clock"] == int(env.unwrapped.num_robots - 1):  # assign awards to clock ticks
                 rewards_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} 1")
 
             # print("prob", prob, type(prob))
             transitions_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} {prob}")  # write the transitions into the file/array
 
-        clock = (clock+1) % env.unwrapped.num_robots  # increment clock for the next state
+        clock = (clock + 1) % env.unwrapped.num_robots  # increment clock for the next state
 
     print(f"\nWriting file to {os.getcwd()}/outputs/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
 
@@ -297,14 +281,14 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
     # check DTMC for invalid states
     p_problem_states, unacknowledged_states = check_dtmc(os.getcwd() + f"/outputs/storm_files/{output_name}.tra")
 
-    if (len(p_problem_states) == 0):
+    if len(p_problem_states) == 0:
         print("Success: all probabilities sum to 1")
     else:
         print("Error! Some outgoing probabilities do not sum to 1\nstate | total p")
         for i in range(len(p_problem_states)):
             print(f"{p_problem_states[i][0]} | {p_problem_states[i][1]}")
 
-    if (len(unacknowledged_states) == 0):
+    if len(unacknowledged_states) == 0:
         print("Success: all states included in transition structure")
     else:
         print("Error! Some encountered states have no outgoing transitions!\nStates:")
@@ -329,7 +313,7 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
     exploration_queue.put(state_vector)  # tensors for full state description
     exploration_observation_queue.put(init_obs)  # observations for forward passes
 
-    if (not weights_file):
+    if not weights_file:
         print("No weights file specified, exiting.")
         sys.exit(1)
 
@@ -355,8 +339,7 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
     max_utility = 0
     extra_states_counter = 0
 
-    while (not exploration_queue.empty()):
-
+    while not exploration_queue.empty():
         print(f"\rStates in exploration queue: {' ' * (10 - len(str(exploration_queue.qsize())))}{exploration_queue.qsize()} (Total #decisions: {extra_states_counter})", end="")
 
         state_tensor = exploration_queue.get()
@@ -373,33 +356,32 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
         action1, action2 = actions[0].item(), actions[1].item()
         results = [system_logic.t_model(env, state_tensor, action1)]
         # max_utility = max(max_utility, utilities[0])
-        if (utilities[0] > max_utility):
+        if utilities[0] > max_utility:
             max_utility = utilities[0]
-        if (utilities[1] >= 0.97 * utilities[0] and utilities[1] > 0.75 * max_utility):
+        if utilities[1] >= 0.97 * utilities[0] and utilities[1] > 0.75 * max_utility:
             extra_states_counter += 1
             results.append(system_logic.t_model(env, state_tensor, action2))
 
         # label end states
         all_done = system_logic.state_is_final(env, state_tensor)
-        if (all_done):
+        if all_done:
             labels_set.add(f"{states_id_dict[str(state_tensor)]} done\n")  # label end states
             transitions_array.append(f"{states_id_dict[str(state_tensor)]} 0 {states_id_dict[str(state_tensor)]} 1")  # end states loop to themselves (formality):
             continue  # continue as we don't care about other transitions from end states
 
         for a, result in enumerate(results):
             for i in range(len(result[0])):  # iterate over result states:
-
                 prob = float(result[0][i].item()) if torch.is_tensor(result[0][i]) else result[0][i]
                 result_state_tensor = result[1][i]
                 result_state_dict = env.unwrapped.state_tensor_to_observable(result_state_tensor)
 
-                if (str(result_state_tensor) not in list(states_id_dict.keys())):  # register newly discovered states
+                if str(result_state_tensor) not in list(states_id_dict.keys()):  # register newly discovered states
                     states_id_dict[str(result_state_tensor)] = new_id
                     exploration_queue.put(result_state_tensor)
                     exploration_observation_queue.put(result_state_dict)
                     new_id += 1
 
-                if (np.sum([result_state_dict[f"robot{i} clock"] for i in range(env.unwrapped.num_robots)]) == 0):  # assign awards to clock ticks
+                if np.sum([result_state_dict[f"robot{i} clock"] for i in range(env.unwrapped.num_robots)]) == 0:  # assign awards to clock ticks
                     if f"{states_id_dict[str(state_tensor)]} {states_id_dict[str(result_state_tensor)]} 1" not in rewards_array:
                         rewards_array.append(f"{states_id_dict[str(state_tensor)]} {a} {states_id_dict[str(result_state_tensor)]} 1")
 
@@ -451,14 +433,15 @@ def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
     #         print(unacknowledged_states[i])
     #
 
+
 def check_dtmc(filepath, verbose=False):
     print(f"Checking {filepath} for valid DTMC structure...")
-    
+
     success = True
     p_outs = {}
-    origin_states = set([]) # states mentioned in structure
-    accessible_states = set([]) # states mentioned in structure
-    
+    origin_states = set([])  # states mentioned in structure
+    accessible_states = set([])  # states mentioned in structure
+
     accessible_states.add("0")  # add initial state
     no = 1
     print("Reading file...") if verbose else None
@@ -470,7 +453,7 @@ def check_dtmc(filepath, verbose=False):
             s, s_prime, p = line.strip().split(" ")
             origin_states.add(s)
             accessible_states.add(s_prime)
-            if (s in p_outs.keys()):
+            if s in p_outs.keys():
                 p_outs[s] += float(p)
             else:
                 p_outs[s] = float(p)
@@ -480,25 +463,25 @@ def check_dtmc(filepath, verbose=False):
     p_problem_states = []
     for i in range(len(out_states)):
         if (i % 100 == 0) and verbose:
-            print(f"\rChecking state transitions sum to 1: {i+1}/{len(out_states)}", end="")
-        if (round(out_probabilities[i], 3) != 1.0):  # rounding is needed for numerical issues
-            if (verbose):
+            print(f"\rChecking state transitions sum to 1: {i + 1}/{len(out_states)}", end="")
+        if round(out_probabilities[i], 3) != 1.0:  # rounding is needed for numerical issues
+            if verbose:
                 print(f"Error! s={out_states[i]} -> total p={out_probabilities[i]}")
             p_problem_states.append([out_states[i], out_probabilities[i]])
-    
-    if (len(p_problem_states)==0):
+
+    if len(p_problem_states) == 0:
         print("\nAll state transitions sum to 1.") if verbose else None
     else:
         success = False
-        
+
     print("Checking for inaccesible states...") if verbose else None
     inaccessible_states = set.difference(origin_states, accessible_states)  # states that are not mentioned in the structure
-    if (len(inaccessible_states) > 0):
+    if len(inaccessible_states) > 0:
         print(f"Error! {len(inaccessible_states)} inaccessible states found: {inaccessible_states}") if verbose else None
         success = False
     else:
         print("All states are accessible.") if verbose else None
-        
+
     # for i, s in enumerate(accessible_states):
     #     if (i % 100 == 0) and verbose:
     #         print(f"\rChecking states are accessible: {i+1}/{len(accessible_states)}", end="")
@@ -509,7 +492,7 @@ def check_dtmc(filepath, verbose=False):
 
     print(f"Check complete: {'SUCCESS' if success else 'FAILURE'}") if verbose else None
     # return p_problem_states, unacknowledged_states
-    return p_problem_states, []  
+    return p_problem_states, []
 
 
 def get_terminal_trace(transition_file, reward_file, terminal_state_id):
@@ -517,7 +500,7 @@ def get_terminal_trace(transition_file, reward_file, terminal_state_id):
     Reads a file of format "id1 id2 prob" and returns the trace (sequence of state ids)
     leading to the given terminal_state_id, if possible.
     """
-    
+
     transitions = {}
     rewards = {}
     with open(transition_file, "r") as f:
@@ -531,11 +514,12 @@ def get_terminal_trace(transition_file, reward_file, terminal_state_id):
         # header = f.readline()  # skip header
         for line in f:
             s, s_prime, r = line.strip().split()
-            if s_prime not in rewards:
+            if s_prime not in rewards.keys():
                 rewards[s_prime] = int(r)
     # Backtrack from terminal_state_id to 0
     trace = [str(terminal_state_id)]
-    reward_trace = [rewards[str(terminal_state_id)]]
+    # print(rewards.keys())
+    reward_trace = [rewards[str(terminal_state_id)]] if str(terminal_state_id) in rewards else [0]
     current = str(terminal_state_id)
     while current != "0":
         if current not in transitions or len(transitions[current]) == 0:
@@ -543,7 +527,7 @@ def get_terminal_trace(transition_file, reward_file, terminal_state_id):
         # Take the first predecessor (could be multiple, but just pick one)
         prev = transitions[current][0]
         trace.append(prev)
-        if (current in rewards.keys()):
+        if current in rewards.keys():
             reward_trace.append(rewards[current])
         else:
             reward_trace.append(0)

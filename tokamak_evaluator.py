@@ -23,13 +23,13 @@ from dqn.evaluation import evaluate_model_by_trial, evaluate_model_by_trial_MA, 
 from system_logic.hybrid_system_tensor_logic import pseudoreward_function
 
 # use a non-display backend. no, i don't know what this means.
-matplotlib.use('Agg')
+matplotlib.use("Agg")
 sys.stdout.flush()
 
 input_dict = handle_input.get_input_dict()
 
 load_weights_file = input_dict["evaluation_weights_file"]
-if (not load_weights_file):
+if not load_weights_file:
     print("No weights file provided, exiting.")
     sys.exit(1)
 
@@ -49,17 +49,10 @@ if not scenario:
 
 env_to_use = input_dict["environment"]
 
-env = gym.make(env_to_use,
-               system_parameters=scenario,
-               transition_model=mdpt.t_model,
-               reward_model=mdpt.r_model,
-               blocked_model=mdpt.b_model,
-               initial_state_logic=mdpt.initial_state_logic,
-               training=False,
-               render=False)
+env = gym.make(env_to_use, system_parameters=scenario, transition_model=mdpt.t_model, reward_model=mdpt.r_model, blocked_model=mdpt.b_model, initial_state_logic=mdpt.initial_state_logic, training=False, render=False)
 
 # set up matplotlib
-is_ipython = 'inline' in matplotlib.get_backend()
+is_ipython = "inline" in matplotlib.get_backend()
 plt.ion()
 
 n_actions = env.action_space.n
@@ -78,18 +71,10 @@ policy_net.load_state_dict(loaded_weights)
 
 if int(input_dict["num_evaluation_episodes"]) > 0:
     if multiagent:
-        s, a, steps, deadlock_traces = evaluate_model_by_trial_MA(dqn=policy_net,
-                                                            num_episodes=int(input_dict["num_evaluation_episodes"]),
-                                                            env=env,
-                                                            max_steps=int(input_dict["max_steps"]),
-                                                            render=render)        
+        s, a, steps, deadlock_traces = evaluate_model_by_trial_MA(dqn=policy_net, num_episodes=int(input_dict["num_evaluation_episodes"]), env=env, max_steps=int(input_dict["max_steps"]), render=render)
     else:
         print("\nEvaluation by trail...")
-        s, a, steps, deadlock_traces = evaluate_model_by_trial(dqn=policy_net,
-                                                            num_episodes=int(input_dict["num_evaluation_episodes"]),
-                                                            env=env,
-                                                            max_steps=int(input_dict["max_steps"]),
-                                                            render=render)
+        s, a, steps, deadlock_traces = evaluate_model_by_trial(dqn=policy_net, num_episodes=int(input_dict["num_evaluation_episodes"]), env=env, max_steps=int(input_dict["max_steps"]), render=render)
 
         plt.figure(figsize=(10, 7))
         plt.hist(x=steps, rwidth=0.95)
@@ -98,22 +83,21 @@ if int(input_dict["num_evaluation_episodes"]) > 0:
 
 storm_dir_contents = os.listdir(os.getcwd() + "/outputs/storm_files")
 
-if (input_dict["evaluation_type"] == "mdp"):
+verification_properties = []
+
+if input_dict["evaluation_type"] == "mdp":
     output_name = f"mdp_of_{load_weights_file}"
-    verification_property = "Rmin=?[F \"done\"]"
-    if (output_name + ".tra" not in storm_dir_contents
-            or output_name + ".lab" not in storm_dir_contents
-            or output_name + ".transrew" not in storm_dir_contents):
+    verification_properties.append('Rmin=?[F "done"]')
+    if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
         print("Generating MDP file")
         generate_mdp_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
     else:
         print(f"Found {output_name} files in outputs/storm_files. Will not generate a new one.")
-elif (input_dict["evaluation_type"] == "dtmc"):
+elif input_dict["evaluation_type"] == "dtmc":
     output_name = f"dtmc_of_{load_weights_file}"
-    verification_property = "P=?[G !\"done\"]"
-    if (output_name + ".tra" not in storm_dir_contents
-            or output_name + ".lab" not in storm_dir_contents
-            or output_name + ".transrew" not in storm_dir_contents):
+    verification_properties.append('R=?[F "done" || F  "done"]') # the reward for getting there, provided it gets there
+    verification_properties.append('P=?[G !"done"]')
+    if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
         print("Generating DTMC file")
         generate_dtmc_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
     else:
@@ -122,25 +106,18 @@ elif (input_dict["evaluation_type"] == "dtmc"):
 check_dtmc(f"outputs/storm_files/{output_name}.tra", verbose=True)
 with open(f"outputs/storm_files/{output_name}.lab", "r") as f:
     for line in f:
-        if "done" in line and not "init" in line:
+        if "done" in line and "init" not in line:
             example_terminal_state = line.split()[0]
             break
-    
 
-trace, reward_trace = get_terminal_trace(f"outputs/storm_files/{output_name}.tra",
-                                         f"outputs/storm_files/{output_name}.transrew",
-                                         example_terminal_state)
 
-print(f"Example terminal trace: {' - '.join(trace)} with reward {np.sum(reward_trace)}.")
+trace, reward_trace = get_terminal_trace(f"outputs/storm_files/{output_name}.tra", f"outputs/storm_files/{output_name}.transrew", example_terminal_state)
 
-print("Running STORM")
-subprocess.run(["storm",
-                "--explicit",
-                f"outputs/storm_files/{output_name}.tra",
-                f"outputs/storm_files/{output_name}.lab",
-                "--transrew",
-                f"outputs/storm_files/{output_name}.transrew",
-                "--prop",
-                verification_property])
+print(f"Example trace: {'-'.join(trace)} in time {np.sum(reward_trace)}.")
+
+for prop in verification_properties:
+    print(f"\nVerification property: {prop}")
+    print("Running STORM")
+    subprocess.run(["storm", "--explicit", f"outputs/storm_files/{output_name}.tra", f"outputs/storm_files/{output_name}.lab", "--transrew", f"outputs/storm_files/{output_name}.transrew", "--prop", prop])
 
 sys.exit(0)
