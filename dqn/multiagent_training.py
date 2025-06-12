@@ -168,8 +168,6 @@ def train_model(
         epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
         if (i_episode % plot_frequency) == 0:
             print(f"{i_episode}/{num_episodes} complete, epsilon = {epsilon}")
-            if torch.cuda.is_available():
-                print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
 
         if (i_episode % int(memory_sort_frequency) == 0) and memory.memory_type == "priority":
             memory.sort(batch_size, priority_coefficient, epsilon)
