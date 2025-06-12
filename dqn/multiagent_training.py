@@ -91,17 +91,13 @@ def train_model(
         optimiser_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {optimiser_device} with type {optimiser_device.type}")
         if optimiser_device.type == "cuda":
-            print(
-                f"Using GPU {torch.cuda.get_device_name(optimiser_device)} for training."
-            )
+            print(f"Using GPU {torch.cuda.get_device_name(optimiser_device)} for training.")
             if policy_net_gpu is not None:
                 cuda_enabled = True
                 policy_net_gpu.to(optimiser_device)
                 print(f"Sent GPU policy network to {optimiser_device}.")
             else:
-                print(
-                    "WARNING: No GPU policy network provided, using CPU policy network for training."
-                )
+                print("WARNING: No GPU policy network provided, using CPU policy network for training.")
 
     if cuda_enabled:
         target_net.to(optimiser_device)
@@ -142,9 +138,7 @@ def train_model(
     # Initialise some hyperparameters
     # if no decay function is supplied, set it to a default exponential decay
     if epsilon_decay_function is None:
-        decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (
-            num_episodes
-        )  # ensures epsilon ~= epsilon_min at end
+        decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (num_episodes)  # ensures epsilon ~= epsilon_min at end
 
         def epsilon_decay_function(ep, e_max, e_min, num_eps):
             return exponential_epsilon_decay(
@@ -171,19 +165,13 @@ def train_model(
         gc.collect()
         torch.cuda.empty_cache()
 
-        epsilon = epsilon_decay_function(
-            i_episode, epsilon_max, epsilon_min, num_episodes
-        )
+        epsilon = epsilon_decay_function(i_episode, epsilon_max, epsilon_min, num_episodes)
         if (i_episode % plot_frequency) == 0:
             print(f"{i_episode}/{num_episodes} complete, epsilon = {epsilon}")
             if torch.cuda.is_available():
-                print(
-                    f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}"
-                )
+                print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
 
-        if (
-            i_episode % int(memory_sort_frequency) == 0
-        ) and memory.memory_type == "priority":
+        if (i_episode % int(memory_sort_frequency) == 0) and memory.memory_type == "priority":
             memory.sort(batch_size, priority_coefficient, epsilon)
 
         # calculate the new epsilon
@@ -196,9 +184,7 @@ def train_model(
 
         # Initialise the first state
         if use_pseudorewards:
-            phi_sprime = env.unwrapped.pseudoreward_function(
-                env, env.unwrapped.state_tensor
-            )  # phi_sprime is the pseudoreward of the new state
+            phi_sprime = env.unwrapped.pseudoreward_function(env, env.unwrapped.state_tensor)  # phi_sprime is the pseudoreward of the new state
         ep_reward = 0
         ep_loss = 0
 
@@ -216,9 +202,7 @@ def train_model(
         latest_observations = np.empty(env.unwrapped.num_robots, dtype=dict)
         latest_actions = np.empty(env.unwrapped.num_robots, dtype=int)
         latest_rewards = np.zeros(env.unwrapped.num_robots, dtype=float)
-        latest_blocked_actions = torch.zeros(
-            (env.unwrapped.num_robots, env.action_space.n), dtype=bool
-        )
+        latest_blocked_actions = torch.zeros((env.unwrapped.num_robots, env.action_space.n), dtype=bool)
 
         latest_env_states = np.empty(env.unwrapped.num_robots, dtype=dict)
 
@@ -236,11 +220,7 @@ def train_model(
                 prev_trans_s = latest_observations[robot_no].copy()
                 prev_trans_a = latest_actions[robot_no]
                 prev_trans_sprime = obs_state.copy()
-                prev_trans_r = (1 - reward_sharing_coefficient) * latest_rewards[
-                    robot_no
-                ] + reward_sharing_coefficient * (
-                    np.sum(latest_rewards) - latest_rewards[robot_no]
-                )
+                prev_trans_r = (1 - reward_sharing_coefficient) * latest_rewards[robot_no] + reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_no])
                 prev_blocked_actions = latest_blocked_actions[robot_no].clone()
 
                 if memory.memory_type == "priority":
@@ -287,12 +267,8 @@ def train_model(
                 device="cpu",
                 requires_grad=False,
             )
-            action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[
-                0
-            ]  # why is this indexed?
-            blocked = env.unwrapped.blocked_model(
-                env, env.unwrapped.state_dict, robot_no
-            )
+            action_utilities = policy_net.forward(obs_tensor.unsqueeze(0))[0]  # why is this indexed?
+            blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, robot_no)
 
             if torch.all(blocked):
                 print("WARNING: all actions were blocked. Continuing to next episode.")
@@ -319,9 +295,7 @@ def train_model(
 
             # now this needs to be the resultant state for the NEXT robot in the order.
             # the NEXT robot also needs to get its rewards for its previous decision, and a weighted-down reward from the intermediate robot
-            latest_observations[robot_no] = (
-                obs_state.copy()
-            )  # i.e. the thing this robot based its action on
+            latest_observations[robot_no] = obs_state.copy()  # i.e. the thing this robot based its action on
             latest_rewards[robot_no] = reward
             latest_actions[robot_no] = action
             latest_blocked_actions[robot_no] = blocked.clone()
@@ -331,17 +305,13 @@ def train_model(
             # calculate pseudoreward
             if use_pseudorewards:
                 phi = phi_sprime
-                phi_sprime = env.unwrapped.pseudoreward_function(
-                    env, env.unwrapped.state_tensor
-                )
+                phi_sprime = env.unwrapped.pseudoreward_function(env, env.unwrapped.state_tensor)
                 pseudoreward = gamma * phi_sprime - phi
             else:
                 pseudoreward = 0
 
             # calculate reward
-            reward = (
-                reward + pseudoreward
-            )  # torch.tensor([reward + pseudoreward], device=device, dtype=torch.float32)
+            reward = reward + pseudoreward  # torch.tensor([reward + pseudoreward], device=device, dtype=torch.float32)
             ep_reward += reward
 
             # work out if the run is over
@@ -350,17 +320,11 @@ def train_model(
                 # only adding for the last robot. the others shouldn't interpret their personal states as terminal.
                 prev_trans_s = latest_observations[robot_no].copy()
                 prev_trans_a = latest_actions[robot_no]
-                prev_trans_r = (1 - reward_sharing_coefficient) * latest_rewards[
-                    robot_no
-                ] + reward_sharing_coefficient * (
-                    np.sum(latest_rewards) - latest_rewards[robot_no]
-                )
+                prev_trans_r = (1 - reward_sharing_coefficient) * latest_rewards[robot_no] + reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_no])
                 prev_blocked_actions = latest_blocked_actions[robot_no].clone()
 
                 if prev_blocked_actions[prev_trans_a] == 1:
-                    print(
-                        f"WARNING: action {rel_actions} was blocked for robot {robot_no}!!!!!!!!!!!!!!!!!!!"
-                    )
+                    print(f"WARNING: action {rel_actions} was blocked for robot {robot_no}!!!!!!!!!!!!!!!!!!!")
                     print(
                         f"Robot {robot_no}",
                         f"action {prev_trans_a}",
@@ -403,7 +367,7 @@ def train_model(
             if t % optimisation_frequency == 0:
                 op_start_time = time.time()
                 loss = optimise(
-                    policy_net,
+                    policy_net if not cuda_enabled else policy_net_gpu,
                     target_net,
                     memory,
                     optimiser,
@@ -422,12 +386,8 @@ def train_model(
                 if cuda_enabled:
                     # Update the target network (on GPU) from the GPU policy net
                     with torch.no_grad():
-                        for target_param_tensor, policy_param_tensor in zip(
-                            target_net.parameters(), policy_net_gpu.parameters()
-                        ):
-                            target_param_tensor.mul_(1 - tau).add_(
-                                policy_param_tensor, alpha=tau
-                            )  # in-place update for better efficiency
+                        for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net_gpu.parameters()):
+                            target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
 
                     # Also update the CPU policy net from the GPU policy net
                     policy_net.load_state_dict(policy_net_gpu.state_dict())
@@ -435,12 +395,8 @@ def train_model(
                 else:
                     # Update the target net (on cpu) from the CPU policy net
                     with torch.no_grad():
-                        for target_param_tensor, policy_param_tensor in zip(
-                            target_net.parameters(), policy_net.parameters()
-                        ):
-                            target_param_tensor.mul_(1 - tau).add_(
-                                policy_param_tensor, alpha=tau
-                            )  # in-place update for better efficiency
+                        for target_param_tensor, policy_param_tensor in zip(target_net.parameters(), policy_net.parameters()):
+                            target_param_tensor.mul_(1 - tau).add_(policy_param_tensor, alpha=tau)  # in-place update for better efficiency
             # if done, process data and make plots
             if done:
                 if plotting_on or checkpoints_on:
@@ -449,9 +405,7 @@ def train_model(
                     rewards[i_episode] = ep_reward
                 if plotting_on and i_episode % plot_frequency == 0 and i_episode > 0:
                     period_time = time.time() - period_start_time
-                    print(
-                        f"Optimisation took {period_optimisation_time:.2f}s out of {period_time:.2f}s since last plot ({(period_optimisation_time / period_time) * 100:.2f}%)."
-                    )
+                    print(f"Optimisation took {period_optimisation_time:.2f}s out of {period_time:.2f}s since last plot ({(period_optimisation_time / period_time) * 100:.2f}%).")
                     period_start_time = time.time()
                     total_optimisation_time += period_optimisation_time
                     period_optimisation_time = 0
@@ -465,11 +419,7 @@ def train_model(
                     print(f"Saving plot {i_episode} at {file_dir}")
                     f.savefig(file_dir)
                     plt.close(f)
-                if (
-                    checkpoints_on
-                    and i_episode % checkpoint_frequency == 0
-                    and i_episode > 0
-                ):
+                if checkpoints_on and i_episode % checkpoint_frequency == 0 and i_episode > 0:
                     # write durations, rewards and epsilons to file
                     np.savetxt(
                         os.getcwd() + "/outputs/diagnostics",
@@ -477,14 +427,11 @@ def train_model(
                     )
                     torch.save(
                         policy_net.state_dict(),
-                        os.getcwd()
-                        + f"/outputs/checkpoints/policy_weights_epoch{i_episode}",
+                        os.getcwd() + f"/outputs/checkpoints/policy_weights_epoch{i_episode}",
                     )
                 break
         # if i_episode > memory_sort_frequency: print(f"Total time for optimisation this episode: {optimisation_time * 1000:.3f}ms")
 
     training_time = time.time() - start_time
-    print(
-        f"Training complete in {int(training_time)} seconds, of which {int(total_optimisation_time)}s ({(total_optimisation_time / training_time) * 100:.2f}%) was spent on optimisation."
-    )
+    print(f"Training complete in {int(training_time)} seconds, of which {int(total_optimisation_time)}s ({(total_optimisation_time / training_time) * 100:.2f}%) was spent on optimisation.")
     return policy_net, episode_durations, rewards, epsilons
