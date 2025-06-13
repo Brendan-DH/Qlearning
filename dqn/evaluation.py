@@ -105,7 +105,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False):
 
         deadlock_breaker = [False] * env.unwrapped.num_robots  # deadlock breaker for each robot
         last_origin_observations = np.empty(3, dtype=dict)  # last observation for each robot
-        
+
         for t in count():
             robot_no = env.unwrapped.state_dict["clock"]
 
@@ -129,20 +129,16 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False):
             # new_obs_state["episode"] = canonical_episode
 
             states.append(env.unwrapped.state_dict)
-            if(t > env.unwrapped.num_robots and states[-1] in states[-(2*env.unwrapped.num_robots)-1:-1] and action != 2 and action != 3):
-                deadlock_breaker[robot_no] = True 
-                
-            actions.append(action)
+            if t > env.unwrapped.num_robots and states[-1] in states[-(2 * env.unwrapped.num_robots) - 1 : -1] and action != 2 and action != 3:
+                deadlock_breaker[robot_no] = True
 
+            actions.append(action)
 
             last_origin_observations[robot_no] = obs_state.copy()  # store the last observation for this robot
             obs_state = new_obs_state.copy()
             obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 
             done = terminated
-
-            if render:
-                env.render_frame(states[-1], True)
 
             if done or truncated or t > max_steps:
                 if int(num_episodes / 10) > 0 and i % int(num_episodes / 10) == 0:
@@ -153,7 +149,6 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False):
             deadlock_traces.append(states)
             deadlock_counter += 1
 
-
         steps[i] = t
 
     print("Evaluation complete.")
@@ -161,17 +156,17 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False):
     print(f"Percentage converged: {100 - (deadlock_counter * 100 / num_episodes)}")
     print(f"Deadlock breaker triggered {broken_deadlock_counter} times.")
 
-    env.set_rendering(True)  # stop rendering after evaluation
-    for trace in deadlock_traces:
-        print("Deadlock trace:")
-        for r, state in enumerate(trace):
-            print(state["clock"], state["robot0 location"], state["robot1 location"], state["robot2 location"])
-            env.render_frame(state, False)
+    # env.set_rendering(True if len(deadlock_traces) > 0 else False)  # stop rendering after evaluation
+    # # for trace in deadlock_traces:
+    # #     print("Deadlock trace:")
+    # #     for r, state in enumerate(trace):
+    # #         # print(state["clock"], state["robot0 location"], state["robot1 location"], state["robot2 location"])
+    # #         env.render_frame(state, False)
 
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 
 
-def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc"):
+def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc", run_id=""):
     # load the DQN
 
     n_actions = env.action_space.n

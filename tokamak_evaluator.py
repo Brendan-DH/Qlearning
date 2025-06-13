@@ -86,7 +86,7 @@ storm_dir_contents = os.listdir(os.getcwd() + "/outputs/storm_files")
 verification_properties = []
 
 if input_dict["evaluation_type"] == "mdp":
-    output_name = f"mdp_of_{load_weights_file}"
+    output_name = f"mdp_of_{load_weights_file}_{input_dict['run_id']}"
     verification_properties.append('Rmin=?[F "done"]')
     if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
         print("Generating MDP file")
@@ -94,7 +94,7 @@ if input_dict["evaluation_type"] == "mdp":
     else:
         print(f"Found {output_name} files in outputs/storm_files. Will not generate a new one.")
 elif input_dict["evaluation_type"] == "dtmc":
-    output_name = f"dtmc_of_{load_weights_file}"
+    output_name = f"dtmc_of_{load_weights_file}_{input_dict['run_id']}"
     verification_properties.append('R=?[F "done" || F  "done"]') # the reward for getting done, provided it gets there
     verification_properties.append('R=?[F "done"]') # the reward for getting done
     verification_properties.append('P=?[F "done"]')
