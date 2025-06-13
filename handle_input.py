@@ -38,6 +38,7 @@ def get_input_dict(input_dir="/inputs", print_inputs=True):
         "overwrite_saved_weights": "n",
         "evaluation_weights_file": None,
         "render_evaluation": "n",
+        "render_evaluation_deadlocks": "y",
         "num_evaluation_episodes": 100,
         "evaluation_type": "mdp",
         "render_training": "n",

@@ -71,7 +71,12 @@ policy_net.load_state_dict(loaded_weights)
 
 if int(input_dict["num_evaluation_episodes"]) > 0:
     if multiagent:
-        s, a, steps, deadlock_traces = evaluate_model_by_trial_MA(dqn=policy_net, num_episodes=int(input_dict["num_evaluation_episodes"]), env=env, max_steps=int(input_dict["max_steps"]), render=render)
+        s, a, steps, deadlock_traces = evaluate_model_by_trial_MA(dqn=policy_net,
+                                                                  num_episodes=int(input_dict["num_evaluation_episodes"]),
+                                                                  env=env, max_steps=int(input_dict["max_steps"]),
+                                                                  render=render,
+                                                                  render_deadlocks=input_dict["render_evaluation_deadlocks"].lower() == "y"
+                                                                  )
     else:
         print("\nEvaluation by trail...")
         s, a, steps, deadlock_traces = evaluate_model_by_trial(dqn=policy_net, num_episodes=int(input_dict["num_evaluation_episodes"]), env=env, max_steps=int(input_dict["max_steps"]), render=render)
