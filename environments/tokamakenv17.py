@@ -256,7 +256,7 @@ class TokamakEnv17(gym.Env):
 
         self.elapsed_steps += 1
         old_state_dict = self.state_dict.copy()
-        p_array, s_array = self.transition_model(self, old_state_dict, action)  # probabilities and states
+        p_array, s_array = self.transition_model(self, old_state_dict, old_state_dict["clock"], action)  # probabilities and states
 
         # roll dice to detemine resultant state from possibilities
         roll = np.random.random()
