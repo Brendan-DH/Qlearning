@@ -265,8 +265,8 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
                 old_mod_dist = min(old_naive_dist, env.unwrapped.size - old_naive_dist)  # to account for cyclical space
                 new_naive_dist = abs(new_robot_location - goal_location)  # non-mod distance
                 new_mod_dist = min(new_naive_dist, env.unwrapped.size - new_naive_dist)  # to account for cyclical space
-                if (new_mod_dist < old_mod_dist):
-                    reward += 0.05 / new_mod_dist # receive a little bit of reward for each goal that is closer
+                if (new_mod_dist < old_mod_dist ):
+                    reward += 0.05 / old_mod_dist # receive a little bit of reward for each goal that is closer
 
 
     # rewards for attempting goals - more for harder goals
