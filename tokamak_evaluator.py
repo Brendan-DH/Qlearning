@@ -58,15 +58,15 @@ plt.ion()
 n_actions = env.action_space.n
 state_tensor, info = env.reset()
 n_observations = len(state_tensor)
-print(f"Looking for /inputs/{load_weights_file}")
-loaded_weights = torch.load(os.getcwd() + "/inputs/" + load_weights_file)
+print(f"Looking for /outputs/saved_weights/{load_weights_file}")
+loaded_weights = torch.load(os.getcwd() + "/outputs/saved_weights/" + load_weights_file)
 nodes_per_layer = len(loaded_weights["hidden_layers.0.weight"])
 num_hidden_layers = int((len(loaded_weights.keys()) - 4) / 2)  # -4 accounts for input and output weights and biases
 
 multiagent = input_dict["multiagent"].lower() == "y"
 policy_net = DeepQNetwork(n_observations + (1 if multiagent else 0), n_actions, num_hidden_layers, nodes_per_layer)
 
-print(f"Loading from /inputs/{load_weights_file}")
+print(f"Loading from /outputs/saved_weights/{load_weights_file}")
 policy_net.load_state_dict(loaded_weights)
 
 if int(input_dict["num_evaluation_episodes"]) > 0:
@@ -90,17 +90,17 @@ if input_dict["evaluation_type"] == "mdp":
     verification_properties.append('Rmin=?[F "done"]')
     if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
         print("Generating MDP file")
-        generate_mdp_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
+        generate_mdp_file(os.getcwd() + "/outputs/saved_weights/" + load_weights_file, env, mdpt, output_name)
     else:
         print(f"Found {output_name} files in outputs/storm_files. Will not generate a new one.")
 elif input_dict["evaluation_type"] == "dtmc":
     output_name = f"dtmc_of_{load_weights_file}_{input_dict['run_id']}"
-    verification_properties.append('R=?[F "done" || F  "done"]') # the reward for getting done, provided it gets there
-    verification_properties.append('R=?[F "done"]') # the reward for getting done
+    verification_properties.append('R=?[F "done" || F  "done"]')  # the reward for getting done, provided it gets there
+    verification_properties.append('R=?[F "done"]')  # the reward for getting done
     verification_properties.append('P=?[F "done"]')
     if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
         print("Generating DTMC file")
-        generate_dtmc_file(os.getcwd() + "/inputs/" + load_weights_file, env, mdpt, output_name)
+        generate_dtmc_file(os.getcwd() + "/outputs/saved_weights/" + load_weights_file, env, mdpt, output_name)
     else:
         print(f"Found {output_name} files in outputs/storm_files. Will not generation a new one.")
 
