@@ -19,7 +19,7 @@ import scenarios
 import dqn.multiagent_training as ma_training
 import dqn.training as training
 from dqn.dqn import DeepQNetwork
-from dqn.decay_functions import linear_epsilon_decay, exponential_epsilon_decay
+from dqn.decay_functions import linear_epsilon_decay, exponential_epsilon_decay, cyclic_exponential_epsilon_decay
 
 # use a non-display backend. Honestly not sure of the purpose
 matplotlib.use('Agg')
@@ -43,6 +43,8 @@ if (input_dict['epsilon_decay_type'] == "exponential"):
     epsilon_function = exponential_epsilon_decay
 elif (input_dict['epsilon_decay_type'] == "linear"):
     epsilon_function = linear_epsilon_decay
+elif (input_dict['epsilon_decay_type'] == "linear"):
+    epsilon_function = cyclic_exponential_epsilon_decay
 else:
     print(f"Epsilon decay type '{input_dict['epsilon_decay_type']}' not recognised. Exiting.")
     sys.exit(1)
@@ -84,6 +86,7 @@ def sinusoidal_epsilon(episode, base_epsilon):
 
 run_id = input_dict["run_id"]
 overwrite = input_dict["overwrite_saved_weights"].lower() == "y"
+
 
 multiagent = input_dict["multiagent"] == "y"
 if multiagent:
