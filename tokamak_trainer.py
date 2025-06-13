@@ -43,7 +43,7 @@ if (input_dict['epsilon_decay_type'] == "exponential"):
     epsilon_function = exponential_epsilon_decay
 elif (input_dict['epsilon_decay_type'] == "linear"):
     epsilon_function = linear_epsilon_decay
-elif (input_dict['epsilon_decay_type'] == "linear"):
+elif (input_dict['epsilon_decay_type'] == "cyclic"):
     epsilon_function = cyclic_exponential_epsilon_decay
 else:
     print(f"Epsilon decay type '{input_dict['epsilon_decay_type']}' not recognised. Exiting.")

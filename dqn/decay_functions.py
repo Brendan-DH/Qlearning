@@ -35,6 +35,8 @@ def linear_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_time, mi
 def cyclic_exponential_epsilon_decay(episode, epsilon_max, epsilon_min, max_epsilon_time, min_epsilon_time, num_episodes, decay_rate=None):
     
     period = int(num_episodes - (max_epsilon_time + min_epsilon_time)) / 3
+    if num_episodes - episode  < period:
+        epsilon_min = 0.5 * epsilon_max
 
     if not decay_rate:
         decay_rate = np.log(100 * (epsilon_max - epsilon_min)) / (period)  # ensures epsilon ~= epsilon_min at end
