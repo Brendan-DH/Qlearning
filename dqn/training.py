@@ -162,7 +162,7 @@ def train_model(
             # if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
 
         if (i_episode % int(memory_sort_frequency) == 0):
-            memory.sort(batch_size, priority_coefficient)
+            memory.sort(batch_size)
 
         # calculate the new epsilon
         if (plotting_on or checkpoints_on):

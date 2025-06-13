@@ -31,7 +31,7 @@ class PriorityMemory(object):
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
 
-    def sort(self, batch_size, priority_coefficient, epsilon):
+    def sort(self, batch_size, priority_coefficient = 1, epsilon = 1):
         # sort the transitions according to priority, i.e. according to delta
         # higher rank = lower priority, so higher rank should be lower |delta|
         # i.e. lower rank should be higher delta, as such:
