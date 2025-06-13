@@ -2,9 +2,9 @@ import random
 import numpy as np
 from collections import deque, OrderedDict
 
-from dqn.dqn_collections import DeltaTransition
+from dqn.dqn_collections import FingerprintDeltaTransition
 
-class PriorityMemory(object):
+class FingerprintPriorityMemory(object):
 
     def __init__(self, capacity, epsilon_window=1):
         self.capacity = capacity
@@ -13,7 +13,7 @@ class PriorityMemory(object):
         self.max_priority = 1
         self.bounds = []
         self.prob_divisor = np.NaN
-        self.memory_type = "priority"
+        self.memory_type = "fingerprint_priority"
         self.epsilon_window = epsilon_window  # the epsilon window for the epsilon-greedy policy
         
         print(f"Initialised priority memory with capacity {self.capacity} and epsilon window {self.epsilon_window}")
@@ -22,7 +22,7 @@ class PriorityMemory(object):
         """Save a transition"""
         # when a new transition is saved, it should have max priority:
         # print(*args)
-        self.memory.appendleft(DeltaTransition(*args, self.max_priority))  # append at the high-prio part.
+        self.memory.appendleft(FingerprintDeltaTransition(*args, self.max_priority))  # append at the high-prio part.
         # print("mem size:", len(self.memory))
         if len(self.memory) == self.capacity and not self.warning:
             print("REPLAY AT CAPACITY: " + str(len(self)))
@@ -31,7 +31,7 @@ class PriorityMemory(object):
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
 
-    def sort(self, batch_size, priority_coefficient):
+    def sort(self, batch_size, priority_coefficient = 1, epsilon = 1):
         # sort the transitions according to priority, i.e. according to delta
         # higher rank = lower priority, so higher rank should be lower |delta|
         # i.e. lower rank should be higher delta, as such:
@@ -40,6 +40,9 @@ class PriorityMemory(object):
             return
 
         items = list(self.memory)
+        for item in items:
+            if item.epsilon > epsilon + self.epsilon_window:
+                item.state.delta = 0
         items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
         self.memory = deque(items, maxlen=self.capacity)
 
@@ -75,7 +78,7 @@ class PriorityMemory(object):
 
     def update_priorities(self, index, delta):
         tr = self.memory[index]
-        self.memory[index] = DeltaTransition(tr.state, tr.action, tr.next_state, tr.reward, tr.blocked, delta)
+        self.memory[index] = FingerprintDeltaTransition(tr.state, tr.action, tr.next_state, tr.reward, tr.blocked, tr.epsilon, delta)
 
     def __len__(self):
         return len(self.memory)

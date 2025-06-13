@@ -14,6 +14,7 @@ from dqn.plotting import plot_status
 from dqn.dqn_collections import FiniteDict
 from dqn.replay_memory import ReplayMemory
 from dqn.priority_memory import PriorityMemory
+from dqn.fingerprint_priority_memory import FingerprintPriorityMemory
 from dqn.decay_functions import exponential_epsilon_decay
 from dqn.optimisation import optimise
 import warnings
@@ -123,7 +124,7 @@ def train_model(
         optimiser = optim.AdamW(policy_net_gpu.parameters(), lr=alpha, amsgrad=True)
 
     # memory = ReplayMemory(buffer_size)
-    memory = PriorityMemory(buffer_size, epsilon_window)
+    memory = FingerprintPriorityMemory(buffer_size, epsilon_window)
     torch.set_grad_enabled(True)
     plotting_on = plot_frequency < num_episodes and plot_frequency != 0
     checkpoints_on = checkpoint_frequency < num_episodes and checkpoint_frequency != 0
@@ -169,7 +170,7 @@ def train_model(
         if (i_episode % plot_frequency) == 0:
             print(f"{i_episode}/{num_episodes} complete, epsilon = {epsilon}")
 
-        if (i_episode % int(memory_sort_frequency) == 0) and memory.memory_type == "priority":
+        if (i_episode % int(memory_sort_frequency) == 0) and "priority" in memory.memory_type:
             memory.sort(batch_size, priority_coefficient, epsilon)
 
         # calculate the new epsilon
@@ -221,7 +222,7 @@ def train_model(
                 prev_trans_r = (1 - reward_sharing_coefficient) * latest_rewards[robot_no] + reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_no])
                 prev_blocked_actions = latest_blocked_actions[robot_no].clone()
 
-                if memory.memory_type == "priority":
+                if "priority" in memory.memory_type:
                     memory.push(
                         torch.tensor(
                             list(prev_trans_s.values()),
@@ -333,7 +334,7 @@ def train_model(
                         f"prev_blocked_actions: {prev_blocked_actions}",
                     )
 
-                if memory.memory_type == "priority":
+                if "priority" in memory.memory_type:
                     memory.push(
                         torch.tensor(
                             list(prev_trans_s.values()),

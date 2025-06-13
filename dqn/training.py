@@ -162,7 +162,7 @@ def train_model(
             # if (torch.cuda.is_available()): print(f"CUDA memory summary:\n{torch.cuda.memory_summary(device='cuda')}")
 
         if (i_episode % int(memory_sort_frequency) == 0):
-            memory.sort(batch_size)
+            memory.sort(batch_size, priority_coefficient)
 
         # calculate the new epsilon
         if (plotting_on or checkpoints_on):
@@ -269,7 +269,7 @@ def train_model(
                     rewards[i_episode] = ep_reward
                 if (plotting_on and i_episode % plot_frequency == 0 and i_episode > 0):
                     f = plot_status(episode_durations[:i_episode], rewards[:i_episode], epsilons[:i_episode], losses[:i_episode])
-                    file_dir = os.getcwd() + f"/outputs/plots/plt_epoch_{run_id}.png"
+                    file_dir = os.getcwd() + f"/outputs/plots/plt_{run_id}.png"
                     print(f"Saving plot {i_episode} at {file_dir}")
                     f.savefig(file_dir)
                     plt.close(f)

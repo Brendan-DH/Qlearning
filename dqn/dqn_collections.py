@@ -8,6 +8,9 @@ PriorityTransition = namedtuple('PriorityTransition',
                                 ('state', 'action', 'next_state', 'reward', 'priority'))
 
 DeltaTransition = namedtuple('DeltaTransition',
+                             ('state', 'action', 'next_state', 'reward', 'blocked', 'delta'))
+
+FingerprintDeltaTransition = namedtuple('DeltaTransition',
                              ('state', 'action', 'next_state', 'reward', 'blocked', 'epsilon', 'delta'))
 
 system_parameters = namedtuple("system_parameters",
