@@ -236,10 +236,9 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
     moving_robot_loc = next_state_dict[f"robot{robot_no} location"]
     for i in range(env.unwrapped.num_robots):
         other_robot_loc = next_state_dict[f"robot{i} location"]
-        if abs(moving_robot_loc - other_robot_loc) == 1 or \
-                (moving_robot_loc == 0 and other_robot_loc == env.unwrapped.size - 1) or \
-                (moving_robot_loc == env.unwrapped.size - 1 and other_robot_loc == 0):
-            reward += -0.05
+        robot_dist = abs(moving_robot_loc - other_robot_loc)  # non-mod distance
+        mod_robot_dist = min(robot_dist, env.unwrapped.size - robot_dist)
+        reward += 0.01 * mod_robot_dist 
             
     # reward for checking a goal by moving onto its position
     if (action_no == 0 or action_no == 1):
@@ -248,25 +247,25 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
             reward += 0.5
             
         # reward for moving closer to the nearest goal
-        old_robot_location = old_state_dict[f"robot{robot_no} location"]
-        new_robot_location = next_state_dict[f"robot{robot_no} location"]
+        # old_robot_location = old_state_dict[f"robot{robot_no} location"]
+        # new_robot_location = next_state_dict[f"robot{robot_no} location"]
 
-        for i in range(env.unwrapped.num_goals):
-            if (old_state_dict[f"goal{i} active"] == 1 or 
-                old_state_dict[f"goal{i} checked"] == 0):
-                for j in range(env.unwrapped.num_robots):
-                    if (j == robot_no):
-                        continue
-                    if (old_state_dict[f"robot{j} location"] == old_state_dict[f"goal{i} location"]):
-                        # if another robot is on the goal, don't reward for moving closer to it
-                        continue
-                goal_location = old_state_dict[f"goal{i} location"]
-                old_naive_dist = abs(old_robot_location - goal_location)  # non-mod distance
-                old_mod_dist = min(old_naive_dist, env.unwrapped.size - old_naive_dist)  # to account for cyclical space
-                new_naive_dist = abs(new_robot_location - goal_location)  # non-mod distance
-                new_mod_dist = min(new_naive_dist, env.unwrapped.size - new_naive_dist)  # to account for cyclical space
-                if (new_mod_dist < old_mod_dist ):
-                    reward += 0.05 / old_mod_dist # receive a little bit of reward for each goal that is closer
+        # # for i in range(env.unwrapped.num_goals):
+        # #     if (old_state_dict[f"goal{i} active"] == 1 or 
+        # #         old_state_dict[f"goal{i} checked"] == 0):
+        # #         for j in range(env.unwrapped.num_robots):
+        # #             if (j == robot_no):
+        # #                 continue
+        # #             if (old_state_dict[f"robot{j} location"] == old_state_dict[f"goal{i} location"]):
+        # #                 # if another robot is on the goal, don't reward for moving closer to it
+        # #                 continue
+        # #         goal_location = old_state_dict[f"goal{i} location"]
+        # #         old_naive_dist = abs(old_robot_location - goal_location)  # non-mod distance
+        # #         old_mod_dist = min(old_naive_dist, env.unwrapped.size - old_naive_dist)  # to account for cyclical space
+        # #         new_naive_dist = abs(new_robot_location - goal_location)  # non-mod distance
+        # #         new_mod_dist = min(new_naive_dist, env.unwrapped.size - new_naive_dist)  # to account for cyclical space
+        # #         if (new_mod_dist < old_mod_dist ):
+        # #             reward += 0.05 / old_mod_dist # receive a little bit of reward for each goal that is closer
 
 
     # rewards for attempting goals - more for harder goals
