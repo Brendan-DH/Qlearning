@@ -252,13 +252,15 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
         new_robot_location = next_state_dict[f"robot{robot_no} location"]
 
         for i in range(env.unwrapped.num_goals):
-            goal_location = old_state_dict[f"goal{i} location"]
-            old_naive_dist = abs(old_robot_location - goal_location)  # non-mod distance
-            old_mod_dist = min(old_naive_dist, env.unwrapped.size - old_naive_dist)  # to account for cyclical space
-            new_naive_dist = abs(new_robot_location - goal_location)  # non-mod distance
-            new_mod_dist = min(new_naive_dist, env.unwrapped.size - new_naive_dist)  # to account for cyclical space
-            if (new_mod_dist < old_mod_dist):
-                reward += 0.05 # receive a little bit of reward for each goal that is closer
+            if (old_state_dict[f"goal{i} active"] == 1 or 
+                old_state_dict[f"goal{i} checked"] == 0):
+                goal_location = old_state_dict[f"goal{i} location"]
+                old_naive_dist = abs(old_robot_location - goal_location)  # non-mod distance
+                old_mod_dist = min(old_naive_dist, env.unwrapped.size - old_naive_dist)  # to account for cyclical space
+                new_naive_dist = abs(new_robot_location - goal_location)  # non-mod distance
+                new_mod_dist = min(new_naive_dist, env.unwrapped.size - new_naive_dist)  # to account for cyclical space
+                if (new_mod_dist < old_mod_dist):
+                    reward += 0.05 # receive a little bit of reward for each goal that is closer
 
 
     # rewards for attempting goals - more for harder goals
