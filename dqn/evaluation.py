@@ -156,12 +156,13 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, 
     print(f"Percentage converged: {100 - (deadlock_counter * 100 / num_episodes)}")
     print(f"Deadlock breaker triggered {broken_deadlock_counter} times.")
 
-    env.set_rendering(True if len(deadlock_traces) > 0 and render_deadlocks else False)  # stop rendering after evaluation
-    for trace in deadlock_traces:
-        print("Deadlock trace:")
-        for r, state in enumerate(trace):
-            # print(state["clock"], state["robot0 location"], state["robot1 location"], state["robot2 location"])
-            env.render_frame(state, False)
+    if render_deadlocks and len(deadlock_traces) > 0:
+        env.unwrapped.set_rendering(True)  # stop rendering after evaluation
+        for trace in deadlock_traces:
+            print("Deadlock trace:")
+            for r, state in enumerate(trace):
+                # print(state["clock"], state["robot0 location"], state["robot1 location"], state["robot2 location"])
+                env.unwrapped.render_frame(state, False)
 
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 
