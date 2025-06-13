@@ -77,6 +77,8 @@ def evaluate_model_by_trial(dqn, num_episodes, env, max_steps, reset_options=Non
 
 
 def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, render_deadlocks=False):
+    
+    print("render_deadlocks", render_deadlocks)
     print("Evaluating...")
 
     if "win" in sys.platform and render:
