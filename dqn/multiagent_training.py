@@ -170,9 +170,6 @@ def train_model(
         if (i_episode % plot_frequency) == 0:
             print(f"{i_episode}/{num_episodes} complete, epsilon = {epsilon}")
 
-        if (i_episode % int(memory_sort_frequency) == 0) and "priority" in memory.memory_type:
-            memory.sort(batch_size, priority_coefficient, i_episode)
-
         # calculate the new epsilon
         if plotting_on or checkpoints_on:
             epsilons[i_episode] = epsilon
@@ -361,6 +358,9 @@ def train_model(
                         prev_trans_r,  # reward is still collected for getting here.
                         prev_blocked_actions,
                     )
+
+            if (t % int(memory_sort_frequency) == 0) and "priority" in memory.memory_type:
+                memory.sort(batch_size, priority_coefficient, i_episode)
 
             # run optimiser
             if t % optimisation_frequency == 0:

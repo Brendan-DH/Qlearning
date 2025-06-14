@@ -93,7 +93,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, 
     broken_deadlock_counter = 0
     deadlock_traces = deque([], maxlen=10)  # store last 10 deadlock traces
 
-    canonical_epsilon = 500  # epsilon for multiagent evaluation
+    canonical_epsilon = 0  # epsilon for multiagent evaluation
 
     for i in range(num_episodes):
         obs_state, info = env.reset()
