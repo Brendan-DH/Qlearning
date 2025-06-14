@@ -234,13 +234,14 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
     reward = 0
 
     moving_robot_loc = next_state_dict[f"robot{robot_no} location"]
-    for i in range(env.unwrapped.num_robots):
-        other_robot_loc = next_state_dict[f"robot{i} location"]
-        robot_dist = abs(moving_robot_loc - other_robot_loc)  # non-mod distance
-        mod_robot_dist = min(robot_dist, env.unwrapped.size - robot_dist)
-        if (mod_robot_dist < 2):
-            # if the robot is too close to another robot, penalise it
-            reward -= 0.05 * mod_robot_dist
+    # penalises moving near another robot
+    if action_no != 2:
+        for i in range(env.unwrapped.num_robots):
+            other_robot_loc = next_state_dict[f"robot{i} location"]
+            robot_dist = abs(moving_robot_loc - other_robot_loc)  # non-mod distance
+            mod_robot_dist = min(robot_dist, env.unwrapped.size - robot_dist)
+            if (mod_robot_dist < 2):
+                reward -= 0.05
             
     # reward for checking a goal by moving onto its position
     if (action_no == 0 or action_no == 1):
