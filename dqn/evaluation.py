@@ -163,7 +163,9 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, 
         for trace in deadlock_traces:
             print("Deadlock trace:")
             for r, state in enumerate(trace):
-                # print(state["clock"], state["robot0 location"], state["robot1 location"], state["robot2 location"])
+                obs = env.unwrapped.state_dict_to_observable(state, state["clock"])
+                obs["epsilon"] = canonical_epsilon
+                print(dqn.forward(torch.tensor(list(obs.values()), dtype=torch.float, device="cpu", requires_grad=False).unsqueeze(0)))
                 env.unwrapped.render_frame(state, False)
 
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
