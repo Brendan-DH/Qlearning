@@ -178,7 +178,7 @@ def train_model(
             epsilons[i_episode] = epsilon
 
         obs_state, info = env.reset()
-        obs_state["epsilon"] = i_episode
+        obs_state["epsilon"] = epsilon
         # obs_state["episode"] = i_episode
 
         # Initialise the first state
@@ -211,7 +211,7 @@ def train_model(
             robot_no = env.unwrapped.state_dict["clock"]
 
             obs_state = env.unwrapped.get_obs()
-            obs_state["epsilon"] = i_episode
+            obs_state["epsilon"] = epsilon
             # obs_state["episode"] = i_episode
 
             # to resolve this robot's PREVIOUS action, we see how the system has now changed:
@@ -239,7 +239,7 @@ def train_model(
                         ),
                         prev_trans_r,
                         prev_blocked_actions,
-                        i_episode,
+                        epsilon,
                     )
                 else:
                     memory.push(
@@ -289,7 +289,7 @@ def train_model(
             # apply action to environment
             old_env_state = env.unwrapped.state_dict.copy()
             new_obs_state, reward, terminated, truncated, info = env.step(action)
-            new_obs_state["epsilon"] = i_episode
+            new_obs_state["epsilon"] = epsilon
             # new_obs_state["episode"] = i_episode
 
             # now this needs to be the resultant state for the NEXT robot in the order.
@@ -346,7 +346,7 @@ def train_model(
                         None,  # set to none for masking purposes in optimiser.
                         prev_trans_r,  # reward is still collected for getting here.
                         prev_blocked_actions,
-                        i_episode,
+                        epsilon,
                     )
                 else:
                     memory.push(
