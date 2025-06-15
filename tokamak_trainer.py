@@ -131,10 +131,10 @@ if multiagent:
     
         # deadlock breaking
     states, actions, steps, deadlock_traces = evaluate_model_by_trial_MA(
-        dqn=policy_net,
+        dqn=trained_dqn,
         num_episodes=1000,
         env=env,
-        max_steps=input_dict["max_steps"],
+        max_steps=int(input_dict["max_steps"]),
         render=False,
         render_deadlocks=False,
     )
@@ -144,7 +144,10 @@ if multiagent:
     print(f"Found {len(deadlock_traces)} deadlock traces.")
     
     deadlock_states = [trace[-1] for trace in deadlock_traces]
-    
+    if len(deadlock_states) == 0:
+        print("No deadlocks found. Training complete.")
+        sys.exit(0)
+        
     # now we train again with a fairly high epsilon
     
     target_net.load_state_dict(trained_dqn.state_dict()) 
