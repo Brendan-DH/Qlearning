@@ -134,10 +134,7 @@ def train_model(
         file = open(os.getcwd() + "/outputs/diagnostics", "w")
         file.write("# no data yet...")
 
-    if sample_states is not None:
-        _ = env.reset(state_dict = np.random.choice(sample_states))
-    else:
-        _ = env.reset()
+    _ = env.reset()
         
     gamma_tensor = torch.tensor(gamma, device=optimiser_device)
 
@@ -179,7 +176,7 @@ def train_model(
         if plotting_on or checkpoints_on:
             epsilons[i_episode] = epsilon
 
-        if sample_states is not None:
+        if sample_states is not None and np.random.random() < 0.05:
             obs_state, info = env.reset(state_dict = np.random.choice(sample_states))
             obs_state["epsilon"] = epsilon
         else:
