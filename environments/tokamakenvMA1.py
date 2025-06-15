@@ -160,11 +160,14 @@ class TokamakEnvMA1(gym.Env):
         info["elapsed ticks"] = self.elapsed_ticks
         return info
 
-    def reset(self, random=False, seed=None):
+    def reset(self, state_dict=None, random=False, seed=None):
         super().reset(seed=seed)
         init_copy = self.initial_state_dict.copy()
 
-        if(random):
+        if state_dict is not None:
+            init_copy = state_dict.copy()
+
+        elif(random):
             for i in range(self.num_robots):
                 init_copy[f"robot{i} location"] = np.random.randint(0, self.size)
             if (np.random.random() < 0.05):
@@ -180,6 +183,7 @@ class TokamakEnvMA1(gym.Env):
                         init_copy[f"goal{i} active"] = np.random.randint(0, 2)
                     else:
                         init_copy[f"goal{i} active"] = 0
+                        
 
         if self.initial_state_logic:
             init_copy = self.initial_state_logic(self, init_copy.copy())

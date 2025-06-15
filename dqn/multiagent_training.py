@@ -430,7 +430,7 @@ def train_model(
                         np.vstack((episode_durations, rewards, epsilons)).transpose(),
                     )
                     torch.save(
-                        policy_net.state_dict(),
+                        policy_net.state_dict() if not cuda_enabled else policy_net_gpu.state_dict(),
                         os.getcwd() + f"/outputs/checkpoints/policy_weights_epoch{i_episode}",
                     )
                 break
@@ -439,4 +439,8 @@ def train_model(
 
     training_time = time.time() - start_time
     print(f"Training complete in {int(training_time)} seconds, of which {int(total_optimisation_time)}s ({(total_optimisation_time / training_time) * 100:.2f}%) was spent on optimisation.")
+    
+    if cuda_enabled:
+        policy_net.load_state_dict(policy_net_gpu.state_dict())
+    
     return policy_net, episode_durations, rewards, epsilons
