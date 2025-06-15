@@ -265,9 +265,9 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
             min_new_dist = min(min_new_dist, new_mod_dist)
 
         if min_new_dist < min_old_dist:
-            reward += 0.1
+            reward += 0.025
         elif min_new_dist > min_old_dist:
-            reward -= 0.1
+            reward -= 0.025
 
 
     # rewards for attempting goals - more for harder goals
