@@ -176,12 +176,12 @@ def train_model(
         if plotting_on or checkpoints_on:
             epsilons[i_episode] = epsilon
 
-        if sample_states is not None and np.random.random() < 0.05:
-            obs_state, info = env.reset(state_dict = np.random.choice(sample_states))
-            obs_state["epsilon"] = epsilon
-        else:
-            obs_state, info = env.reset()
-            obs_state["epsilon"] = epsilon
+        # if sample_states is not None and np.random.random() < 0.05:
+        #     obs_state, info = env.reset(state_dict = np.random.choice(sample_states))
+        #     obs_state["epsilon"] = epsilon
+        # else:
+        obs_state, info = env.reset()
+        obs_state["epsilon"] = epsilon
 
         # Initialise the first state
         if use_pseudorewards:

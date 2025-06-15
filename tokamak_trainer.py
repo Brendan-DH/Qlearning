@@ -129,62 +129,62 @@ if multiagent:
                                                         run_id=run_id
                                                         )
     
-        # deadlock breaking
-    states, actions, steps, deadlock_traces = evaluate_model_by_trial_MA(
-        dqn=trained_dqn,
-        num_episodes=1000,
-        env=env,
-        max_steps=int(input_dict["max_steps"]),
-        render=False,
-        render_deadlocks=False,
-    )
+    #     # deadlock breaking
+    # states, actions, steps, deadlock_traces = evaluate_model_by_trial_MA(
+    #     dqn=trained_dqn,
+    #     num_episodes=1000,
+    #     env=env,
+    #     max_steps=int(input_dict["max_steps"]),
+    #     render=False,
+    #     render_deadlocks=False,
+    # )
     
     
     
-    print(f"Found {len(deadlock_traces)} deadlock traces.")
+    # print(f"Found {len(deadlock_traces)} deadlock traces.")
     
-    deadlock_states = [trace[-1] for trace in deadlock_traces]
-    if len(deadlock_states) == 0:
-        print("No deadlocks found. Training complete.")
+    # deadlock_states = [trace[-1] for trace in deadlock_traces]
+    # if len(deadlock_states) == 0:
+    #     print("No deadlocks found. Training complete.")
     
-    else:        
-    # now we train again with a fairly high epsilon
+    # else:        
+    # # now we train again with a fairly high epsilon
     
-        target_net.load_state_dict(trained_dqn.state_dict()) 
-        policy_net_gpu.load_state_dict(trained_dqn.state_dict())
+    #     target_net.load_state_dict(trained_dqn.state_dict()) 
+    #     policy_net_gpu.load_state_dict(trained_dqn.state_dict())
         
-        trained_dqn, dur, re, eps = ma_training.train_model(env,
-                                                            trained_dqn,
-                                                            target_net,
-                                                            policy_net_gpu,
-                                                            epsilon_decay_function=lambda ep, e_max, e_min, num_eps: epsilon_function(episode=ep,
-                                                                                                                                    epsilon_max=e_max,
-                                                                                                                                    epsilon_min=e_min,
-                                                                                                                                    num_episodes=num_eps,
-                                                                                                                                    max_epsilon_time=float(input_dict["max_epsilon_time"]),
-                                                                                                                                    min_epsilon_time=float(input_dict["min_epsilon_time"])),
-                                                            # epsilon_decay_function=lambda ep, e_max, e_min, num_eps: sinusoidal_epsilon(episode=ep, base_epsilon=e_min),
-                                                            epsilon_max=float(input_dict["epsilon_max"]),
-                                                            epsilon_min=float(input_dict["epsilon_min"]),
-                                                            epsilon_window=float(input_dict["epsilon_window"]),
-                                                            optimisation_frequency=int(input_dict["optimisation_frequency"]),
-                                                            alpha=float(input_dict["alpha"]),
-                                                            gamma=float(input_dict["gamma"]),
-                                                            num_episodes=int(input_dict["num_training_episodes"]),
-                                                            tau=float(input_dict["tau"]),
-                                                            use_pseudorewards=input_dict["use_pseudorewards"].lower() == "y",
-                                                            plot_frequency=int(input_dict["plot_frequency"]),
-                                                            memory_sort_frequency=int(input_dict["memory_sort_frequency"]),
-                                                            max_steps=int(input_dict["max_steps"]),
-                                                            buffer_size=int(input_dict["buffer_size"]),
-                                                            checkpoint_frequency=int(input_dict["checkpoint_frequency"]),
-                                                            batch_size=int(input_dict["batch_size"]),
-                                                            reward_sharing_coefficient=float(input_dict["reward_sharing_coefficient"]),
-                                                            run_id=run_id,
-                                                            sample_states=deadlock_states,
-                                                            )
+    #     trained_dqn, dur, re, eps = ma_training.train_model(env,
+    #                                                         trained_dqn,
+    #                                                         target_net,
+    #                                                         policy_net_gpu,
+    #                                                         epsilon_decay_function=lambda ep, e_max, e_min, num_eps: epsilon_function(episode=ep,
+    #                                                                                                                                 epsilon_max=e_max,
+    #                                                                                                                                 epsilon_min=e_min,
+    #                                                                                                                                 num_episodes=num_eps,
+    #                                                                                                                                 max_epsilon_time=float(input_dict["max_epsilon_time"]),
+    #                                                                                                                                 min_epsilon_time=float(input_dict["min_epsilon_time"])),
+    #                                                         # epsilon_decay_function=lambda ep, e_max, e_min, num_eps: sinusoidal_epsilon(episode=ep, base_epsilon=e_min),
+    #                                                         epsilon_max=float(input_dict["epsilon_max"]),
+    #                                                         epsilon_min=float(input_dict["epsilon_min"]),
+    #                                                         epsilon_window=float(input_dict["epsilon_window"]),
+    #                                                         optimisation_frequency=int(input_dict["optimisation_frequency"]),
+    #                                                         alpha=float(input_dict["alpha"]),
+    #                                                         gamma=float(input_dict["gamma"]),
+    #                                                         num_episodes=int(input_dict["num_training_episodes"]),
+    #                                                         tau=float(input_dict["tau"]),
+    #                                                         use_pseudorewards=input_dict["use_pseudorewards"].lower() == "y",
+    #                                                         plot_frequency=int(input_dict["plot_frequency"]),
+    #                                                         memory_sort_frequency=int(input_dict["memory_sort_frequency"]),
+    #                                                         max_steps=int(input_dict["max_steps"]),
+    #                                                         buffer_size=int(input_dict["buffer_size"]),
+    #                                                         checkpoint_frequency=int(input_dict["checkpoint_frequency"]),
+    #                                                         batch_size=int(input_dict["batch_size"]),
+    #                                                         reward_sharing_coefficient=float(input_dict["reward_sharing_coefficient"]),
+    #                                                         run_id=run_id,
+    #                                                         sample_states=deadlock_states,
+    #                                                         )
         
-        print("Finished training with deadlock states.")
+    #     print("Finished training with deadlock states.")
         
 else:
 
