@@ -17,6 +17,7 @@ from dqn.priority_memory import PriorityMemory
 from dqn.fingerprint_priority_memory import FingerprintPriorityMemory
 from dqn.decay_functions import exponential_epsilon_decay
 from dqn.optimisation import optimise
+from dqn.evaluation import evaluate_model_by_trial_MA
 import warnings
 import math
 
@@ -45,6 +46,7 @@ def train_model(
     priority_coefficient=0.5,  # alpha in the sampling probability equation, higher prioritises importance more
     weighting_coefficient=0.7,  # beta in the transition weighting equation, higher ameliorates sampling bias more
     reward_sharing_coefficient=0.1,  # determines how much reward each robot gets from teammates' actions
+    sample_states = None,
     run_id=None,
 ):
     """
@@ -132,8 +134,11 @@ def train_model(
         file = open(os.getcwd() + "/outputs/diagnostics", "w")
         file.write("# no data yet...")
 
-    _ = env.reset()  # reset to init
-
+    if sample_states is not None:
+        _ = env.reset(state_dict = np.random.choice(sample_states))
+    else:
+        _ = env.reset()
+        
     gamma_tensor = torch.tensor(gamma, device=optimiser_device)
 
     # Initialise some hyperparameters
@@ -174,9 +179,12 @@ def train_model(
         if plotting_on or checkpoints_on:
             epsilons[i_episode] = epsilon
 
-        obs_state, info = env.reset()
-        obs_state["epsilon"] = epsilon
-        # obs_state["episode"] = i_episode
+        if sample_states is not None:
+            obs_state, info = env.reset(state_dict = np.random.choice(sample_states))
+            obs_state["epsilon"] = epsilon
+        else:
+            obs_state, info = env.reset()
+            obs_state["epsilon"] = epsilon
 
         # Initialise the first state
         if use_pseudorewards:
@@ -185,8 +193,6 @@ def train_model(
         ep_loss = 0
 
         # Navigate the environment
-        recent_state_capacity = 5
-        recent_states = deque([], maxlen=recent_state_capacity)
         # recent_states.appendleft(str(obs_state.values()))
         rel_actions = [
             "move cc",
@@ -202,7 +208,6 @@ def train_model(
 
         latest_env_states = np.empty(env.unwrapped.num_robots, dtype=dict)
 
-        nlc = "\n"
 
         for t in count():
             robot_no = env.unwrapped.state_dict["clock"]
@@ -430,6 +435,7 @@ def train_model(
                     )
                 break
         # if i_episode > memory_sort_frequency: print(f"Total time for optimisation this episode: {optimisation_time * 1000:.3f}ms")
+          
 
     training_time = time.time() - start_time
     print(f"Training complete in {int(training_time)} seconds, of which {int(total_optimisation_time)}s ({(total_optimisation_time / training_time) * 100:.2f}%) was spent on optimisation.")

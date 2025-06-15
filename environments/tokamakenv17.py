@@ -220,19 +220,24 @@ class TokamakEnv17(gym.Env):
 
     # def query_state_action_pair(self, state, action):
 
-    def reset(self, seed=None, options=None):
+    def reset(self, state_dict=None, seed=None, options=None):
         super().reset(seed=seed)
-        init_copy = self.initial_state_dict.copy()
         
-        for i in range(self.num_robots):
-            init_copy[f"robot{i} location"] = np.random.randint(0, self.size)
-        
-        if self.initial_state_logic:
-            # print("init logic")
-            init_copy = self.initial_state_logic(self, init_copy.copy())
+        if state_dict is None:
+            init_copy = self.initial_state_dict.copy()
+            
+            for i in range(self.num_robots):
+                init_copy[f"robot{i} location"] = np.random.randint(0, self.size)
+            
+            if self.initial_state_logic:
+                # print("init logic")
+                init_copy = self.initial_state_logic(self, init_copy.copy())
 
-        self.state_dict = init_copy
+            self.state_dict = init_copy
 
+        else:
+            self.state_dict = state_dict.copy()
+            
         self.elapsed_steps = 0
         self.elapsed_ticks = 0
 
