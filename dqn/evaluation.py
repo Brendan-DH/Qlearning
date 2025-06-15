@@ -91,7 +91,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, 
     steps = np.empty(num_episodes)
     deadlock_counter = 0
     broken_deadlock_counter = 0
-    deadlock_traces = set([])  # store deadlock traces
+    deadlock_traces = deque([], maxlen=100)  # store last 1000 deadlock traces
 
     canonical_epsilon = 0  # epsilon for multiagent evaluation
 
@@ -148,7 +148,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, 
                 break
 
         if not done:
-            deadlock_traces.add(states)
+            deadlock_traces.append(states)
             deadlock_counter += 1
 
         steps[i] = t
