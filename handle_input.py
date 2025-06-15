@@ -41,6 +41,7 @@ def get_input_dict(input_dir="/inputs", print_inputs=True):
         "render_evaluation_deadlocks": "y",
         "num_evaluation_episodes": 100,
         "evaluation_type": "mdp",
+        "mc_order": "LIFO",
         "render_training": "n",
     }
 

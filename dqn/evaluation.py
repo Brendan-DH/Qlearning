@@ -171,7 +171,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, 
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 
 
-def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc", run_id=""):
+def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc", order = "LIFO", run_id=""):
     # load the DQN
 
     n_actions = env.action_space.n
@@ -223,8 +223,15 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc", run_
         if (int(time.time() - start_time) % 100) == 0:
             print(f"\r[{int(time.time() - start_time)}s] States in exploration queue: {' ' * (50 - len(display_string))}{display_string}", end="")
 
-        state_dict = exploration_state_queue.popleft()
-        obs_state = exploration_observation_queue.popleft()
+        if order.lower() == "lifo":
+            state_dict = exploration_state_queue.popleft()
+            obs_state = exploration_observation_queue.popleft()
+        elif order.lower() == "fifo":
+            state_dict = exploration_state_queue.pop()
+            obs_state = exploration_observation_queue.pop()
+        else:
+            print(f"Error: unknown order '{order}' for exploration queue, exiting.")
+            sys.exit(1)
         obs_state["epsilon"] = 0  # set epsilon to 0 for exploration
 
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
