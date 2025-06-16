@@ -240,7 +240,7 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
         robot_dist = abs(moving_robot_loc - other_robot_loc)  # non-mod distance
         mod_robot_dist = min(robot_dist, env.unwrapped.size - robot_dist)
         if (mod_robot_dist < 2):
-            reward -= 0.05
+            reward -= 0.01
             
     # reward for checking a goal by moving onto its position
     if (action_no == 0 or action_no == 1):
@@ -248,26 +248,26 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
         if (old_state_dict[f"goal{robot_location} checked"] == 0 and next_state_dict[f"goal{robot_location} checked"] == 1):
             reward += 0.5
             
-        # reward for moving closer to the nearest goal, penalize for moving further
-        old_robot_location = old_state_dict[f"robot{robot_no} location"]
-        new_robot_location = next_state_dict[f"robot{robot_no} location"]
+        # # reward for moving closer to the nearest goal, penalize for moving further
+        # old_robot_location = old_state_dict[f"robot{robot_no} location"]
+        # new_robot_location = next_state_dict[f"robot{robot_no} location"]
 
-        # Find the closest goal (checked or not, active or not)
-        min_old_dist = env.unwrapped.size
-        min_new_dist = env.unwrapped.size
-        for i in range(env.unwrapped.num_goals):
-            goal_location = old_state_dict[f"goal{i} location"]
-            old_naive_dist = abs(old_robot_location - goal_location)
-            old_mod_dist = min(old_naive_dist, env.unwrapped.size - old_naive_dist)
-            new_naive_dist = abs(new_robot_location - goal_location)
-            new_mod_dist = min(new_naive_dist, env.unwrapped.size - new_naive_dist)
-            min_old_dist = min(min_old_dist, old_mod_dist)
-            min_new_dist = min(min_new_dist, new_mod_dist)
+        # # Find the closest goal (checked or not, active or not)
+        # min_old_dist = env.unwrapped.size
+        # min_new_dist = env.unwrapped.size
+        # for i in range(env.unwrapped.num_goals):
+        #     goal_location = old_state_dict[f"goal{i} location"]
+        #     old_naive_dist = abs(old_robot_location - goal_location)
+        #     old_mod_dist = min(old_naive_dist, env.unwrapped.size - old_naive_dist)
+        #     new_naive_dist = abs(new_robot_location - goal_location)
+        #     new_mod_dist = min(new_naive_dist, env.unwrapped.size - new_naive_dist)
+        #     min_old_dist = min(min_old_dist, old_mod_dist)
+        #     min_new_dist = min(min_new_dist, new_mod_dist)
 
-        if min_new_dist < min_old_dist:
-            reward += 0.025
-        elif min_new_dist > min_old_dist:
-            reward -= 0.025
+        # if min_new_dist < min_old_dist:
+        #     reward += 0.025
+        # elif min_new_dist > min_old_dist:
+        #     reward -= 0.025
 
 
     # rewards for attempting goals - more for harder goals
