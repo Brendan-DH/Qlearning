@@ -43,6 +43,7 @@ def get_input_dict(input_dir="/inputs", print_inputs=True):
         "num_evaluation_episodes": 100,
         "evaluation_type": "mdp",
         "mc_order": "LIFO",
+        "canonical_fingerprint": 300,
         "render_training": "n",
     }
 

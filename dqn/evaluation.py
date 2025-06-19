@@ -76,9 +76,9 @@ def evaluate_model_by_trial(dqn, num_episodes, env, max_steps, reset_options=Non
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 
 
-def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, render_deadlocks=False):
+def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, canonical_fingerprint, render=False, render_deadlocks=False):
     
-    print("Evaluating...")
+    print(f"Evaluating with canonical fingerprint {canonical_fingerprint}")
 
     if "win" in sys.platform and render:
         print("Cannot render on windows...")
@@ -92,8 +92,6 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, 
     deadlock_counter = 0
     broken_deadlock_counter = 0
     deadlock_traces = deque([], maxlen=100)  # store last 1000 deadlock traces
-
-    canonical_fingerprint = 0  # epsilon for multiagent evaluation
 
     for i in range(num_episodes):
         obs_state, info = env.reset()

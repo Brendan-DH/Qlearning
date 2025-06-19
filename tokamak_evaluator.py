@@ -75,7 +75,8 @@ if int(input_dict["num_evaluation_episodes"]) > 0:
                                                                   num_episodes=int(input_dict["num_evaluation_episodes"]),
                                                                   env=env, max_steps=int(input_dict["max_steps"]),
                                                                   render=render,
-                                                                  render_deadlocks=input_dict["render_evaluation_deadlocks"].lower() == "y"
+                                                                  render_deadlocks=input_dict["render_evaluation_deadlocks"].lower() == "y",
+                                                                  canonical_fingerprint = input_dict["canonical_fingerprint"],
                                                                   )
     else:
         print("\nEvaluation by trail...")
