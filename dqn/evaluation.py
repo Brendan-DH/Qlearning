@@ -93,12 +93,11 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, 
     broken_deadlock_counter = 0
     deadlock_traces = deque([], maxlen=100)  # store last 1000 deadlock traces
 
-    canonical_epsilon = 0  # epsilon for multiagent evaluation
+    canonical_fingerprint = 0  # epsilon for multiagent evaluation
 
     for i in range(num_episodes):
         obs_state, info = env.reset()
-        obs_state["epsilon"] = canonical_epsilon
-        # obs_state["episode"] = canonical_episode
+        obs_state["fingerprint"] = canonical_fingerprint
 
         states = [env.unwrapped.state_dict]
         actions = []
@@ -126,7 +125,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, 
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
-            new_obs_state["epsilon"] = canonical_epsilon
+            new_obs_state["fingerprint"] = canonical_fingerprint
             # new_obs_state["episode"] = canonical_episode
 
             states.append(env.unwrapped.state_dict)
@@ -164,7 +163,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, render=False, 
             print("Deadlock trace:")
             for r, state in enumerate(trace):
                 obs = env.unwrapped.state_dict_to_observable(state, state["clock"])
-                obs["epsilon"] = canonical_epsilon
+                obs["epsilon"] = canonical_fingerprint
                 print(dqn.forward(torch.tensor(list(obs.values()), dtype=torch.float, device="cpu", requires_grad=False).unsqueeze(0)))
                 env.unwrapped.render_frame(state, False)
 
