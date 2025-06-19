@@ -168,7 +168,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, canonical_fing
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
 
 
-def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc", order = "LIFO", run_id=""):
+def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, output_name="dtmc", order = "LIFO", run_id=""):
     # load the DQN
 
     n_actions = env.action_space.n
@@ -229,7 +229,7 @@ def generate_dtmc_file(weights_file, env, system_logic, output_name="dtmc", orde
         else:
             print(f"Error: unknown order '{order}' for exploration queue, exiting.")
             sys.exit(1)
-        obs_state["epsilon"] = 0  # set epsilon to 0 for exploration
+        obs_state["fingerprint"] = canonical_fingerprint  # set epsilon to 0 for exploration
 
         obs_tensor = torch.tensor(list(obs_state.values()), dtype=torch.float, device="cpu", requires_grad=False)
 

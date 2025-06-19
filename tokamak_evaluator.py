@@ -105,7 +105,7 @@ elif input_dict["evaluation_type"] == "dtmc":
     verification_properties.append('R=?[F "done" || F "done"]')  # the reward for getting done, provided it gets there
     if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
         print("Generating DTMC file")
-        generate_dtmc_file(os.getcwd() + "/outputs/saved_weights/" + load_weights_file, env, mdpt, output_name, order=input_dict["mc_order"])
+        generate_dtmc_file(os.getcwd() + "/outputs/saved_weights/" + load_weights_file, env, mdpt, float(input_dict["canonical_fingerprint"]), output_name, order=input_dict["mc_order"])
     else:
         print(f"Found {output_name} files in outputs/storm_files. Will not generation a new one.")
 
