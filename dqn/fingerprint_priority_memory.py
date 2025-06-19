@@ -41,18 +41,25 @@ class FingerprintPriorityMemory(object):
         if (len(self.memory) < batch_size):
             return
 
-        items = list(self.memory)
         if self.fingerprint_type == "epsilon":
-            for item in items:
-                if item.fingerprint > self.fingerprint_window + current_fingerprint:
-                    item.state.delta = 0
+            for i in range(len(self.memory)):
+                tr = self.memory[i]
+                if tr.fingerprint > self.fingerprint_window + current_fingerprint:
+                    self.memory[i] = FingerprintDeltaTransition(tr.state, tr.action,
+                                                                tr.next_state, tr.reward, tr.blocked, tr.fingerprint, 0)
+                    
         elif self.fingerprint_type == "episode" or self.fingerprint_type == "optimisation_counter":
-            for item in items:
-                if item.fingerprint <  current_fingerprint - self.fingerprint_window:
-                    item.state.delta = 0
+            for i in range(len(self.memory)):
+                tr = self.memory[i]
+                if tr.fingerprint <  current_fingerprint - self.fingerprint_window:
+                    # print("culling transition with fingerprint", tr.fingerprint)
+                    self.memory[i] = FingerprintDeltaTransition(tr.state, tr.action,
+                                                                tr.next_state, tr.reward, tr.blocked, tr.fingerprint, 0)
         else:
             print("Error with fingerprint window. Was the fingerprint type specified?")
             sys.exit(1)
+            
+        items = list(self.memory)
         items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
         self.memory = deque(items, maxlen=self.capacity)
 

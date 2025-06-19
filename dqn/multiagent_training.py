@@ -316,12 +316,12 @@ def train_model(
             new_obs_state, reward, terminated, truncated, info = env.step(action)
             
             match fingerprint_mode:
+                case "episode":
+                    fingerprint = i_episode
                 case "optimisation_counter":
                     fingerprint = optimisation_counter
                 case "epsilon":
                     fingerprint = epsilon
-                case "episode":
-                    fingerprint = i_episode
                 case _:
                     print("No fingerprint mode chosen. Exiting.")
                     sys.exit(1)
