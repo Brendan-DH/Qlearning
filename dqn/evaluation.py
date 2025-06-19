@@ -173,7 +173,7 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
 
     n_actions = env.action_space.n
     init_obs, info = env.reset()  # ask the DQN what action should be taken here
-    init_obs["epsilon"] = 0  # set epsilon to 0 for exploration
+    init_obs["fingerprint"] = canonical_fingerprint  # set epsilon to 0 for exploration
 
     exploration_state_queue = deque()
     exploration_observation_queue = deque()
