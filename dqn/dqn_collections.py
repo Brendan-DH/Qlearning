@@ -11,7 +11,7 @@ DeltaTransition = namedtuple('DeltaTransition',
                              ('state', 'action', 'next_state', 'reward', 'blocked', 'delta'))
 
 FingerprintDeltaTransition = namedtuple('DeltaTransition',
-                             ('state', 'action', 'next_state', 'reward', 'blocked', 'epsilon', 'delta'))
+                             ('state', 'action', 'next_state', 'reward', 'blocked', 'fingerprint', 'delta'))
 
 system_parameters = namedtuple("system_parameters",
                                ("size",

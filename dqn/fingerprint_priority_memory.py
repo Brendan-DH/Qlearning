@@ -1,12 +1,13 @@
 import random
 import numpy as np
+import sys 
 from collections import deque, OrderedDict
 
 from dqn.dqn_collections import FingerprintDeltaTransition
 
 class FingerprintPriorityMemory(object):
 
-    def __init__(self, capacity, fingerprint_window=1):
+    def __init__(self, capacity,fingerprint_type, fingerprint_window=1):
         self.capacity = capacity
         self.warning = False
         self.memory = deque([], maxlen=capacity)  # this could be a tensor
@@ -14,6 +15,7 @@ class FingerprintPriorityMemory(object):
         self.bounds = []
         self.prob_divisor = np.NaN
         self.memory_type = "fingerprint_priority"
+        self.fingerprint_type = fingerprint_type
         self.fingerprint_window = fingerprint_window  # the epsilon window for the epsilon-greedy policy
         
         print(f"Initialised fingerprint priority memory with capacity {self.capacity} and fingerprint window {self.fingerprint_window}")
@@ -31,7 +33,7 @@ class FingerprintPriorityMemory(object):
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
 
-    def sort(self, batch_size, priority_coefficient = 1, current_fingerprint = 1):
+    def sort(self, batch_size, priority_coefficient = 1, current_fingerprint = 1, window_direction = -1):
         # sort the transitions according to priority, i.e. according to delta
         # higher rank = lower priority, so higher rank should be lower |delta|
         # i.e. lower rank should be higher delta, as such:
@@ -40,9 +42,17 @@ class FingerprintPriorityMemory(object):
             return
 
         items = list(self.memory)
-        for item in items:
-            if item.epsilon > current_fingerprint + self.fingerprint_window:
-                item.state.delta = 0
+        if self.fingerprint_type == "epsilon":
+            for item in items:
+                if item.fingerprint > self.fingerprint_window + current_fingerprint:
+                    item.state.delta = 0
+        elif self.fingerprint_type == "episode" or self.fingerprint_type == "optimisation_counter":
+            for item in items:
+                if item.fingerprint <  current_fingerprint - self.fingerprint_window:
+                    item.state.delta = 0
+        else:
+            print("Error with fingerprint window. Was the fingerprint type specified?")
+            sys.exit(1)
         items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
         self.memory = deque(items, maxlen=self.capacity)
 
@@ -78,7 +88,7 @@ class FingerprintPriorityMemory(object):
 
     def update_priorities(self, index, delta):
         tr = self.memory[index]
-        self.memory[index] = FingerprintDeltaTransition(tr.state, tr.action, tr.next_state, tr.reward, tr.blocked, tr.epsilon, delta)
+        self.memory[index] = FingerprintDeltaTransition(tr.state, tr.action, tr.next_state, tr.reward, tr.blocked, tr.fingerprint, delta)
 
     def __len__(self):
         return len(self.memory)

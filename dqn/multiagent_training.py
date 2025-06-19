@@ -127,7 +127,7 @@ def train_model(
         optimiser = optim.AdamW(policy_net_gpu.parameters(), lr=alpha, amsgrad=True)
 
     # memory = ReplayMemory(buffer_size)
-    memory = FingerprintPriorityMemory(buffer_size, fingerprint_window)
+    memory = FingerprintPriorityMemory(buffer_size, fingerprint_window=fingerprint_window, fingerprint_type=fingerprint_mode)
     torch.set_grad_enabled(True)
     plotting_on = plot_frequency < num_episodes and plot_frequency != 0
     checkpoints_on = checkpoint_frequency < num_episodes and checkpoint_frequency != 0
