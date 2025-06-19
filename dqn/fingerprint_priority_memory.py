@@ -16,7 +16,7 @@ class FingerprintPriorityMemory(object):
         self.memory_type = "fingerprint_priority"
         self.fingerprint_window = fingerprint_window  # the epsilon window for the epsilon-greedy policy
         
-        print(f"Initialised priority memory with capacity {self.capacity} and epsilon window {self.fingerprint_window}")
+        print(f"Initialised fingerprint priority memory with capacity {self.capacity} and fingerprint window {self.fingerprint_window}")
 
     def push(self, *args):
         """Save a transition"""

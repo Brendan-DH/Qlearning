@@ -19,7 +19,7 @@ from dqn.decay_functions import exponential_epsilon_decay
 from dqn.optimisation import optimise
 from dqn.evaluation import evaluate_model_by_trial_MA
 import warnings
-import math
+import sys
 
 
 def train_model(
@@ -32,7 +32,8 @@ def train_model(
     gamma=0.6,  # discount factor
     epsilon_max=0.95,  # max exploration rate
     epsilon_min=0.05,  # min exploration rate
-    fingerprint_window=1,
+    fingerprint_window=100,
+    fingerprint_mode="episode",
     epsilon_decay_function=None,  # will be exponential if not set.
     alpha=1e-3,  # learning rate for policy DeepQNetwork
     tau=0.005,  # soft update rate for ap DeepQNetwork
@@ -164,6 +165,8 @@ def train_model(
     period_optimisation_time = 0  # time spent optimising this episode
     optimisation_counter = 0 # the total number of optimisations, used for the fingerprinting
 
+    print(f"Using fingerprint mode '{fingerprint_mode}'.")
+
     for i_episode in range(num_episodes):
         # sort out memory
         gc.collect()
@@ -178,7 +181,18 @@ def train_model(
             epsilons[i_episode] = epsilon
 
         obs_state, info = env.reset()
-        fingerprint = optimisation_counter
+        match fingerprint_mode:
+            case "optimisation_counter":
+                fingerprint = optimisation_counter
+            case "epsilon":
+                fingerprint = epsilon
+            case "episode":
+                fingerprint = i_episode
+            case _:
+                print("No fingerprint mode chosen. Exiting.")
+                sys.exit(1)
+                
+            
         obs_state["fingerprint"] = fingerprint
 
         # Initialise the first state
@@ -208,7 +222,19 @@ def train_model(
             robot_no = env.unwrapped.state_dict["clock"]
 
             obs_state = env.unwrapped.get_obs()
-            fingerprint = optimisation_counter
+            
+            match fingerprint_mode:
+                case "optimisation_counter":
+                    fingerprint = optimisation_counter
+                case "epsilon":
+                    fingerprint = epsilon
+                case "episode":
+                    fingerprint = i_episode
+                case _:
+                    print("No fingerprint mode chosen. Exiting.")
+                    sys.exit(1)
+                    
+            
             obs_state["fingerprint"] = fingerprint
 
             # to resolve this robot's PREVIOUS action, we see how the system has now changed:
@@ -288,7 +314,18 @@ def train_model(
             # apply action to environment
             old_env_state = env.unwrapped.state_dict.copy()
             new_obs_state, reward, terminated, truncated, info = env.step(action)
-            fingerprint = optimisation_counter
+            
+            match fingerprint_mode:
+                case "optimisation_counter":
+                    fingerprint = optimisation_counter
+                case "epsilon":
+                    fingerprint = epsilon
+                case "episode":
+                    fingerprint = i_episode
+                case _:
+                    print("No fingerprint mode chosen. Exiting.")
+                    sys.exit(1)
+                    
             new_obs_state["fingerprint"] = fingerprint 
 
             # create a hanging transition
@@ -440,5 +477,7 @@ def train_model(
     
     if cuda_enabled:
         policy_net.load_state_dict(policy_net_gpu.state_dict())
+        
+    print("TOTAL OPTIMISATION STEPS: ", optimisation_counter)
     
     return policy_net, episode_durations, rewards, epsilons

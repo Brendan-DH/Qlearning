@@ -113,6 +113,7 @@ if multiagent:
                                                         epsilon_max=float(input_dict["epsilon_max"]),
                                                         epsilon_min=float(input_dict["epsilon_min"]),
                                                         fingerprint_window=float(input_dict["fingerprint_window"]),
+                                                        fingerprint_mode=input_dict["fingerprint_mode"],
                                                         optimisation_frequency=int(input_dict["optimisation_frequency"]),
                                                         alpha=float(input_dict["alpha"]),
                                                         gamma=float(input_dict["gamma"]),
