@@ -32,7 +32,7 @@ def train_model(
     gamma=0.6,  # discount factor
     epsilon_max=0.95,  # max exploration rate
     epsilon_min=0.05,  # min exploration rate
-    epsilon_window=1,
+    fingerprint_window=1,
     epsilon_decay_function=None,  # will be exponential if not set.
     alpha=1e-3,  # learning rate for policy DeepQNetwork
     tau=0.005,  # soft update rate for ap DeepQNetwork
@@ -126,7 +126,7 @@ def train_model(
         optimiser = optim.AdamW(policy_net_gpu.parameters(), lr=alpha, amsgrad=True)
 
     # memory = ReplayMemory(buffer_size)
-    memory = FingerprintPriorityMemory(buffer_size, epsilon_window)
+    memory = FingerprintPriorityMemory(buffer_size, fingerprint_window)
     torch.set_grad_enabled(True)
     plotting_on = plot_frequency < num_episodes and plot_frequency != 0
     checkpoints_on = checkpoint_frequency < num_episodes and checkpoint_frequency != 0

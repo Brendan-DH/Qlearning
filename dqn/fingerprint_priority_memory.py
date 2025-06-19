@@ -14,9 +14,9 @@ class FingerprintPriorityMemory(object):
         self.bounds = []
         self.prob_divisor = np.NaN
         self.memory_type = "fingerprint_priority"
-        self.epsilon_window = epsilon_window  # the epsilon window for the epsilon-greedy policy
+        self.fingerprint_window = epsilon_window  # the epsilon window for the epsilon-greedy policy
         
-        print(f"Initialised priority memory with capacity {self.capacity} and epsilon window {self.epsilon_window}")
+        print(f"Initialised priority memory with capacity {self.capacity} and epsilon window {self.fingerprint_window}")
 
     def push(self, *args):
         """Save a transition"""
@@ -31,7 +31,7 @@ class FingerprintPriorityMemory(object):
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
 
-    def sort(self, batch_size, priority_coefficient = 1, epsilon = 1):
+    def sort(self, batch_size, priority_coefficient = 1, current_fingerprint = 1):
         # sort the transitions according to priority, i.e. according to delta
         # higher rank = lower priority, so higher rank should be lower |delta|
         # i.e. lower rank should be higher delta, as such:
@@ -41,7 +41,7 @@ class FingerprintPriorityMemory(object):
 
         items = list(self.memory)
         for item in items:
-            if item.epsilon > epsilon + self.epsilon_window:
+            if item.epsilon > current_fingerprint + self.fingerprint_window:
                 item.state.delta = 0
         items.sort(key=(lambda x: -x.delta))  # do the sorting (descending delta)
         self.memory = deque(items, maxlen=self.capacity)

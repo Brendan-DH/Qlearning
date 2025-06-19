@@ -25,7 +25,7 @@ def get_input_dict(input_dir="/inputs", print_inputs=True):
         "epsilon_decay_type": "exponential",
         "epsilon_max": 0.95,
         "epsilon_min": 0.05,
-        "epsilon_window": 0.2,
+        "fingerprint_window": 0.2,
         "reward_sharing_coefficient" : 0.5,
         "min_epsilon_time": 0,
         "max_epsilon_time": 0,
