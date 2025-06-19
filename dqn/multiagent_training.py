@@ -162,6 +162,7 @@ def train_model(
     total_optimisation_time = 0
     period_start_time = time.time()  # start the timer for this episode
     period_optimisation_time = 0  # time spent optimising this episode
+    optimisation_counter = 0 # the total number of optimisations, used for the fingerprinting
 
     for i_episode in range(num_episodes):
         # sort out memory
@@ -177,7 +178,7 @@ def train_model(
             epsilons[i_episode] = epsilon
 
         obs_state, info = env.reset()
-        fingerprint = epsilon
+        fingerprint = optimisation_counter
         obs_state["fingerprint"] = fingerprint
 
         # Initialise the first state
@@ -207,17 +208,18 @@ def train_model(
             robot_no = env.unwrapped.state_dict["clock"]
 
             obs_state = env.unwrapped.get_obs()
-            obs_state["fingerprint"] = epsilon
-            # obs_state["episode"] = i_episode
+            fingerprint = optimisation_counter
+            obs_state["fingerprint"] = fingerprint
 
             # to resolve this robot's PREVIOUS action, we see how the system has now changed:
             if t > env.unwrapped.num_robots:  
                 prev_trans_s = latest_observations[robot_no].copy()
+                fingerprint = prev_trans_s["fingerprint"]
                 prev_trans_a = latest_actions[robot_no]
                 prev_trans_sprime = obs_state.copy()
+                prev_trans_sprime["fingerprint"] = fingerprint # fingerprint stays constant for stability
                 prev_trans_r = (1 - reward_sharing_coefficient) * latest_rewards[robot_no] + reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_no])
                 prev_blocked_actions = latest_blocked_actions[robot_no].clone()
-                fingerprint = epsilon
 
                 if "priority" in memory.memory_type:
                     memory.push(
@@ -286,12 +288,10 @@ def train_model(
             # apply action to environment
             old_env_state = env.unwrapped.state_dict.copy()
             new_obs_state, reward, terminated, truncated, info = env.step(action)
-            fingerprint = epsilon
-            new_obs_state["fingerprint"] = fingerprint
-            # new_obs_state["episode"] = i_episode
+            fingerprint = optimisation_counter
+            new_obs_state["fingerprint"] = fingerprint 
 
-            # now this needs to be the resultant state for the NEXT robot in the order.
-            # the NEXT robot also needs to get its rewards for its previous decision, and a weighted-down reward from the intermediate robot
+            # create a hanging transition
             latest_observations[robot_no] = obs_state.copy()  # i.e. the thing this robot based its action on
             latest_rewards[robot_no] = reward
             latest_actions[robot_no] = action
@@ -319,7 +319,7 @@ def train_model(
                 prev_trans_a = latest_actions[robot_no]
                 prev_trans_r = (1 - reward_sharing_coefficient) * latest_rewards[robot_no] + reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_no])
                 prev_blocked_actions = latest_blocked_actions[robot_no].clone()
-                fingerprint = epsilon
+                fingerprint = prev_trans_s["fingerprint"]
 
                 if prev_blocked_actions[prev_trans_a] == 1:
                     print(f"WARNING: action {rel_actions} was blocked for robot {robot_no}!!!!!!!!!!!!!!!!!!!")
@@ -366,6 +366,7 @@ def train_model(
 
             # run optimiser
             if t % optimisation_frequency == 0:
+                optimisation_counter += 1
                 op_start_time = time.time()
                 loss = optimise(
                     policy_net if not cuda_enabled else policy_net_gpu,
