@@ -10,6 +10,8 @@ from dqn.dqn import DeepQNetwork
 from queue import Queue
 import time
 
+import tracemalloc
+
 
 def evaluate_model_by_trial(dqn, num_episodes, env, max_steps, reset_options=None, render=False):
     print("Evaluating...")
@@ -111,7 +113,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, canonical_fing
             blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
             action_utilities = torch.where(blocked, -np.inf, action_utilities)
             if render:
-                print(robot_no, action_utilities)
+                print(robot_no, action_utilities, blocked)
             action = torch.argmax(action_utilities).item()
 
             # apply action to environment
@@ -151,7 +153,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, canonical_fing
             for r, state in enumerate(trace):
                 obs = env.unwrapped.state_dict_to_observable(state, state["clock"])
                 obs["epsilon"] = canonical_fingerprint
-                print(dqn.forward(torch.tensor(list(obs.values()), dtype=torch.float, device="cpu", requires_grad=False).unsqueeze(0)))
+                print(state["clock"], dqn.forward(torch.tensor(list(obs.values()), dtype=torch.float, device="cpu", requires_grad=False)).unsqueeze(0), env.unwrapped.blocked_model(env, state, state["clock"]))
                 env.unwrapped.render_frame(state, False)
 
     return states, actions, steps, deadlock_traces  # states, actions, ticks, steps
@@ -159,7 +161,9 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, canonical_fing
 
 def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, output_name="dtmc", order = "LIFO", run_id=""):
     # load the DQN
-
+    
+    tracemalloc.start()
+    
     n_actions = env.action_space.n
     init_obs, info = env.reset()  # ask the DQN what action should be taken here
     init_obs["fingerprint"] = canonical_fingerprint  # set epsilon to 0 for exploration
@@ -261,6 +265,7 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
         clock = (clock + 1) % env.unwrapped.num_robots  # increment clock for the next state
 
     print(f"\nWriting file to {os.getcwd()}/outputs/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
+    print(f"DTMC construction took {time.time() - start_time}s")
 
     f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "w")  # create DTMC file .tra
     f.write("dtmc\n")
@@ -303,6 +308,9 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
         print("Error! Some encountered states have no outgoing transitions!\nStates:")
         for i in range(len(unacknowledged_states)):
             print(unacknowledged_states[i])
+            
+    current, peak = tracemalloc.get_traced_memory()
+    print(f"Peak memory usage: {peak / 1e9:.2f} MB")
 
 
 def generate_mdp_file(weights_file, env, system_logic, output_name="mdp"):
