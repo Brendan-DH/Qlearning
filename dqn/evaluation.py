@@ -201,7 +201,8 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
     labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     new_id += 1
-    transitions_array = []
+    transitions_array = np.empty(10000, dtype=str)
+    tr_counter = 0
     rewards_array = []
     clock = 0
     start_time = time.time()
@@ -245,7 +246,11 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
         all_done = system_logic.state_is_final(env, state_dict)
         if all_done:
             labels_set.add(f"{states_id_dict[str(state_dict.values())]} done\n")  # label end states
-            transitions_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(state_dict.values())]} 1")  # end states loop to themselves (formality):
+            transitions_array[tr_counter](f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(state_dict.values())]} 1")  # end states loop to themselves (formality):
+            tr_counter += 1
+            if (tr_counter == 10000):
+                f.write("\n".join(transitions_array) + "\n")
+                tr_counter = 0
             continue  # continue as we don't care about other transitions from end states
 
         for i in range(len(result[0])):  # iterate over result states:
@@ -266,10 +271,11 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
                 rewards_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} 1")
 
             # print("prob", prob, type(prob))
-            transitions_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} {prob}")  # write the transitions into the file/array
-            if (len(transitions_array) == 10000):
-                f.write("\n".join(transitions_array[i]) + "\n")
-                transitions_array = []
+            transitions_array[tr_counter] = (f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} {prob}")  # write the transitions into the file/array
+            tr_counter += 1
+            if (tr_counter == 10000):
+                f.write("\n".join(transitions_array) + "\n")
+                tr_counter = 0
                             
 
         clock = (clock + 1) % env.unwrapped.num_robots  # increment clock for the next state
