@@ -205,6 +205,12 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
     rewards_array = []
     clock = 0
     start_time = time.time()
+    
+    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "w")  # create DTMC file .tra
+    f.write("dtmc\n")
+    f.close()
+    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
+    
     print("Beginning DTMC construction.")
     while not len(exploration_state_queue) == 0:
         # print("EXPLORATION STEP")
@@ -261,14 +267,17 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
 
             # print("prob", prob, type(prob))
             transitions_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} {prob}")  # write the transitions into the file/array
+            if (len(transitions_array) == 10000):
+                for i in range(len(transitions_array)):
+                    f.write(transitions_array[i] + "\n")
+                transitions_array = []
+                            
 
         clock = (clock + 1) % env.unwrapped.num_robots  # increment clock for the next state
 
     print(f"\nWriting file to {os.getcwd()}/outputs/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
     print(f"DTMC construction took {time.time() - start_time}s")
 
-    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "w")  # create DTMC file .tra
-    f.write("dtmc\n")
     for i in range(len(transitions_array)):
         f.write(transitions_array[i] + "\n")
     f.close()
