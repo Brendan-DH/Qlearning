@@ -125,10 +125,12 @@ with open(f"outputs/storm_files/{output_name}.lab", "r") as f:
 trace, reward_trace = get_terminal_trace(f"outputs/storm_files/{output_name}.tra", f"outputs/storm_files/{output_name}.transrew", example_terminal_state)
 
 print(f"Example trace: (init) {'-'.join(trace)} (done) in time {np.sum(reward_trace)}.")
-
-for prop in verification_properties:
-    print(f"\nVerification property: {prop}")
-    print("Running STORM")
-    subprocess.run(["storm", "--explicit", f"outputs/storm_files/{output_name}.tra", f"outputs/storm_files/{output_name}.lab", "--transrew", f"outputs/storm_files/{output_name}.transrew", "--prop", prop])
+try:
+    for prop in verification_properties:
+        print(f"\nVerification property: {prop}")
+        print("Running STORM")
+        subprocess.run(["storm", "--explicit", f"outputs/storm_files/{output_name}.tra", f"outputs/storm_files/{output_name}.lab", "--transrew", f"outputs/storm_files/{output_name}.transrew", "--prop", prop])
+except FileNotFoundError:
+    print("Storm not found, exiting.")
 
 sys.exit(0)
