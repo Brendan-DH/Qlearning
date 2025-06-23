@@ -210,8 +210,7 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
     f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "w")  # create DTMC file .tra
     f.write("dtmc\n")
     f.close()
-    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
-    
+        
     print("Beginning DTMC construction.")
     while not len(exploration_state_queue) == 0:
         # print("EXPLORATION STEP")
@@ -250,16 +249,15 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
             tr_counter += 1
             if (tr_counter == 10000):
                 print("Writing to {output_name}.tra...")
+                f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
                 f.write("\n".join(transitions_array) + "\n")
+                f.close()
                 tr_counter = 0
             continue  # continue as we don't care about other transitions from end states
 
         for i in range(len(result[0])):  # iterate over result states:
             prob = result[0][i]
             result_state_dict = result[1][i]
-            # print(result_state_dict["clock"])
-
-            # print(prob, result_state_dict["robot0 location"])
 
             if str(result_state_dict.values()) not in keySet:  # register newly discovered states
                 states_id_dict[str(result_state_dict.values())] = new_id
@@ -276,18 +274,19 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
             tr_counter += 1
             if (tr_counter == 10000):
                 print("Writing to {output_name}.tra...")
+                f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
                 f.write("\n".join(transitions_array) + "\n")
+                f.close()
                 tr_counter = 0
-                            
 
         clock = (clock + 1) % env.unwrapped.num_robots  # increment clock for the next state
 
+    f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
+    f.write("\n".join(transitions_array) + "\n")
+    f.close()
+
     print(f"\nWriting file to {os.getcwd()}/outputs/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
     print(f"DTMC construction took {time.time() - start_time}s")
-
-    for i in range(len(transitions_array)):
-        f.write(transitions_array[i] + "\n")
-    f.close()
 
     f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.lab", "w")  # create labels file .lab
     f.write("""
