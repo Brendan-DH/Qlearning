@@ -281,11 +281,11 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
         clock = (clock + 1) % env.unwrapped.num_robots  # increment clock for the next state
     
     f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
-    f.write("\n".join(transitions_array.tolist()) + "\n")
+    f.write("\n".join(transitions_array[:tr_counter].tolist()) + "\n")
     f.close()
 
-    print(f"\nWriting file to {os.getcwd()}/outputs/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
     print(f"DTMC construction took {time.time() - start_time}s")
+    print(f"\nWriting file to {os.getcwd()}/outputs/storm_files/{output_name}.tra, {output_name}.lab, {output_name}.transrew")
 
     f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.lab", "w")  # create labels file .lab
     f.write("""
