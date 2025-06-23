@@ -240,7 +240,7 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
         robot_dist = abs(moving_robot_loc - other_robot_loc)  # non-mod distance
         mod_robot_dist = min(robot_dist, env.unwrapped.size - robot_dist)
         if (mod_robot_dist < 3):
-            reward -= 0.01
+            reward -= 0.05
             
     # reward for checking a goal by moving onto its position
     if (action_no == 0 or action_no == 1):
