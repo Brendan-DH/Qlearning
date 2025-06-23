@@ -201,10 +201,8 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
     labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     new_id += 1
-    transitions_array = np.empty(100000, dtype=object)
-    tr_counter = 0
+    transitions_array = [] #np.empty(100000, dtype=object)
     rewards_array = []
-    clock = 0
     
     f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "w")  # create DTMC file .tra
     f.write("dtmc\n")
@@ -246,13 +244,12 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
         all_done = system_logic.state_is_final(env, state_dict)
         if all_done:
             labels_set.add(f"{states_id_dict[state_dict_str]} done\n")  # label end states
-            transitions_array[tr_counter] = f"{states_id_dict[state_dict_str]} {states_id_dict[state_dict_str]} 1"  # end states loop to themselves (formality):
-            tr_counter += 1
-            if (tr_counter == 100000):
+            transitions_array.append(f"{states_id_dict[state_dict_str]} {states_id_dict[state_dict_str]} 1")  # end states loop to themselves (formality):
+            if (len(transitions_array) == 100000):
                 f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
-                f.write("\n".join(transitions_array.tolist()) + "\n")
+                f.write("\n".join(transitions_array) + "\n")
                 f.close()
-                tr_counter = 0
+                transitions_array = []
             continue  # continue as we don't care about other transitions from end states
 
         for i in range(len(result[0])):  # iterate over result states:
@@ -270,18 +267,15 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
             if result_state_dict["clock"] == int(env.unwrapped.num_robots - 1):  # assign awards to clock ticks
                 rewards_array.append(f"{states_id_dict[state_dict_str]} {states_id_dict[result_state_str]} 1")
 
-            transitions_array[tr_counter] = f"{states_id_dict[state_dict_str]} {states_id_dict[result_state_str]} {prob}"  # write the transitions into the file/array
-            tr_counter += 1
-            if (tr_counter == 100000):
+            transitions_array.append(f"{states_id_dict[state_dict_str]} {states_id_dict[result_state_str]} {prob}")  # write the transitions into the file/array
+            if (len(transitions_array) == 100000):
                 f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
-                f.write("\n".join(transitions_array.tolist()) + "\n")
+                f.write("\n".join(transitions_array) + "\n")
                 f.close()
-                tr_counter = 0
-
-        clock = (clock + 1) % env.unwrapped.num_robots  # increment clock for the next state
+                transitions_array = []
     
     f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
-    f.write("\n".join(transitions_array[:tr_counter].tolist()) + "\n")
+    f.write("\n".join(transitions_array) + "\n")
     f.close()
 
     print(f"DTMC construction took {time.time() - start_time}s")
