@@ -201,7 +201,7 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
     labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     new_id += 1
-    transitions_array = np.empty(10000, dtype=object)
+    transitions_array = np.empty(100000, dtype=object)
     tr_counter = 0
     rewards_array = []
     clock = 0
@@ -248,7 +248,7 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
             labels_set.add(f"{states_id_dict[state_dict_str]} done\n")  # label end states
             transitions_array[tr_counter] = f"{states_id_dict[state_dict_str]} {states_id_dict[state_dict_str]} 1"  # end states loop to themselves (formality):
             tr_counter += 1
-            if (tr_counter == 10000):
+            if (tr_counter == 100000):
                 f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
                 f.write("\n".join(transitions_array.tolist()) + "\n")
                 f.close()
@@ -272,7 +272,7 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
 
             transitions_array[tr_counter] = f"{states_id_dict[state_dict_str]} {states_id_dict[result_state_str]} {prob}"  # write the transitions into the file/array
             tr_counter += 1
-            if (tr_counter == 10000):
+            if (tr_counter == 100000):
                 f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
                 f.write("\n".join(transitions_array.tolist()) + "\n")
                 f.close()
