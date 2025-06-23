@@ -229,9 +229,12 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
     # mostly a diagnostic thing... I think
 
     if (b_model(env, old_state_dict, robot_no)[action_no] == 1):
-        return -0.5
+        return 0
 
     reward = 0
+    
+    if (action_no==3):
+        reward -= 0.05
 
     moving_robot_loc = next_state_dict[f"robot{robot_no} location"]
     # penalises being moving near another robot
@@ -240,7 +243,7 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
         robot_dist = abs(moving_robot_loc - other_robot_loc)  # non-mod distance
         mod_robot_dist = min(robot_dist, env.unwrapped.size - robot_dist)
         if (mod_robot_dist < 3):
-            reward -= 0.05
+            reward -= 0.01
             
     # reward for checking a goal by moving onto its position
     if (action_no == 0 or action_no == 1):
