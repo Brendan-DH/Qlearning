@@ -201,7 +201,7 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
     labels_set = {"0 init\n"}  # set of state labels ([id] [label] )
 
     new_id += 1
-    transitions_array = np.empty(10000, dtype=str)
+    transitions_array = np.empty(10000, dtype=object)
     tr_counter = 0
     rewards_array = []
     clock = 0
