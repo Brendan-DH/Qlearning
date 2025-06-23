@@ -239,13 +239,14 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
 
         # state_dict = env.unwrapped.state_vector_to_dict(state_vector)
         robot_no = state_dict["clock"]
+        state_dict_str = str(state_dict.values())
         result = system_logic.t_model(env, state_dict, robot_no, action)  # get the result of the action from the transition model
 
         # label end states
         all_done = system_logic.state_is_final(env, state_dict)
         if all_done:
-            labels_set.add(f"{states_id_dict[str(state_dict.values())]} done\n")  # label end states
-            transitions_array[tr_counter] = f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(state_dict.values())]} 1"  # end states loop to themselves (formality):
+            labels_set.add(f"{states_id_dict[state_dict_str]} done\n")  # label end states
+            transitions_array[tr_counter] = f"{states_id_dict[state_dict_str]} {states_id_dict[state_dict_str]} 1"  # end states loop to themselves (formality):
             tr_counter += 1
             if (tr_counter == 10000):
                 f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
@@ -257,19 +258,19 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
         for i in range(len(result[0])):  # iterate over result states:
             prob = result[0][i]
             result_state_dict = result[1][i]
+            result_state_str = str(result_state_dict.values())
 
-            if str(result_state_dict.values()) not in keySet:  # register newly discovered states
-                states_id_dict[str(result_state_dict.values())] = new_id
+            if result_state_str not in keySet:  # register newly discovered states
+                states_id_dict[result_state_str] = new_id
                 exploration_state_queue.append(result_state_dict)
                 exploration_observation_queue.append(env.unwrapped.state_dict_to_observable(result_state_dict, result_state_dict["clock"]))
                 new_id += 1
-                keySet.add(str(result_state_dict.values()))
+                keySet.add(result_state_str)
 
             if result_state_dict["clock"] == int(env.unwrapped.num_robots - 1):  # assign awards to clock ticks
-                rewards_array.append(f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} 1")
+                rewards_array.append(f"{states_id_dict[state_dict_str]} {states_id_dict[result_state_str]} 1")
 
-            # print("prob", prob, type(prob))
-            transitions_array[tr_counter] = f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} {prob}"  # write the transitions into the file/array
+            transitions_array[tr_counter] = f"{states_id_dict[state_dict_str]} {states_id_dict[result_state_str]} {prob}"  # write the transitions into the file/array
             tr_counter += 1
             if (tr_counter == 10000):
                 f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
@@ -278,7 +279,7 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
                 tr_counter = 0
 
         clock = (clock + 1) % env.unwrapped.num_robots  # increment clock for the next state
-
+    
     f = open(os.getcwd() + f"/outputs/storm_files/{output_name}.tra", "a")  # append to DTMC file .tra
     f.write("\n".join(transitions_array.tolist()) + "\n")
     f.close()
