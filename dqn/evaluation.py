@@ -249,6 +249,7 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
             transitions_array[tr_counter](f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(state_dict.values())]} 1")  # end states loop to themselves (formality):
             tr_counter += 1
             if (tr_counter == 10000):
+                print("Writing to {output_name}.tra...")
                 f.write("\n".join(transitions_array) + "\n")
                 tr_counter = 0
             continue  # continue as we don't care about other transitions from end states
@@ -274,6 +275,7 @@ def generate_dtmc_file(weights_file, env, system_logic, canonical_fingerprint, o
             transitions_array[tr_counter] = (f"{states_id_dict[str(state_dict.values())]} {states_id_dict[str(result_state_dict.values())]} {prob}")  # write the transitions into the file/array
             tr_counter += 1
             if (tr_counter == 10000):
+                print("Writing to {output_name}.tra...")
                 f.write("\n".join(transitions_array) + "\n")
                 tr_counter = 0
                             
