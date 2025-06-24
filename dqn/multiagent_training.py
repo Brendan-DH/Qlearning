@@ -180,7 +180,7 @@ def train_model(
         if plotting_on or checkpoints_on:
             epsilons[i_episode] = epsilon
 
-        obs_state, info = env.reset()
+        obs_state, info = env.reset(random=True)
         match fingerprint_mode:
             case "optimisation_counter":
                 fingerprint = optimisation_counter
