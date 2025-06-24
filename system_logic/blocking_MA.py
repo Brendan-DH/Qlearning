@@ -351,8 +351,8 @@ def b_model(env, state_dict, robot_no):
     # num_goals_unchecked = np.sum([0 if state_dict[f"goal{i} checked"] else 1 for i in range(env.unwrapped.num_goals)])
     active_goal_locations = np.array([state_dict[f"goal{i} location"] for i in range(env.unwrapped.num_goals) if state_dict[f"goal{i} active"] == 1])
     
-    # unblock wait if either side is blocked
-    if (blocked_actions[0] or blocked_actions[1]):
+    # unblock wait if both sides are blocked
+    if (blocked_actions[0] and blocked_actions[1]):
         blocked_actions[3] = 0
     else:
         blocked_actions[3] = 1
