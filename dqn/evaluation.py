@@ -112,13 +112,13 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, canonical_fing
             action_utilities = dqn.forward(obs_tensor.unsqueeze(0))[0]
             blocked = env.unwrapped.blocked_model(env, env.unwrapped.state_dict, env.unwrapped.state_dict["clock"])
             action_utilities = torch.where(blocked, -np.inf, action_utilities)
-            if render:
-                print(robot_no, action_utilities, blocked)
             action = torch.argmax(action_utilities).item()
 
             # apply action to environment
             new_obs_state, reward, terminated, truncated, info = env.step(action)
             new_obs_state["fingerprint"] = canonical_fingerprint
+            if render:
+                print(robot_no, str(new_obs_state["robot engagement"]).replace(",", "\n"))
             # new_obs_state["episode"] = canonical_episode
 
             states.append(env.unwrapped.state_dict)
