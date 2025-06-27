@@ -87,7 +87,7 @@ def template_engage(env, state_dict, robot_no):
         # if (state_dict[f"goal{i} location"] == state_dict[f"robot{robot_no} location"]):
         if ((state_dict[f"goal{i} location"] == state_dict[f"robot{robot_no} location"]) and state_dict[f"goal{i} active"] == 1):
             # goal is successfully completed
-            prob1 = (state_dict[f"goal{i} completion probability"] * 10) * state_dict[f"robot{robot_no} engagement"]
+            prob1 = (state_dict[f"goal{i} completion probability"] * 0.1) * state_dict[f"robot{robot_no} engagement"]
             state1 = state_dict.copy()
             state1[f"goal{i} active"] = 0
 
