@@ -37,17 +37,17 @@ max_episode_steps=1000,
 echo "Registered Tokamak-v16"
 fi
 
-if grep -q "TokamakMA-v1" $ROOTDIR/gymnasium/envs/__init__.py
+if grep -q "TokamakMA-v2" $ROOTDIR/gymnasium/envs/__init__.py
 then
     echo "Environment already registered"
 else
 echo "
 register(
-id='TokamakMA-v1',
-entry_point='gymnasium.envs.tokamak.tokamakenvMA1:TokamakEnvMA1',
-max_episode_steps=1000,
+id='TokamakMA-v2',
+entry_point='gymnasium.envs.tokamak.tokamakenvMA2:TokamakEnvMA2',
+max_episode_steps=2000,
 )">> $ROOTDIR/gymnasium/envs/__init__.py
-echo "Registered TokamakMA-v1"
+echo "Registered TokamakMA-v2"
 fi
 
 
