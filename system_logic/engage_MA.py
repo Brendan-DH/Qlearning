@@ -87,7 +87,7 @@ def template_engage(env, state_dict, robot_no):
         # if (state_dict[f"goal{i} location"] == state_dict[f"robot{robot_no} location"]):
         if ((state_dict[f"goal{i} location"] == state_dict[f"robot{robot_no} location"]) and state_dict[f"goal{i} active"] == 1):
             # goal is successfully completed
-            prob1 = (state_dict[f"goal{i} completion probability"] * 0.01) * state_dict[f"robot{robot_no} engagement"]
+            prob1 = (state_dict[f"goal{i} completion probability"] * 0.1) * state_dict[f"robot{robot_no} engagement"]
             state1 = state_dict.copy()
             state1[f"goal{i} active"] = 0
 
@@ -277,7 +277,7 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
             if (old_state_dict[f"goal{i} location"] == old_state_dict[f"robot{robot_no} location"] and
                 old_state_dict[f"goal{i} active"] == 1):
                 # prob = old_state_dict[f"goal{i} completion probability"]
-                reward = 0.005 * old_state_dict[f"robot{robot_no} engagement"]
+                reward = 0.075 * old_state_dict[f"robot{robot_no} engagement"]
                 
     # # reward for having moved into a terminal state
     if (state_is_final(env, next_state_dict)):

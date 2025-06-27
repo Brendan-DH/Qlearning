@@ -99,7 +99,7 @@ class TokamakEnvMA2(gym.Env):
         # Define discrete ranges (adjust bounds as needed)
         obs_space = {}
         obs_space["my location"] = spaces.Discrete(self.size)
-        obs_space["robot engagement"] = spaces.Discrete(100)
+        obs_space["robot engagement"] = spaces.Discrete(10)
         # obs_space["current goal difficulty"] = spaces.Box(low=-0.0, high=1.0, shape=(1,), dtype=np.float64)
         for i in range(1, self.num_robots):
             obs_space[f"teammate{i} location"] = spaces.Discrete(self.size)
