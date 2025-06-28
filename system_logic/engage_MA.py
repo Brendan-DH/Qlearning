@@ -241,7 +241,7 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
         robot_dist = abs(moving_robot_loc - other_robot_loc)  # non-mod distance
         mod_robot_dist = min(robot_dist, env.unwrapped.size - robot_dist)
         if (mod_robot_dist < 2):
-            reward -= 0.05
+            reward -= 0.07 * old_state_dict[f"robot{i} engagement"]
             
     # reward for checking a goal by moving onto its position
     if (action_no == 0 or action_no == 1):
@@ -270,14 +270,12 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
         # elif min_new_dist > min_old_dist:
         #     reward -= 0.025
 
-
-    # rewards for attempting goals - more for harder goals
     if (action_no == 2):
         for i in range(env.unwrapped.num_goals):
             if (old_state_dict[f"goal{i} location"] == old_state_dict[f"robot{robot_no} location"] and
                 old_state_dict[f"goal{i} active"] == 1):
                 # prob = old_state_dict[f"goal{i} completion probability"]
-                reward = 0.075 * old_state_dict[f"robot{robot_no} engagement"]
+                reward = 0.08 * old_state_dict[f"robot{robot_no} engagement"]
                 
     # # reward for having moved into a terminal state
     if (state_is_final(env, next_state_dict)):

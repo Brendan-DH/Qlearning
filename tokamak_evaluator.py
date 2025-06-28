@@ -59,7 +59,7 @@ n_actions = env.action_space.n
 state_tensor, info = env.reset()
 n_observations = len(state_tensor)
 print(f"Looking for /outputs/saved_weights/{load_weights_file}")
-loaded_weights = torch.load(os.getcwd() + "/outputs/saved_weights/" + load_weights_file)
+loaded_weights = torch.load(os.getcwd() + "/outputs/saved_weights/" + load_weights_file, map_location=torch.device("cpu"))
 nodes_per_layer = len(loaded_weights["hidden_layers.0.weight"])
 num_hidden_layers = int((len(loaded_weights.keys()) - 4) / 2)  # -4 accounts for input and output weights and biases
 
