@@ -191,6 +191,7 @@ def t_model(env, state_dict, robot_no, action_no):
         
     for state in s:
         state["clock"] = (state_dict["clock"] + 1) % env.unwrapped.num_robots  # increment the clock in each resultant state
+        state["time"] += 1
         if (action_no != 2):
             state[f"robot{robot_no} engagement"] = 0
 

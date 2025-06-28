@@ -49,6 +49,7 @@ class TokamakEnvMA2(gym.Env):
         self.frame_counter = 0
 
         initial_state_dict["clock"] = 0  # the clock is the index of the robot that is currently active
+        initial_state_dict["time"] = 0
         for i in range(len(system_parameters.robot_locations)):
             initial_state_dict[f"robot{i} location"] = system_parameters.robot_locations[i]
             initial_state_dict[f"robot{i} engagement"] = 0
@@ -100,6 +101,7 @@ class TokamakEnvMA2(gym.Env):
         obs_space = {}
         obs_space["my location"] = spaces.Discrete(self.size)
         obs_space["robot engagement"] = spaces.Discrete(10)
+        obs_space["time"] = spaces.Discrete(1500)
         # obs_space["current goal difficulty"] = spaces.Box(low=-0.0, high=1.0, shape=(1,), dtype=np.float64)
         for i in range(1, self.num_robots):
             obs_space[f"teammate{i} location"] = spaces.Discrete(self.size)
@@ -126,6 +128,7 @@ class TokamakEnvMA2(gym.Env):
         rob_loc = int(state_dict[f"robot{robot_no} location"])
         obs_dict["my location"] = rob_loc
         obs_dict["robot engagement"] = int(state_dict[f"robot{robot_no} engagement"])
+        obs_dict["time"] = int(state_dict["time"])
 
         teammate_num = 1
         for i in range(1, self.num_robots):

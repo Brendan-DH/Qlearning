@@ -354,7 +354,7 @@ def train_model(
                 # only adding for the last robot. the others shouldn't interpret their personal states as terminal.
                 prev_trans_s = latest_observations[robot_no].copy()
                 prev_trans_a = latest_actions[robot_no]
-                prev_trans_r = (1 - reward_sharing_coefficient) * latest_rewards[robot_no] + reward_sharing_coefficient * (np.sum(latest_rewards) - latest_rewards[robot_no])
+                prev_trans_r = latest_rewards[robot_no] # all share the reward from the terminal robot
                 prev_blocked_actions = latest_blocked_actions[robot_no].clone()
                 fingerprint = prev_trans_s["fingerprint"]
 
