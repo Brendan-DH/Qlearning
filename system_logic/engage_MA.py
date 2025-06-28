@@ -231,7 +231,7 @@ def r_model(env, old_state_dict,robot_no, action_no, next_state_dict):
     if (b_model(env, old_state_dict, robot_no)[action_no] == 1):
         return 0
 
-    reward = 0
+    reward = -0.01
     
     if (action_no==3):
         reward += 0.01

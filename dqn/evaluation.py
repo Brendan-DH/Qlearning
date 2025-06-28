@@ -118,7 +118,7 @@ def evaluate_model_by_trial_MA(dqn, num_episodes, env, max_steps, canonical_fing
             new_obs_state, reward, terminated, truncated, info = env.step(action)
             new_obs_state["fingerprint"] = canonical_fingerprint
             if render:
-                print(robot_no, str(new_obs_state["robot engagement"]).replace(",", "\n"))
+                print(robot_no, action, reward)
             # new_obs_state["episode"] = canonical_episode
 
             states.append(env.unwrapped.state_dict)
