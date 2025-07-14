@@ -64,8 +64,8 @@ This will evaluate the policy by trial, construct a DTMC representing the policy
 | num\_hidden\_layers           | 2            | For the DQN
 | batch\_size                   | 256          | For the priority replay memory
 | buffer\_size                  | 100000       | For the priority replay memory
-| memory\_sort\_frequency       | 5            | For the priority replay memory
-| optimisation\_frequency       | 10           | For the DQN
+| memory\_sort\_frequency       | 5            | For the priority replay memory (in training episodes)
+| optimisation\_frequency       | 10           | For the DQN (in environment steps)
 | num\_training\_episodes       | 1000         | Training parameter
 | max\_steps                    | 1000         | Training parameter
 | epsilon\_decay\_type          | exponential  | The form of the epsilon (exploration rate) decay: exponential or linear |
