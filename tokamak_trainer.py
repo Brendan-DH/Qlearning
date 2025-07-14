@@ -119,7 +119,7 @@ if multiagent:
                                                         gamma=float(input_dict["gamma"]),
                                                         num_episodes=int(input_dict["num_training_episodes"]),
                                                         tau=float(input_dict["tau"]),
-                                                        use_pseudorewards=input_dict["use_pseudorewards"].lower() == "y",
+                                                        use_pseudorewards=False,
                                                         plot_frequency=int(input_dict["plot_frequency"]),
                                                         memory_sort_frequency=int(input_dict["memory_sort_frequency"]),
                                                         max_steps=int(input_dict["max_steps"]),

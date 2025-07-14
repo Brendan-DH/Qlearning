@@ -91,28 +91,30 @@ storm_dir_contents = os.listdir(os.getcwd() + "/outputs/storm_files")
 
 verification_properties = []
 
-if input_dict["evaluation_type"] == "mdp":
-    output_name = f"mdp_of_{load_weights_file}"
-    verification_properties.append('Rmin=?[F "done"]')
-    if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
-        print("Generating MDP file")
-        generate_mdp_file(os.getcwd() + "/outputs/saved_weights/" + load_weights_file, env, mdpt, output_name)
-    else:
-        print(f"Found {output_name} files in outputs/storm_files. Will not generate a new one.")
-elif input_dict["evaluation_type"] == "dtmc":
-    output_name = f"dtmc_of_{load_weights_file}"
-    verification_properties.append('P=?[F "done"]') # probability of achieving goal
-    verification_properties.append('R=?[F "done" || F "done"]')  # the reward for getting done, provided it gets there
-    if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
-        print("Generating DTMC file")
-        generate_dtmc_file(weights_file = os.getcwd() + "/outputs/saved_weights/" + load_weights_file, 
-                           env = env,
-                           system_logic = mdpt,
-                           output_name = output_name,
-                           canonical_fingerprint=float(input_dict["canonical_fingerprint"]),
-                           order=input_dict["mc_order"])
-    else:
-        print(f"Found {output_name} files in outputs/storm_files. Will not generation a new one.")
+# if input_dict["evaluation_type"] == "mdp":
+#     output_name = f"mdp_of_{load_weights_file}"
+#     verification_properties.append('Rmin=?[F "done"]')
+#     if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
+#         print("Generating MDP file")
+#         generate_mdp_file(os.getcwd() + "/outputs/saved_weights/" + load_weights_file, env, mdpt, output_name)
+#     else:
+#         print(f"Found {output_name} files in outputs/storm_files. Will not generate a new one.")
+
+# input_dict["evaluation_type"] == "dtmc":
+
+output_name = f"dtmc_of_{load_weights_file}"
+verification_properties.append('P=?[F "done"]') # probability of achieving goal
+verification_properties.append('R=?[F "done" || F "done"]')  # the reward for getting done, provided it gets there
+if output_name + ".tra" not in storm_dir_contents or output_name + ".lab" not in storm_dir_contents or output_name + ".transrew" not in storm_dir_contents:
+    print("Generating DTMC file")
+    generate_dtmc_file(weights_file = os.getcwd() + "/outputs/saved_weights/" + load_weights_file, 
+                        env = env,
+                        system_logic = mdpt,
+                        output_name = output_name,
+                        canonical_fingerprint=float(input_dict["canonical_fingerprint"]),
+                        order="LIFO")
+else:
+    print(f"Found {output_name} files in outputs/storm_files. Will not generation a new one.")
 
 check_dtmc(f"outputs/storm_files/{output_name}.tra", verbose=True)
 with open(f"outputs/storm_files/{output_name}.lab", "r") as f:
