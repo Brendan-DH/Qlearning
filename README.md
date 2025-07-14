@@ -15,7 +15,7 @@ This repo contains:
 
 - Modularised system logic which defines the logic of the robotic maintenance system and its environment.
 
-- A Deep Q Network (DQN) trainer which learns the ideal control policy for the scenario.
+- A multi-agent Deep Q Network (DQN) trainer which learns the ideal control policy for the scenario.
 
 - A DQN -> Markov process translator, which allows the user to verify properties of the learnt policy.
 
