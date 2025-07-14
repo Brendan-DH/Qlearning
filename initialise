@@ -1,45 +1,44 @@
 #!/bin/bash
 
 
-# load modules
-module purge
-module load Python/3.11.3-GCCcore-12.3.0 
-module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
-
 if test -f .initialised; then
 # set up venv
 echo "Already initialised. Remove '.initialised' to force re-initialisation."
 
 else
 
-python3.11 -m venv .venv
-source .venv/bin/activate
-python3.11 -m pip install -r requirements.txt
+if command -v module &> /dev/null; then
+    module purge
+    module load Python/3.11.3-GCCcore-12.3.0 
+    module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
+fi
+
+echo "Cannot load modules using 'module'. Make sure you have python3.11 and pytorch installed."
+
+if test ! -d .venv; then
+    echo "Creating .venv"
+    python3.11 -m venv .venv
+    source .venv/bin/activate
+fi
+
+echo "Installing from requirements.txt"
+python3.11 -m pip install -r requirements.txt --quiet --disable-pip-version-check
 
 ROOTDIR="$PWD"
 
 # configure gym environments
-ln -s .venv/lib/python3.11/site-packages/gymnasium gymnasium
-cd $PWD/gymnasium/envs
-ln -s $ROOTDIR/environments tokamak
-cd $ROOTDIR
-
-if grep -q "Tokamak-v16" $ROOTDIR/gymnasium/envs/__init__.py
-then
-    echo "Tokamak-v16: Environment already registered"
-else
-echo "    
-register(
-id='Tokamak-v16',
-entry_point='gymnasium.envs.tokamak.tokamakenv16:TokamakEnv16',
-max_episode_steps=1000,
-)">> $ROOTDIR/gymnasium/envs/__init__.py
-echo "Registered Tokamak-v16"
+if ! test -L gymnasium; then
+    ln -s .venv/lib/python3.11/site-packages/gymnasium gymnasium 
 fi
+if ! test -L $PWD/gymnasium/envs/tokamak; then
+    cd $PWD/gymnasium/envs
+    ln -s $ROOTDIR/environments tokamak
+    cd $ROOTDIR
+fi 
 
 if grep -q "TokamakMA-v2" $ROOTDIR/gymnasium/envs/__init__.py
 then
-    echo "Environment already registered"
+    echo "Environment TokamakMA-v2 already registered"
 else
 echo "
 register(
@@ -47,13 +46,13 @@ id='TokamakMA-v2',
 entry_point='gymnasium.envs.tokamak.tokamakenvMA2:TokamakEnvMA2',
 max_episode_steps=2000,
 )">> $ROOTDIR/gymnasium/envs/__init__.py
-echo "Registered TokamakMA-v2"
+echo "Registered multi-agent environment (TokamakMA-v2)"
 fi
 
 
 if grep -q "Tokamak-v17" $ROOTDIR/gymnasium/envs/__init__.py
 then
-    echo "Environment already registered"
+    echo "Environment Tokamak-v17 already registered"
 else
 echo "
 register(
@@ -61,19 +60,21 @@ id='Tokamak-v17',
 entry_point='gymnasium.envs.tokamak.tokamakenv17:TokamakEnv17',
 max_episode_steps=1000,
 )">> $ROOTDIR/gymnasium/envs/__init__.py
-echo "Registered Tokamak-v17"
+echo "Registered single-agent environment (Tokamak-v17)"
 fi
 
-# create outputs directory
-mkdir $ROOTDIR/outputs
-mkdir $ROOTDIR/outputs/plots
-mkdir $ROOTDIR/outputs/checkpoints
-mkdir $ROOTDIR/outputs/storm_files
-mkdir $ROOTDIR/outputs/saved_weights
 
-mkdir $ROOTDIR/inputs/
+# create outputs directory
+mkdir -p $ROOTDIR/outputs
+mkdir -p $ROOTDIR/outputs/plots
+mkdir -p $ROOTDIR/outputs/checkpoints
+mkdir -p $ROOTDIR/outputs/storm_files
+mkdir -p $ROOTDIR/outputs/saved_weights
+mkdir -p $ROOTDIR/inputs/
 
 fi
 
 source .venv/bin/activate
 touch .initialised
+
+echo "Initialisation complete."
